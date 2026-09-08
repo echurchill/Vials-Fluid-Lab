@@ -44,5 +44,5 @@ All copied game source, scripts, and assets match the source snapshot.
 
 Prototype 01 passes unsigned macOS and iOS builds and offscreen fluid/geometry checks.
 Run `bash Scripts/validate_fluid_lab.sh` to reproduce the automated checks.
-Live-window verification remains pending because the Mac was locked during that check.
+Live macOS controls and pouring were checked on September 8, 2026, including pause/reset, material selection, diagnostics, camera orbit, window zoom, and Classic return. No application-code fixes were required.
 See the prototype report for capture losses, GPU timings, and remaining limitations.

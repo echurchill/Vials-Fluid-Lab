@@ -48,7 +48,16 @@ Checks passed:
 - A portrait viewport at 30 render updates per simulated second, including a pour requested immediately after initialization.
 - Unsigned Debug builds for macOS and iOS with Xcode 27.0 (27A5237l).
 
-**Live-window validation is incomplete.** The native app launched and its controls were accessible, but the Mac was locked when the on-screen animation check was attempted. The temporary test app was stopped afterward. The images below are actual offscreen renderer output, not screenshots of a completed interactive test. On-device performance, touch interaction, sustained thermal behavior, and visionOS presentation still need verification.
+**Live macOS checks completed September 8, 2026**, after the Mac was unlocked, using the prototype build from commit `8b21274`:
+
+- Water pour advanced through the animated sequence to **Pour complete**. The live display reported 0.00 units in the source, 2.87 units in the receiver, 134 particles on the tray, and none in flight, consistent with the offscreen spill measurements.
+- Pause/resume worked after a pour and during an active Thick pour. Reset during that interrupted pour restored 3.00 source units, an empty receiver, zero tray particles, and the enabled Pour button.
+- Water, Thick, and Two dyes selection updated the selected preset and reset the experiment. The Two dyes explanatory text appeared correctly.
+- Particle diagnostics and camera orbit responded while paused. Normal and zoomed window sizes kept the experiment and controls available.
+- Classic opened during a Two dyes pour. Returning to Fluid Lab resumed the sequence from the lifting phase; the subsequent live reading reached settling with 2.87 receiver units. This also exercised pausing while the Classic sheet was open.
+- The app was left open on a reset, paused Water scene, with diagnostics closed. **Pour liquid** resumes it directly.
+
+No application-code changes were needed from these checks. The UI automation supplied low-resolution screenshots, so these checks establish interactive behavior and broad rendering/layout, not a pixel-level visual-quality review. The images below remain actual offscreen renderer captures. iPhone/iPad runtime, touch interaction, sustained thermal behavior, and visionOS presentation still need verification.
 
 **Known limits and next work**
 
