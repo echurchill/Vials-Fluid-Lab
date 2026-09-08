@@ -1,0 +1,31 @@
+{
+  "device" : "Apple M4",
+  "errors" : [
+
+  ],
+  "fixture" : "partial",
+  "fps" : 60,
+  "funnelEnabled" : true,
+  "maximumVesselPenetration" : 0,
+  "moves" : [
+    {
+      "arrivalBeforeCorrection" : 0.99687498807907104,
+      "committed" : true,
+      "correctedParticles" : 2,
+      "destination" : 1,
+      "durationSeconds" : 7.1833333969116211,
+      "frameMedianMs" : 3.9969682693481445,
+      "gpuMedianMs" : 3.0731250008102506,
+      "guidedParticles" : 8,
+      "move" : 0,
+      "source" : 0,
+      "units" : 1
+    }
+  ],
+  "particles" : 5120,
+  "playbackSpeed" : 1,
+  "resolution" : [
+    1000,
+    650
+  ]
+}

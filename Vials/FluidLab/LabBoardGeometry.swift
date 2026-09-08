@@ -3,6 +3,25 @@ import simd
 
 struct LabBoardBand { var range: SIMD4<Float> } // bounds, enabled, coordinate space (1 = vial-local Y)
 
+/// Motion timing is independent of the fixed 120 Hz fluid solver.
+enum LabBoardTiming {
+    static let preparation:Float = 0.10
+    static let lift:Float = 0.50
+    static let travel:Float = 0.45
+    static let tiltStart = lift + travel
+    static let stop:Float = 0.20
+    static let upright:Float = 0.50
+    static let untilted = stop + upright
+    static let returnTravel:Float = 0.45
+    static let lower:Float = 0.45
+    static let returned = returnTravel + lower
+    static let settling:Float = 0.20
+    static let cleanup:Float = 0.35 // retains the 0.3-second particle fade
+    static let approachRate:Float = 1.10
+    static let pouringRate:Float = 0.80
+    static let timeout:Float = 12
+}
+
 struct LabBoardLayout {
     static let homes:[SIMD3<Float>]=[-3.3,-1.1,1.1,3.3].map { SIMD3($0,0.18,0) }
     static func profiles() -> [LabVesselProfile] {
@@ -28,26 +47,26 @@ struct LabBoardLayout {
             let highHome=home+SIMD3<Float>(0,2.65,0)
             let highLip=receiver-direction*0.22+SIMD3<Float>(0,highHome.y+h-receiver.y,0)
             let pouringLip=SIMD3<Float>(highLip.x,receiver.y+profiles[move.destination].height+0.59,highLip.z)
-            var position=simd_mix(home,highHome,SIMD3(repeating:labSmooth(time/1.5)))
-            if time>=1.5 { position=simd_mix(highHome,highLip-SIMD3(0,h,0),SIMD3(repeating:labSmooth((time-1.5)/1.4))) }
+            var position=simd_mix(home,highHome,SIMD3(repeating:labSmooth(time/LabBoardTiming.lift)))
+            if time>=LabBoardTiming.lift { position=simd_mix(highHome,highLip-SIMD3(0,h,0),SIMD3(repeating:labSmooth((time-LabBoardTiming.lift)/LabBoardTiming.travel))) }
             func lip(_ tilt:Float) -> SIMD3<Float> {
                 simd_mix(highLip,pouringLip,SIMD3(repeating:labSmooth((tilt-0.55)/0.95)))
             }
-            if time>=2.9 { position=lip(tilt)-(rotation(tilt)*SIMD4<Float>(0,h,0,0)).xyz }
+            if time>=LabBoardTiming.tiltStart { position=lip(tilt)-(rotation(tilt)*SIMD4<Float>(0,h,0,0)).xyz }
             if let initial=cutoffTilt {
                 let initialLip=lip(initial)
-                if cutoffElapsed<0.8 { position=initialLip-(rotation(tilt)*SIMD4<Float>(0,h,0,0)).xyz }
+                if cutoffElapsed<LabBoardTiming.stop { position=initialLip-(rotation(tilt)*SIMD4<Float>(0,h,0,0)).xyz }
                 else {
                     let stopped=max(0,initial-0.45)
                     let pivot=initialLip-(rotation(stopped)*SIMD4<Float>(0,h,0,0)).xyz
-                    position=simd_mix(pivot,SIMD3(pivot.x,highHome.y,pivot.z),SIMD3(repeating:labSmooth((cutoffElapsed-0.8)/1.8)))
+                    position=simd_mix(pivot,SIMD3(pivot.x,highHome.y,pivot.z),SIMD3(repeating:labSmooth((cutoffElapsed-LabBoardTiming.stop)/LabBoardTiming.upright)))
                 }
             }
             if let back=returnElapsed,let initial=cutoffTilt {
                 let pivot=lip(initial)-(rotation(max(0,initial-0.45))*SIMD4<Float>(0,h,0,0)).xyz
                 let raised=SIMD3<Float>(pivot.x,highHome.y,pivot.z)
-                position=simd_mix(raised,highHome,SIMD3(repeating:labSmooth(back/1.4)))
-                position=simd_mix(position,home,SIMD3(repeating:labSmooth((back-1.4)/1.5)))
+                position=simd_mix(raised,highHome,SIMD3(repeating:labSmooth(back/LabBoardTiming.returnTravel)))
+                position=simd_mix(position,home,SIMD3(repeating:labSmooth((back-LabBoardTiming.returnTravel)/LabBoardTiming.lower)))
             }
             positions[move.source]=position;rotations[move.source]=rotation(tilt)
         }

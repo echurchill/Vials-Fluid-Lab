@@ -1,0 +1,83 @@
+{
+  "device" : "Apple M4",
+  "errors" : [
+
+  ],
+  "fixture" : "level",
+  "fps" : 30,
+  "funnelEnabled" : true,
+  "maximumVesselPenetration" : 0,
+  "moves" : [
+    {
+      "arrivalBeforeCorrection" : 0.99687498807907104,
+      "committed" : true,
+      "correctedParticles" : 4,
+      "destination" : 3,
+      "durationSeconds" : 7.4000000953674316,
+      "frameMedianMs" : 8.3169937133789062,
+      "gpuMedianMs" : 6.3534166692988947,
+      "guidedParticles" : 22,
+      "move" : 0,
+      "source" : 0,
+      "units" : 2
+    },
+    {
+      "arrivalBeforeCorrection" : 0.97578126192092896,
+      "committed" : true,
+      "correctedParticles" : 31,
+      "destination" : 0,
+      "durationSeconds" : 7.7666668891906738,
+      "frameMedianMs" : 9.4239711761474609,
+      "gpuMedianMs" : 6.5827500075101852,
+      "guidedParticles" : 76,
+      "move" : 1,
+      "source" : 1,
+      "units" : 2
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99374997615814209,
+      "committed" : true,
+      "correctedParticles" : 4,
+      "destination" : 3,
+      "durationSeconds" : 7.4333333969116211,
+      "frameMedianMs" : 9.4170570373535156,
+      "gpuMedianMs" : 6.536958331707865,
+      "guidedParticles" : 28,
+      "move" : 2,
+      "source" : 2,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99843752384185791,
+      "committed" : true,
+      "correctedParticles" : 1,
+      "destination" : 0,
+      "durationSeconds" : 7.9666666984558105,
+      "frameMedianMs" : 9.0450048446655273,
+      "gpuMedianMs" : 6.3487500010523945,
+      "guidedParticles" : 9,
+      "move" : 3,
+      "source" : 2,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99687498807907104,
+      "committed" : true,
+      "correctedParticles" : 2,
+      "destination" : 3,
+      "durationSeconds" : 7.6333332061767578,
+      "frameMedianMs" : 7.8140497207641602,
+      "gpuMedianMs" : 6.4946666680043563,
+      "guidedParticles" : 6,
+      "move" : 4,
+      "source" : 1,
+      "units" : 1
+    }
+  ],
+  "particles" : 5120,
+  "playbackSpeed" : 1,
+  "resolution" : [
+    600,
+    760
+  ]
+}

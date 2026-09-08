@@ -67,6 +67,31 @@ float4 collide(float4 point, constant Vessel *vessels, device const float *profi
     return float4(p,float(owner));
 }
 
+// A temporary, invisible cone guides near-misses above the active mouth.
+// It only redirects selected airborne liquid; ownership still changes at
+// the real opening, and particles below the lip are never pulled back.
+float4 boardGuide(float4 point, constant Uniforms &u, constant Vessel *vessels,
+                  device const float *profiles, bool eligible) {
+    if (!(u.options.w&32u) || !eligible || point.w>=0) return point;
+    for (uint owner=0;owner<u.options.z;owner++) {
+        constant Vessel &v=vessels[owner];
+        if (v.dimensions.w!=2) continue;
+        float3 local=(v.inverseWorld*float4(point.xyz,1)).xyz;
+        float above=local.y-v.dimensions.x;
+        const float height=0.55f, apron=0.28f;
+        if (above<0 || above>height) return point;
+        float mouth=radiusAt(v.dimensions.x,v,profiles)-0.025f;
+        float radial=length(local.xz),outer=mouth+apron;
+        float cone=mouth+apron*(above/height);
+        if (radial>cone && radial<=outer) {
+            local.xz*=cone/max(radial,0.0001f);
+            point.xyz=(v.world*float4(local,1)).xyz;
+        }
+        return point;
+    }
+    return point;
+}
+
 bool boardFrozen(Particle p, constant Uniforms &u) {
     int owner=int(round(p.position.w));
     return (u.options.w&1u) && owner>=0 && ((u.options.w>>(owner+1))&1u)==0;
@@ -80,7 +105,10 @@ kernel void labPredict(device Particle *p [[buffer(0)]], constant Uniforms &u [[
     velocity.y-=9.81f*u.physics.x;
     float speed=length(velocity);
     if (speed>7) velocity*=7/speed;
-    p[i].predicted=collide(float4(p[i].position.xyz+velocity*u.physics.x,p[i].position.w),v,profiles,max(2u,u.options.z),(u.options.w&1u)!=0,p[i].visual.z>0.5f);
+    float4 proposed=float4(p[i].position.xyz+velocity*u.physics.x,p[i].position.w);
+    float4 guided=boardGuide(proposed,u,v,profiles,p[i].visual.z>0.5f);
+    if (distance(guided.xyz,proposed.xyz)>0.00001f) p[i].visual.w=1;
+    p[i].predicted=collide(guided,v,profiles,max(2u,u.options.z),(u.options.w&1u)!=0,p[i].visual.z>0.5f);
 }
 kernel void labClearHeads(device atomic_int *heads [[buffer(0)]], uint i [[thread_position_in_grid]]) {
     if(i<gridCount) atomic_store_explicit(&heads[i],-1,memory_order_relaxed);
@@ -143,7 +171,11 @@ kernel void labDelta(device const Particle *p [[buffer(0)]], constant Uniforms &
 kernel void labApply(device Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]],
                      constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]],
                      device const float4 *deltas [[buffer(4)]], uint i [[thread_position_in_grid]]) {
-    if(i<u.options.x && !boardFrozen(p[i],u)) p[i].predicted=collide(p[i].predicted+deltas[i],v,profiles,max(2u,u.options.z),(u.options.w&1u)!=0,p[i].visual.z>0.5f);
+    if(i>=u.options.x || boardFrozen(p[i],u)) return;
+    float4 proposed=p[i].predicted+deltas[i];
+    float4 guided=boardGuide(proposed,u,v,profiles,p[i].visual.z>0.5f);
+    if (distance(guided.xyz,proposed.xyz)>0.00001f) p[i].visual.w=1;
+    p[i].predicted=collide(guided,v,profiles,max(2u,u.options.z),(u.options.w&1u)!=0,p[i].visual.z>0.5f);
 }
 kernel void labVelocity(device const Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]],
                         constant Vessel *vessels [[buffer(2)]], device const float *profiles [[buffer(3)]],

@@ -20,4 +20,6 @@ for lab_fixture in level shortest three partial last pear; do
 done
 "$lab_output/validate-fluid-board" --library "$lab_library" \
   --fps 30 --width 600 --height 760 --output "$lab_output/portrait-30fps"
+"$lab_output/validate-fluid-board" --library "$lab_library" \
+  --fixture last --speed 0.35 --output "$lab_output/slow-motion"
 printf 'Board validation reports and captures: %s\n' "$lab_output"

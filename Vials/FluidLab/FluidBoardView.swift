@@ -177,6 +177,7 @@ struct FluidBoardView:View {
             Text("BOARD STUDY").font(.system(size:9,weight:.bold,design:.monospaced)).tracking(2)
             Text("\(session.renderer?.particleCount ?? 0) particles · \(session.metrics.gpuMilliseconds,specifier:"%.1f") ms GPU")
             Text("Outside: \(session.metrics.outside) · Wrong layer: \(session.metrics.wrongParcel)")
+            Text("Pour assist: \(session.metrics.guided) particles")
             if session.captured>0 { Text("Captured: \(session.captured*100,specifier:"%.1f")% · Cleanup: \(session.correction)") }
             Toggle("Slow motion",isOn:$session.slow).toggleStyle(.switch).controlSize(.mini)
             Toggle("Show particles",isOn:$session.points).toggleStyle(.switch).controlSize(.mini)

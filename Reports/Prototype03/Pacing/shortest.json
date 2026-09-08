@@ -1,0 +1,70 @@
+{
+  "device" : "Apple M4",
+  "errors" : [
+
+  ],
+  "fixture" : "shortest",
+  "fps" : 60,
+  "funnelEnabled" : true,
+  "maximumVesselPenetration" : 0,
+  "moves" : [
+    {
+      "arrivalBeforeCorrection" : 0.99453127384185791,
+      "committed" : true,
+      "correctedParticles" : 7,
+      "destination" : 2,
+      "durationSeconds" : 7.3499999046325684,
+      "frameMedianMs" : 4.6200752258300781,
+      "gpuMedianMs" : 3.5652499936986715,
+      "guidedParticles" : 20,
+      "move" : 0,
+      "source" : 0,
+      "units" : 2
+    },
+    {
+      "arrivalBeforeCorrection" : 0.97265625,
+      "committed" : true,
+      "correctedParticles" : 35,
+      "destination" : 0,
+      "durationSeconds" : 7.7333331108093262,
+      "frameMedianMs" : 4.2699575424194336,
+      "gpuMedianMs" : 3.4702499979175627,
+      "guidedParticles" : 65,
+      "move" : 1,
+      "source" : 1,
+      "units" : 2
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99427086114883423,
+      "committed" : true,
+      "correctedParticles" : 11,
+      "destination" : 1,
+      "durationSeconds" : 7.75,
+      "frameMedianMs" : 4.3859481811523438,
+      "gpuMedianMs" : 3.5619166737888008,
+      "guidedParticles" : 2,
+      "move" : 2,
+      "source" : 2,
+      "units" : 3
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99114584922790527,
+      "committed" : true,
+      "correctedParticles" : 17,
+      "destination" : 2,
+      "durationSeconds" : 8.0833330154418945,
+      "frameMedianMs" : 4.7539472579956055,
+      "gpuMedianMs" : 3.709500000695698,
+      "guidedParticles" : 14,
+      "move" : 3,
+      "source" : 0,
+      "units" : 3
+    }
+  ],
+  "particles" : 5120,
+  "playbackSpeed" : 1,
+  "resolution" : [
+    1000,
+    650
+  ]
+}

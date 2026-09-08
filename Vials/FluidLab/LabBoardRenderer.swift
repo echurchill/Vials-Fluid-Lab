@@ -3,6 +3,7 @@ import MetalKit
 import simd
 
 struct LabBoardMetrics {
+    var guided=0
     var arrived=0
     var departed=0
     var outside=0
@@ -35,6 +36,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private(set) var arrivalBeforeCorrection:Float=0
     private(set) var lastOutcome=""
     private var layerBands:[LabBoardBand]=[]
+    var funnelEnabled=true
     var paused=false
     var pointMode=false
     var orbit:Float=0.12
@@ -179,8 +181,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         guard let move=game.begin(from:from,to:to) else { return false }
         let ids=Set(move.parcels)
         let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
-        for i in 0..<particleCount { p[i].visual.z=ids.contains(Int(p[i].visual.y)) ? 1:0; p[i].velocity=SIMD4(0,0,0,p[i].velocity.w) }
-        pourTime = -0.8 // settle the newly active pair before moving it
+        for i in 0..<particleCount { p[i].visual.w=0; p[i].visual.z=ids.contains(Int(p[i].visual.y)) ? 1:0; p[i].velocity=SIMD4(0,0,0,p[i].velocity.w) }
+        pourTime = -LabBoardTiming.preparation // settle the newly active pair before moving it
         return true
     }
     @discardableResult func undo() -> Bool {
@@ -194,24 +196,24 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         if game.state.solved { return "Sorted beautifully" }
         guard let t=pourTime,let move=game.pending else { return lastOutcome.isEmpty ? "Choose a vial":lastOutcome }
         if cleanupStart != nil { return "Final settling" }
-        if let start=returnStart { return t-start<2.9 ? "Returning the vial":"Settling the layers" }
+        if let start=returnStart { return t-start<LabBoardTiming.returned ? "Returning the vial":"Settling the layers" }
         if cutoffTime != nil { return "Stopping the stream" }
         if t<0 { return "Preparing the pour" }
-        if t<1.5 { return "Lifting the vial" }
-        if t<2.9 { return "Moving into position" }
+        if t<LabBoardTiming.lift { return "Lifting the vial" }
+        if t<LabBoardTiming.tiltStart { return "Moving into position" }
         return "Pouring \(move.amount) \(move.amount == 1 ? "unit":"units")"
     }
     private func advancePose() {
         guard let t=pourTime,game.pending != nil else { return }
         if let stop=cutoffTime {
             let elapsed=t-stop
-            if elapsed<0.8 { tilt=cutoffTilt-min(0.45,cutoffTilt)*labSmooth(elapsed/0.8) }
-            else { tilt=max(0,cutoffTilt-0.45)*(1-labSmooth((elapsed-0.8)/1.8)) }
-            if elapsed>=2.6,returnStart == nil { returnStart=t }
-        } else if t>=2.9 {
-            let rate:Float=lastMetrics.departed<20 ? 0.45:0.20
+            if elapsed<LabBoardTiming.stop { tilt=cutoffTilt-min(0.45,cutoffTilt)*labSmooth(elapsed/LabBoardTiming.stop) }
+            else { tilt=max(0,cutoffTilt-0.45)*(1-labSmooth((elapsed-LabBoardTiming.stop)/LabBoardTiming.upright)) }
+            if elapsed>=LabBoardTiming.untilted,returnStart == nil { returnStart=t }
+        } else if t>=LabBoardTiming.tiltStart {
+            let rate:Float=lastMetrics.departed<20 ? LabBoardTiming.approachRate:LabBoardTiming.pouringRate
             tilt=min(2.15,tilt+rate*timeStep)
-            if t>24 { cutoffTime=t;cutoffTilt=tilt }
+            if t>LabBoardTiming.timeout { cutoffTime=t;cutoffTilt=tilt }
         }
     }
     private func updateTransfer() {
@@ -222,7 +224,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             cutoffTime=t;cutoffTilt=tilt
         }
         if let cleanup=cleanupStart {
-            if t-cleanup>=1.0 {
+            if t-cleanup>=LabBoardTiming.cleanup {
                 let samples=particleSamples()
                 if let after=game.state.applying(move),inventoryMatches(samples,state:after) {
                     normalizeOrder(state:after)
@@ -231,7 +233,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 } else { rollback(message:"That pour needs another try") }
                 pourTime=nil;tilt=0;previousWorlds=[];pausedSignature=nil
             }
-        } else if let back=returnStart,t-back>4.0 {
+        } else if let back=returnStart,t-back>LabBoardTiming.returned+LabBoardTiming.settling {
             let missing=target-lastMetrics.arrived
             arrivalBeforeCorrection=Float(lastMetrics.arrived)/Float(target)
             if missing>=0,missing<=Int(Float(target)*0.05),lastMetrics.wrongParcel==0,lastMetrics.nonFinite==0 {
@@ -329,6 +331,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let id=Int(a.visual.y),owner=Int(a.position.w)
             if owner<0 { result.outside+=1 }
             if selected.contains(id),let move=game.pending {
+                if a.visual.w>0.5 { result.guided+=1 }
                 if owner==move.destination { result.arrived+=1 }
                 if owner != move.source { result.departed+=1 }
             } else if originalOwners.indices.contains(id),owner != originalOwners[id] { result.wrongParcel+=1 }
@@ -422,7 +425,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let (vp,view,eye) = LabBoardLayout.camera(aspect:Float(target.width)/Float(target.height), azimuth:orbit)
         var u = LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
             viewport:SIMD4(Float(target.width),Float(target.height),pointMode ? spacing*0.30 : spacing*0.88,simulationTime),
-            physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,4,1 | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
+            physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,4,1 | (funnelEnabled ? 32:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
         if !paused && !resting {
             accumulator += min(max(deltaTime,0),1.0/20)*playbackSpeed
             var steps = 0

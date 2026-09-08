@@ -2,7 +2,7 @@
 
 Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 03 opens a playable four-vial sorting board. **Other experiments** contains the earlier **Pour study** and the original **Classic game**.
 
-See [prototype review notes, measured results, and captures](Reports/Prototype03/README.md).
+See [prototype review notes, measured results, and captures](Reports/Prototype03/Pacing/README.md).
 
 Open `Vials Fluid Lab.xcodeproj` and select the shared **Vials Fluid Lab** scheme.
 The target/product is `VialsFluidLab`; the installed display name is **Vials Fluid Lab**.
@@ -42,6 +42,6 @@ All copied game source, scripts, and assets match the source snapshot.
 
 ## Prototype verification
 
-Prototype 03 passes unsigned macOS and iOS builds and 18 offscreen transfers covering full solutions, variable amounts, destination capacity, different shapes, colored layers, exact undo, pause, and reset. The worst measured board cleanup was 0.313% of the intended transfer. Run `bash Scripts/validate_fluid_board.sh` to reproduce the checks.
+Prototype 03 passes unsigned macOS and iOS builds and 19 offscreen transfers covering full solutions, variable amounts, destination capacity, different shapes, colored layers, exact undo, pause, and reset. The updated pacing and invisible pour assist complete normal-speed turns in about 7–8 seconds, with at most 2.74% cleanup in the measured fixtures. Run `bash Scripts/validate_fluid_board.sh` to reproduce the checks.
 
-The retained Prototype 02 pour study passes its shared-shader regression fixture; `bash Scripts/validate_fluid_lab.sh` runs its full suite. Physical iPad testing remains pending. See [Prototype 03 notes](Reports/Prototype03/README.md) for measurements, captures, and visual/physics limitations.
+The retained Prototype 02 pour study passes its shared-shader regression fixture; `bash Scripts/validate_fluid_lab.sh` runs its full suite. The user successfully tested the previous playable build on iPad; the faster build awaits a fresh iPad play check. See [pacing and pour-assist results](Reports/Prototype03/Pacing/README.md) and [Prototype 03 notes](Reports/Prototype03/README.md) for measurements, captures, and visual/physics limitations.

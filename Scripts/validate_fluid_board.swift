@@ -21,6 +21,8 @@ import AppKit
         if fixture == "three" { renderer.reset(state:LabBoardState(layers:[[0,1,1,1],[],[],[]])) }
         if fixture == "partial" { renderer.reset(state:LabBoardState(layers:[[0,0],[0,0,0],[],[]])) }
         if fixture == "last" { renderer.reset(state:LabBoardState(layers:[[0],[],[],[]])) }
+        renderer.funnelEnabled = !args.contains("--no-funnel")
+        renderer.playbackSpeed=Float(option("--speed","1"))!
         let initial=renderer.game.state
         // Exact rules: incompatible colors, empty source, same vial, capacity.
         if initial.move(from:0,to:0) != nil || initial.move(from:-1,to:0) != nil { errors.append("Illegal move accepted") }
@@ -46,7 +48,9 @@ import AppKit
             if renderer.undo() { errors.append("Undo accepted during a pour") }
             renderer.paused=false
             var gpu:[Double]=[],wall:[Double]=[]
+            var duration:Float=0
             for frame in 0..<Int(fps*36) {
+                duration=Float(frame+1)/fps
                 let start=Date()
                 let command=renderer.encodeFrame(target:texture,deltaTime:1/fps)
                 command.waitUntilCompleted()
@@ -71,10 +75,11 @@ import AppKit
                     print("move \(index) frame \(frame) \(renderer.phase) tilt \(renderer.tilt) arrived \(metrics.arrived)/\(expected.amount*LabBoardRenderer.particlesPerUnit) outside \(metrics.outside)")
                     fflush(stdout)
                 }
-                if frame == Int(fps*8) || frame == Int(fps*12) { try save(texture,to:output.appendingPathComponent("move-\(index)-\(frame).png")) }
+                if frame == Int(fps*3/renderer.playbackSpeed) || frame == Int(fps*5/renderer.playbackSpeed) { try save(texture,to:output.appendingPathComponent("move-\(index)-\(frame).png")) }
                 if renderer.game.pending == nil { break }
             }
             gpu.sort();wall.sort()
+            if duration*renderer.playbackSpeed>8.5 { errors.append("Turn exceeded the 8.5-second pacing budget") }
             let committed=renderer.game.moveCount == index+1
             if committed && observedCommits != renderer.game.moveCount { errors.append("Commit did not notify the UI before resting") }
             if !committed { errors.append("Move \(index) did not commit: \(renderer.lastOutcome)") }
@@ -102,7 +107,7 @@ import AppKit
                     if group.contains(where: { Int($0.position.w) != owner }) { errors.append("Unit in wrong vessel after cleanup") }
                 }
             }
-            results.append(["move":index,"source":pair.0,"destination":pair.1,"units":expected.amount,"arrivalBeforeCorrection":renderer.arrivalBeforeCorrection,"correctedParticles":renderer.correctionCount,"committed":committed,"gpuMedianMs":gpu.isEmpty ? 0:gpu[gpu.count/2],"frameMedianMs":wall.isEmpty ? 0:wall[wall.count/2]])
+            results.append(["guidedParticles":renderer.lastMetrics.guided,"durationSeconds":duration,"move":index,"source":pair.0,"destination":pair.1,"units":expected.amount,"arrivalBeforeCorrection":renderer.arrivalBeforeCorrection,"correctedParticles":renderer.correctionCount,"committed":committed,"gpuMedianMs":gpu.isEmpty ? 0:gpu[gpu.count/2],"frameMedianMs":wall.isEmpty ? 0:wall[wall.count/2]])
             try save(texture,to:output.appendingPathComponent("after-\(index).png"))
             if !errors.isEmpty { break }
         }
@@ -123,7 +128,7 @@ import AppKit
         for _ in 0..<30 { renderer.encodeFrame(target:texture,deltaTime:1/fps).waitUntilCompleted() }
         renderer.reset()
         if renderer.game.pending != nil || renderer.game.moveCount != 0 || renderer.game.state != .firstSort || zip(resetParticles,renderer.particleSamples()).contains(where: { $0.position != $1.position }) { errors.append("Reset failed to cancel and restore") }
-        let report:[String:Any]=["fixture":fixture,"device":device.name,"fps":fps,"resolution":[width,height],"particles":renderer.particleCount,"maximumVesselPenetration":maxPenetration,"moves":results,"errors":errors]
+        let report:[String:Any]=["playbackSpeed":renderer.playbackSpeed,"funnelEnabled":renderer.funnelEnabled,"fixture":fixture,"device":device.name,"fps":fps,"resolution":[width,height],"particles":renderer.particleCount,"maximumVesselPenetration":maxPenetration,"moves":results,"errors":errors]
         try JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]).write(to:output.appendingPathComponent("report.json"))
         print("REPORT \(output.path)/report.json")
         if !errors.isEmpty { print(errors.joined(separator:"\n"));exit(1) }
