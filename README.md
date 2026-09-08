@@ -1,8 +1,8 @@
 # Vials Fluid Lab
 
-Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 02 now opens as the default screen; the original sorting game remains available through **Classic**.
+Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 03 opens a playable four-vial sorting board. **Other experiments** contains the earlier **Pour study** and the original **Classic game**.
 
-See [prototype review notes, measured results, and captures](Reports/Prototype02/README.md).
+See [prototype review notes, measured results, and captures](Reports/Prototype03/README.md).
 
 Open `Vials Fluid Lab.xcodeproj` and select the shared **Vials Fluid Lab** scheme.
 The target/product is `VialsFluidLab`; the installed display name is **Vials Fluid Lab**.
@@ -37,12 +37,11 @@ No original Git history, Xcode user state, or build output was copied.
 
 The shared scheme passed an unsigned Debug build for macOS with Xcode 27.0 (27A5237l).
 The built app bundle confirms the separate identifier and display name.
-Device signing, installation, and interactive gameplay have not been tested for this copy.
+This describes the original copy baseline; current prototype checks are recorded below.
 All copied game source, scripts, and assets match the source snapshot.
 
 ## Prototype verification
 
-Prototype 02 passes unsigned macOS and iOS builds and 15 offscreen checks for measured pouring, bounded 5% cleanup, exact final quantities, conservation, and rejection of larger misses.
-Run `bash Scripts/validate_fluid_lab.sh` to reproduce the automated checks.
-Live checks of the cleanup-enabled prototype passed after restarting, including exact final quantities, correction diagnostics, and reset. An anomalous pre-relaunch spill was not reproduced and is recorded in the review notes. Physical iPhone/iPad testing remains pending.
-See the prototype report for the actual measurements, captures, and remaining limitations.
+Prototype 03 passes unsigned macOS and iOS builds and 18 offscreen transfers covering full solutions, variable amounts, destination capacity, different shapes, colored layers, exact undo, pause, and reset. The worst measured board cleanup was 0.313% of the intended transfer. Run `bash Scripts/validate_fluid_board.sh` to reproduce the checks.
+
+The retained Prototype 02 pour study passes its shared-shader regression fixture; `bash Scripts/validate_fluid_lab.sh` runs its full suite. Physical iPad testing remains pending. See [Prototype 03 notes](Reports/Prototype03/README.md) for measurements, captures, and visual/physics limitations.

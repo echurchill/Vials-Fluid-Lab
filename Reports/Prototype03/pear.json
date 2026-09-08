@@ -1,0 +1,27 @@
+{
+  "device" : "Apple M4",
+  "errors" : [
+
+  ],
+  "fixture" : "pear",
+  "fps" : 60,
+  "maximumVesselPenetration" : 0,
+  "moves" : [
+    {
+      "arrivalBeforeCorrection" : 1,
+      "committed" : true,
+      "correctedParticles" : 0,
+      "destination" : 1,
+      "frameMedianMs" : 3.8321018218994141,
+      "gpuMedianMs" : 2.9767083469778299,
+      "move" : 0,
+      "source" : 3,
+      "units" : 3
+    }
+  ],
+  "particles" : 5120,
+  "resolution" : [
+    1000,
+    650
+  ]
+}

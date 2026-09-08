@@ -16,7 +16,7 @@ float radiusAt(float y, constant Vessel &v, device const float *profiles) {
     uint i = min(uint(f),126u), offset = uint(v.dimensions.y)*128;
     return mix(profiles[offset+i], profiles[offset+i+1], f-float(i));
 }
-int3 gridCell(float3 p, float h) { return int3(floor((p+float3(4,0.4,2.6))/0.20f)); }
+int3 gridCell(float3 p, float h) { return int3(floor((p+float3(6,0.4,2.6))/0.20f)); }
 uint gridIndex(int3 c) { c=clamp(c,int3(0),int3(63,47,31)); return uint(c.x+64*(c.y+48*c.z)); }
 float poly6(float r2, float h) {
     float q = max(0.0f,1-r2/(h*h));
@@ -29,15 +29,16 @@ float3 spiky(float3 d, float h) {
     return -14.3239449f/(h*h*h*h)*q*q*d/r;
 }
 
-float4 collide(float4 point, constant Vessel *vessels, device const float *profiles) {
+float4 collide(float4 point, constant Vessel *vessels, device const float *profiles, uint vesselCount=2, bool board=false, bool eligible=true) {
     float3 p=point.xyz;
     int owner=int(round(point.w));
     const float margin=0.034;
-    if (owner>=0 && owner<2) {
+    if (owner>=0 && owner<int(vesselCount)) {
         constant Vessel &v=vessels[owner];
         float3 local=(v.inverseWorld*float4(p,1)).xyz;
-        if (local.y>v.dimensions.x+margin) owner=-1;
+        if (local.y>v.dimensions.x+margin && (!board || (eligible && v.dimensions.w==1))) owner=-1;
         else {
+            if(board && (!eligible || v.dimensions.w!=1)) local.y=min(local.y,v.dimensions.x-margin);
             local.y=max(local.y,margin);
             float r=radiusAt(local.y,v,profiles)-margin;
             float radial=length(local.xz);
@@ -46,12 +47,12 @@ float4 collide(float4 point, constant Vessel *vessels, device const float *profi
         }
     }
     if (owner<0) {
-        for (int i=0;i<2;i++) {
+        for (uint i=0;i<vesselCount;i++) {
             constant Vessel &v=vessels[i];
             float3 local=(v.inverseWorld*float4(p,1)).xyz;
             float r=radiusAt(local.y,v,profiles);
             float radial=length(local.xz);
-            if (local.y<=v.dimensions.x+margin && local.y>v.dimensions.x-0.26 && radial<r-margin*0.5) {
+            if ((!board || v.dimensions.w==2) && local.y<=v.dimensions.x+margin && local.y>v.dimensions.x-0.26 && radial<r-margin*0.5) {
                 owner=i;
                 break;
             }
@@ -62,18 +63,24 @@ float4 collide(float4 point, constant Vessel *vessels, device const float *profi
         }
     }
     p.y=max(p.y,0.045f);
-    p.xz=clamp(p.xz,float2(-3.7,-2.35),float2(3.7,2.35));
+    p.xz=clamp(p.xz,float2(board ? -4.6:-3.7,-2.35),float2(board ? 4.6:3.7,board ? 3.3:2.35));
     return float4(p,float(owner));
+}
+
+bool boardFrozen(Particle p, constant Uniforms &u) {
+    int owner=int(round(p.position.w));
+    return (u.options.w&1u) && owner>=0 && ((u.options.w>>(owner+1))&1u)==0;
 }
 
 kernel void labPredict(device Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]],
                        constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]], uint i [[thread_position_in_grid]]) {
     if (i>=u.options.x) return;
+    if(boardFrozen(p[i],u)) { p[i].predicted=p[i].position;return; }
     float3 velocity=p[i].velocity.xyz;
     velocity.y-=9.81f*u.physics.x;
     float speed=length(velocity);
     if (speed>7) velocity*=7/speed;
-    p[i].predicted=collide(float4(p[i].position.xyz+velocity*u.physics.x,p[i].position.w),v,profiles);
+    p[i].predicted=collide(float4(p[i].position.xyz+velocity*u.physics.x,p[i].position.w),v,profiles,max(2u,u.options.z),(u.options.w&1u)!=0,p[i].visual.z>0.5f);
 }
 kernel void labClearHeads(device atomic_int *heads [[buffer(0)]], uint i [[thread_position_in_grid]]) {
     if(i<gridCount) atomic_store_explicit(&heads[i],-1,memory_order_relaxed);
@@ -123,6 +130,7 @@ kernel void labDelta(device const Particle *p [[buffer(0)]], constant Uniforms &
             if(r2<h*h && i!=uint(j)) {
                 float ratio=poly6(r2,h)/reference;
                 float correction=-0.00001f*ratio*ratio*ratio*ratio;
+                if((u.options.w&1u) && p[i].velocity.w != p[j].velocity.w) correction-=0.0002f*ratio*ratio;
                 delta+=(lambdas[i]+lambdas[j]+correction)*u.physics.z*spiky(d,h);
             }
             j=next[j];
@@ -135,15 +143,16 @@ kernel void labDelta(device const Particle *p [[buffer(0)]], constant Uniforms &
 kernel void labApply(device Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]],
                      constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]],
                      device const float4 *deltas [[buffer(4)]], uint i [[thread_position_in_grid]]) {
-    if(i<u.options.x) p[i].predicted=collide(p[i].predicted+deltas[i],v,profiles);
+    if(i<u.options.x && !boardFrozen(p[i],u)) p[i].predicted=collide(p[i].predicted+deltas[i],v,profiles,max(2u,u.options.z),(u.options.w&1u)!=0,p[i].visual.z>0.5f);
 }
 kernel void labVelocity(device const Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]],
                         constant Vessel *vessels [[buffer(2)]], device const float *profiles [[buffer(3)]],
                         device float4 *velocities [[buffer(4)]], uint i [[thread_position_in_grid]]) {
     if(i>=u.options.x) return;
+    if(boardFrozen(p[i],u)) { velocities[i]=float4(0,0,0,p[i].velocity.w);return; }
     float3 velocity=(p[i].predicted.xyz-p[i].position.xyz)/u.physics.x;
     int owner=int(round(p[i].predicted.w));
-    if(owner>=0 && owner<2) {
+    if(owner>=0 && owner<int(max(2u,u.options.z))) {
         constant Vessel &v=vessels[owner];
         float3 q=(v.inverseWorld*float4(p[i].predicted.xyz,1)).xyz;
         float3 wallVelocity=((v.world*float4(q,1))-(v.previousWorld*float4(q,1))).xyz/u.physics.x;
@@ -171,6 +180,7 @@ kernel void labFinish(device Particle *p [[buffer(0)]], constant Uniforms &u [[b
                       device atomic_int *heads [[buffer(2)]], device const int *next [[buffer(3)]],
                       device const float4 *velocities [[buffer(4)]], uint i [[thread_position_in_grid]]) {
     if(i>=u.options.x) return;
+    if(boardFrozen(p[i],u)) return;
     float3 pos=p[i].predicted.xyz, velocity=velocities[i].xyz, correction=0;
     float h=u.physics.y, weight=0;
     int3 cell=gridCell(pos,h);
@@ -218,7 +228,7 @@ fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniform
     float3 facing=float3(u.view[0][2],u.view[1][2],u.view[2][2]);
     float3 surface=in.center+(right*in.corner.x+up*in.corner.y+facing*sqrt(1-r2))*in.radius;
     int owner=int(round(in.owner));
-    if(owner>=0 && owner<2) {
+    if(owner>=0 && owner<int(max(2u,u.options.z))) {
         constant Vessel &v=vessels[owner];
         float3 local=(v.inverseWorld*float4(surface,1)).xyz;
         if(local.y<0 || (local.y<v.dimensions.x && length(local.xz)>radiusAt(local.y,v,profiles))) discard_fragment();
@@ -231,7 +241,7 @@ fragment float4 labParticleThickness(ParticleOut in [[stage_in]], constant Unifo
     float r2=dot(in.corner,in.corner);
     if(r2>1) discard_fragment();
     float thickness=2*in.radius*sqrt(1-r2);
-    float3 color=mix(float3(0.04,0.69,0.72),float3(1.0,0.45,0.09),in.dye);
+    float3 color=(u.options.w&1u) ? mix(float3(0.05,0.58,0.86),float3(0.96,0.34,0.07),clamp(in.dye,0.0f,1.0f)) : mix(float3(0.04,0.69,0.72),float3(1.0,0.45,0.09),in.dye);
     return float4(color*thickness,thickness);
 }
 kernel void labSmoothDepth(texture2d<float,access::read> source [[texture(0)]], texture2d<float,access::write> target [[texture(1)]],
@@ -272,7 +282,7 @@ float3 background(float2 uv, constant Uniforms &u) {
         float shadow=0.35*exp(-dot((p.xz-float2(-1.25,0))*float2(1,1.5),(p.xz-float2(-1.25,0))*float2(1,1.5))*2.2);
         shadow+=0.40*exp(-dot((p.xz-float2(1.1,0))*float2(1,1.5),(p.xz-float2(1.1,0))*float2(1,1.5))*1.8);
         color=mix(color,float3(0.022,0.035,0.045)*(1-shadow),vignette);
-        float ellipse=length(p.xz/float2(3.05,1.6));
+        float ellipse=length(p.xz/((u.options.w&1u) ? float2(4.7,2.4):float2(3.05,1.6)));
         color+=float3(0.045,0.075,0.087)*exp(-pow((ellipse-1)*110,2.0f));
     }
     return color;
@@ -299,7 +309,7 @@ fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffe
     float3 refracted=background(uv+n.xy*0.016,u);
     float diffuse=0.3+0.7*max(dot(n,normalize(float3(-0.5,1,1))),0.0f);
     float fresnel=0.025+0.975*pow(1-max(dot(n,eye),0.0f),5.0f);
-    float3 color=refracted*absorption+tint*(1-absorption)*diffuse;
+    float3 color=refracted*absorption+tint*((u.options.w&1u) ? float3(1-exp(-opticalDepth*2.0f)):(1-absorption))*diffuse;
     color=mix(color,studio(reflect(-eye,n)),fresnel*0.70);
     float spec=pow(max(dot(reflect(-normalize(float3(-0.6,1,1)),n),eye),0.0f),90.0f);
     color+=float3(0.75,0.95,1)*spec*0.65;
@@ -338,4 +348,22 @@ fragment float4 labGlassFragment(GlassOut in [[stage_in]], constant Uniforms &u 
 fragment float4 labCopy(QuadOut in [[stage_in]], texture2d<float> scene [[texture(0)]]) {
     constexpr sampler s(coord::normalized,address::clamp_to_edge,filter::linear);
     return scene.sample(s,in.uv);
+}
+
+struct BoardBand { float4 range; };
+kernel void labBoardConstrain(device Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]],
+    constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]], constant BoardBand *bands [[buffer(4)]], uint i [[thread_position_in_grid]]) {
+    if(i>=u.options.x || boardFrozen(p[i],u)) return;
+    int owner=int(round(p[i].predicted.w));
+    if(owner<0 || owner>=int(u.options.z)) return;
+    uint parcel=uint(p[i].visual.y),count=uint(u.camera.w);
+    if(parcel>=count) return;
+    float4 band=bands[owner*count+parcel].range;
+    if(band.z<0.5) return;
+    float3 local=(v[owner].inverseWorld*float4(p[i].predicted.xyz,1)).xyz;
+    // Sorting-mode interfaces travel with the vial. This retains the lower
+    // colors while the permitted top parcel remains free to form the stream.
+    local.y=clamp(local.y,band.x+0.005f,band.y-0.005f);
+    p[i].predicted.xyz=(v[owner].world*float4(local,1)).xyz;
+    p[i].predicted=collide(p[i].predicted,v,profiles,u.options.z,true,p[i].visual.z>0.5f);
 }
