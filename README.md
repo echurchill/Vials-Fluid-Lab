@@ -42,7 +42,7 @@ All copied game source, scripts, and assets match the source snapshot.
 
 ## Prototype verification
 
-Prototype 02 passes unsigned macOS and iOS builds and 14 offscreen checks for measured pouring, bounded 5% cleanup, exact final quantities, conservation, and rejection of larger misses.
+Prototype 02 passes unsigned macOS and iOS builds and 15 offscreen checks for measured pouring, bounded 5% cleanup, exact final quantities, conservation, and rejection of larger misses.
 Run `bash Scripts/validate_fluid_lab.sh` to reproduce the automated checks.
-Live checks of the second prototype's controls and measured pour passed. The final cleanup-enabled interactive check remains pending because the Mac locked again; physical iPhone/iPad testing also remains pending.
+Live checks of the cleanup-enabled prototype passed after restarting, including exact final quantities, correction diagnostics, and reset. An anomalous pre-relaunch spill was not reproduced and is recorded in the review notes. Physical iPhone/iPad testing remains pending.
 See the prototype report for the actual measurements, captures, and remaining limitations.

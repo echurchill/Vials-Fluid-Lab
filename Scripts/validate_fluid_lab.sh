@@ -35,4 +35,7 @@ done
 "$lab_output/validate-fluid-lab" --library "$lab_library" \
   --output "$lab_output/rejected-volume" --lookahead 0.18 --frames 1080 \
   --capture 959 --expect-rejection --skip-reset-fixture
+"$lab_output/validate-fluid-lab" --library "$lab_library" \
+  --output "$lab_output/idle-20fps" --fps 20 --frames 480 --pour-frame 120 \
+  --capture 459 --skip-reset-fixture
 printf 'Validation reports and captures: %s\n' "$lab_output"

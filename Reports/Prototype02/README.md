@@ -27,7 +27,7 @@ The correction is explicitly a visual/gameplay convenience, not physical fluid t
 
 ## Results
 
-All 14 final offscreen cases passed their expected outcomes on Apple M4, using the same renderer and controller as the app. The nine standard pours had **zero spills before cleanup**, as did the portrait, slow-motion, and deliberately larger-correction cases. They retained all 3,183 particles and all dye tags. Sampled vessel surfaces did not intersect along accepted adaptive trajectories.
+All 15 retained offscreen cases passed their expected outcomes on Apple M4, using the same renderer and controller as the app. The nine standard pours had **zero spills before cleanup**, as did the portrait, slow-motion, and deliberately larger-correction cases. They retained all 3,183 particles and all dye tags. Sampled vessel surfaces did not intersect along accepted adaptive trajectories.
 
 | Case | Physical units before cleanup | Particles corrected | Final receiver units | Outcome |
 |---|---:|---:|---:|---|
@@ -45,6 +45,7 @@ All 14 final offscreen cases passed their expected outcomes on Apple M4, using t
 | large | 1.0443 | 47 | 1.0000 | Accepted |
 | rejected-volume | 1.0858 | 0 | 1.0858 | Rejected |
 | rejected-aim | 0.0000 | 0 | 0.0000 | Rejected |
+| idle / 20 fps | 1.0349 | 37 | 1.0000 | Accepted |
 
 The deliberate 1.0443-unit over-pour was corrected within the allowance. The 1.0858-unit over-pour was rejected without correction. A deliberately misaligned stream also failed and was left uncorrected. These are regression fixtures, not user-selectable materials.
 
@@ -58,14 +59,16 @@ GPU timings and bounded encode-plus-GPU-wait timings are retained in each JSON. 
 
 - Final cleanup-enabled unsigned Debug macOS and iOS builds passed with Xcode 27.0 (27A5237l). The only build warning was Xcode's App Intents metadata notice because this app has no App Intents dependency.
 - Before adding the user-approved cleanup, the live second prototype completed a one-unit transfer with 1.003 physical units, no spills, and the expected 2.00/1.00 ledger display. Slow motion, two dyes, pause, camera, particle view, and Classic return were exercised.
-- The Mac locked again when restarting for the final cleanup-enabled live check. That last interactive check remains pending; the final correction has been validated offscreen. UI automation also provides low-resolution screenshots, so full-resolution visual review uses the actual renderer captures below.
+- Final cleanup-enabled live checks completed after the Mac was unlocked again. A fresh-launch Water pour measured 1.016 units before cleanup, adjusted 17 particles, and finished with exactly 2.00 source / 1.00 destination units and no liquid outside. Reset cleared the transfer and cleanup history. A repeat after idling measured exactly 1.000 units and required no correction. A Thick pour measured 0.979 units, adjusted 22 particles, and also finished at exactly 2.00/1.00 units with none outside. The completed Thick pour was left visible with diagnostics closed.
+- An initial run before restarting the test app showed unexpectedly high spill (119 tray particles at the sampled moment). The cause was not established; it did not reproduce in the fresh-launch and idle-repeat checks. A targeted 20 fps offscreen run after six seconds of initial idle also passed, correcting 37 particles from 1.0349 to exactly 1.0000 units. Retain the initial anomaly as a follow-up observation if long-running or resumed sessions behave differently.
+- UI automation provides low-resolution screenshots, so full-resolution visual review uses the actual renderer captures below.
 - Paired iPhone and iPad hardware was reported offline by Xcode. The unsigned iOS build is not a device runtime or thermal test.
 
 ## Scope and next investigation
 
 This milestone covers a three-unit starting fill, one-unit transfer, the rounded source and bulb receiver, and the three existing presets. It does not yet support repeated arbitrary moves, other starting fills, partially full receivers, alternate shape families, or preservation of Classic layer order. The correction tolerance makes those future experiments practical, but each configuration still needs its own measured checks.
 
-Next, verify the final interactive build and target-device performance. Then expand the metering fixtures to other fills and shapes before connecting the lab presentation to Classic's move/undo logic. Keep the 5% contract and exact final quantities as regression gates.
+Next, verify target-device performance and watch for recurrence of the pre-relaunch anomaly. Then expand the metering fixtures to other fills and shapes before connecting the lab presentation to Classic's move/undo logic. Keep the 5% contract and exact final quantities as regression gates.
 
 After that, use separate puzzle experiments for (1) viscosity-dependent timing and narrow-neck transfers, (2) immiscible fluids with density-driven reordering, and (3) explicit mixing recipes such as blue + red → purple. These require new material/rule models. The current Thick preset is velocity smoothing, and Two dyes is passive advection; neither is calibrated viscosity, density separation, or a chemical simulation.
 
@@ -77,7 +80,7 @@ Remaining visual work includes finer stream reconstruction, wetting/meniscus beh
 bash Scripts/validate_fluid_lab.sh
 ```
 
-The script builds into a temporary directory and runs nine standard repeats, portrait/reset, slow motion, a larger accepted correction, and two rejection fixtures. It saves logs, JSON, and actual render captures without altering signing or installing packages. The constituent final checks were run during development; no physical-device test is implied.
+The script builds into a temporary directory and runs nine standard repeats, portrait/reset, slow motion, a larger accepted correction, two rejection fixtures, and the supplemental idle / 20 fps case. It saves logs, JSON, and actual render captures without altering signing or installing packages. The constituent final checks were run during development; no physical-device test is implied.
 
 ## Actual renderer captures
 
