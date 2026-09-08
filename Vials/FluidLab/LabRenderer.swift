@@ -16,6 +16,31 @@ final class LabRenderer: NSObject, MTKViewDelegate {
     var viscosity: Float = 0.08
     var orbit: Float = 0.35
     var aimOffset: Float = 0
+    var meterLookahead: Float = 0.34
+    var playbackSpeed: Float = 1
+    private(set) var tilt: Float = 0
+    private(set) var cutoffTime: Float?
+    private(set) var returnStart: Float?
+    private var cutoffTilt: Float = 0
+    private var previousWorlds: [simd_float4x4] = []
+    private var measuredLoss: Float = 0
+    private var flowRate: Float = 0
+    private var feedbackTime: Float = 0
+    private(set) var ledger = LabTransferLedger()
+    private(set) var transferAccepted = false
+    private(set) var completed = false
+    private(set) var cleanupTime: Float?
+    private(set) var cleanupParticleCount = 0
+    private(set) var unitsBeforeCleanup: Float = 0
+    private(set) var spillBeforeCleanup = 0
+    var targetParticleCount: Int { Int((Float(particleCount)/3).rounded()) }
+    var transferredUnits: Float { measuredLoss }
+    var resting: Bool { completed || (pourTime == nil && simulationTime >= 4) }
+    var currentVessels: [LabVesselUniform] {
+        labVessels(time:pourTime,profiles:profiles,horizontalOffset:aimOffset,tilt:tilt,
+                   returnTime:returnStart.map { max(0,(pourTime ?? 0)-$0) },
+                   cutoffTilt:cutoffTime == nil ? nil:cutoffTilt,cutoffElapsed:(pourTime ?? 0)-(cutoffTime ?? 0))
+    }
     var onError: ((String) -> Void)?
     var onUpdate: ((LabFrameStats, String, Float) -> Void)?
     private var particles: MTLBuffer!
@@ -106,6 +131,11 @@ final class LabRenderer: NSObject, MTKViewDelegate {
     func reset(twoColors: Bool = false) {
         lastCommand?.waitUntilCompleted()
         simulationTime = 0; pourTime = nil; accumulator = 0; lastWallTime = nil; paused = false
+        previousWorlds=[]
+        tilt=0; cutoffTime=nil; returnStart=nil; cutoffTilt=0
+        measuredLoss=0; flowRate=0; feedbackTime=0; completed=false
+        ledger=LabTransferLedger(); transferAccepted=false; pausedSignature=nil
+        cleanupTime=nil; cleanupParticleCount=0; unitsBeforeCleanup=0; spillBeforeCleanup=0
         var values: [LabParticle] = []
         let profile = profiles[0]
         let volume = profile.usableVolume * 0.75
@@ -141,17 +171,103 @@ final class LabRenderer: NSObject, MTKViewDelegate {
 
     func beginPour() { if pourTime == nil { pourTime = -max(0,1.5-simulationTime); paused = false } }
     var phase: String {
-        guard let t = pourTime else { return "Ready to pour" }
-        switch t {
-        case ..<0: return "Settling the initial fill"
-        case ..<1.4: return "Lifting into position"
-        case ..<3.6: return "Positioning above the flask"
-        case ..<6.4: return "Tilting toward the flask"
-        case ..<10.5: return "Pouring"
-        case ..<13.3: return "Stopping the stream"
-        case ..<16.3: return "Returning to the tray"
-        case ..<18.5: return "Settling"
-        default: return "Pour complete"
+        guard let t=pourTime else { return "Ready to pour one unit" }
+        if completed { return transferAccepted ? "One unit transferred" : "Pour needs adjustment" }
+        if cleanupTime != nil { return "Final settling" }
+        if let start=returnStart { return t-start < 1.4 ? "Returning to the tray" : "Settling" }
+        if cutoffTime != nil { return "Stopping the stream" }
+        if t < 0 { return "Settling the initial fill" }
+        if t < 1.4 { return "Lifting into position" }
+        if t < 2.6 { return "Positioning above the flask" }
+        return measuredLoss > 0.01 ? "Measuring one unit" : "Tilting toward the flask"
+    }
+
+    /// One bounded readback per rendered frame during a transfer. This prototype
+    /// serializes that frame with the preceding GPU command to avoid racing shared
+    /// particle memory. A GPU-resident controller is the later optimization path.
+    private func updateMeter() {
+        guard let t=pourTime, !completed else { return }
+        let stats=snapshot()
+        let lost=Float(particleCount-stats.source)/Float(particleCount)*3
+        let dt=max(simulationTime-feedbackTime,0.0001)
+        let instantaneous=max(0,(lost-measuredLoss)/dt)
+        flowRate += (instantaneous-flowRate)*min(1,dt*10)
+        measuredLoss=lost; feedbackTime=simulationTime
+        if t >= 2.6, cutoffTime == nil, lost+flowRate*meterLookahead >= 0.99 {
+            cutoffTime=t; cutoffTilt=tilt
+        }
+        if let cleanup=cleanupTime {
+            if t-cleanup >= 0.8 {
+                completed=true
+                transferAccepted=stats.destination == targetParticleCount && stats.source == particleCount-targetParticleCount && stats.spilled == 0 && stats.airborne == 0
+                if transferAccepted { ledger.commitOneUnit() }
+            }
+        } else if let start=returnStart, t-start > 2.9 {
+            unitsBeforeCleanup=Float(stats.destination)/Float(particleCount)*3
+            spillBeforeCleanup=stats.spilled+stats.airborne
+            // The user-approved visual correction is bounded to 5% of ONE unit,
+            // both at source and receiver, including any escaped particles.
+            let allowed=max(1,Int(Float(targetParticleCount)*0.05))
+            let donorMoves=max(0,stats.source-(particleCount-targetParticleCount))+max(0,stats.destination-targetParticleCount)+stats.spilled+stats.airborne
+            if abs(unitsBeforeCleanup-1) <= 0.05 && abs(lost-1) <= 0.05 && donorMoves <= allowed && stats.nonFinite == 0 {
+                applyFinalCorrection(stats:stats)
+                cleanupTime=t
+            } else { completed=true; transferAccepted=false }
+        }
+    }
+
+    /// A deliberately small presentation cleanup, not part of the physical solver.
+    /// Move only surplus particles; preserve count, per-particle volume and dye tags.
+    /// The recipient splats fade in and the solver relaxes them before committing.
+    private func applyFinalCorrection(stats:LabFrameStats) {
+        let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+        let targets=[particleCount-targetParticleCount,targetParticleCount]
+        var groups=[[Int](),[Int]()]
+        var donors:[Int]=[]
+        for i in 0..<particleCount {
+            let owner=Int(p[i].position.w.rounded())
+            if owner >= 0 && owner < 2 { groups[owner].append(i) } else { donors.append(i) }
+        }
+        for owner in 0..<2 {
+            groups[owner].sort { p[$0].position.y < p[$1].position.y }
+            while groups[owner].count > targets[owner] { donors.append(groups[owner].removeLast()) }
+        }
+        cleanupParticleCount=donors.count
+        let vessels=currentVessels
+        for owner in 0..<2 {
+            let needed=targets[owner]-groups[owner].count
+            guard needed > 0 else { continue }
+            let vessel=vessels[owner], profile=profiles[owner]
+            let top=groups[owner].suffix(max(1,groups[owner].count/15))
+            let meanHeight=top.reduce(Float(0)) { $0+(vessel.inverseWorld*SIMD4(p[$1].position.xyz,1)).y }/Float(max(1,top.count))
+            let y=min(profile.height-0.18,max(0.065,meanHeight+spacing*0.7))
+            let radius=max(0.02,profile.radius(at:y)-spacing*1.5)
+            for n in 0..<needed {
+                let i=donors.removeLast()
+                let a=Float(n)*2.3999632
+                let r=radius*sqrt((Float(n)+0.5)/Float(needed))
+                let world=vessel.world*SIMD4<Float>(r*cos(a),y,r*sin(a),1)
+                let point=SIMD4(world.xyz,Float(owner))
+                p[i].position=point; p[i].predicted=point
+                p[i].velocity=SIMD4(0,0,0,p[i].velocity.w)
+                p[i].visual=SIMD4(simulationTime,0,0,0)
+            }
+        }
+        assert(donors.isEmpty)
+    }
+
+    private func advancePose() {
+        guard let t=pourTime, !completed else { return }
+        if let stop=cutoffTime {
+            let elapsed=t-stop
+            if elapsed < 0.8 { tilt=cutoffTilt-min(0.45,cutoffTilt)*labSmooth(elapsed/0.8) }
+            else { tilt=max(0,cutoffTilt-0.45)*(1-labSmooth((elapsed-0.8)/1.6)) }
+            if elapsed >= 2.4, returnStart == nil { returnStart=t }
+        } else if t >= 2.6 {
+            // Approach slowly once a stream exists; loss includes liquid in flight.
+            let rate: Float = measuredLoss < 0.05 ? 0.40 : (measuredLoss < 0.65 ? 0.08:0.025)
+            tilt=min(1.52,tilt+rate*timeStep)
+            if t > 20 { cutoffTime=t; cutoffTilt=tilt }
         }
     }
 
@@ -202,7 +318,7 @@ final class LabRenderer: NSObject, MTKViewDelegate {
         // Rebuild after the final corrections, before velocity smoothing.
         dispatch("labClearHeads",count:64*48*32,command:command,buffers:[(0,heads)])
         dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
-        dispatch("labVelocity",count:n,command:command,buffers:[(0,particles),(2,velocities)],uniforms:uniforms)
+        dispatch("labVelocity",count:n,command:command,buffers:[(0,particles),(4,velocities),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         dispatch("labFinish",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,velocities)],uniforms:uniforms)
     }
 
@@ -220,6 +336,7 @@ final class LabRenderer: NSObject, MTKViewDelegate {
     /// Same path is used by the interactive view and the offscreen validation tool.
     @discardableResult
     func encodeFrame(target: MTLTexture, deltaTime: Float, present: CAMetalDrawable? = nil, completion: MTLCommandBufferHandler? = nil) -> MTLCommandBuffer {
+        if pourTime != nil && !paused { updateMeter() }
         resize(width:target.width,height:target.height)
         let command = queue.makeCommandBuffer()!
         command.label = "Fluid Lab frame"
@@ -227,13 +344,17 @@ final class LabRenderer: NSObject, MTKViewDelegate {
         var u = LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,1),
             viewport:SIMD4(Float(target.width),Float(target.height),pointMode ? spacing*0.30 : spacing*0.88,simulationTime),
             physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,0,0))
-        if !paused {
-            accumulator += min(max(deltaTime,0),1.0/20)
+        if !paused && !resting {
+            accumulator += min(max(deltaTime,0),1.0/20)*playbackSpeed
             var steps = 0
             while accumulator >= timeStep && steps < 6 {
                 simulationTime += timeStep
-                if pourTime != nil { pourTime! += timeStep }
-                let vessels = labVessels(time:pourTime,profiles:profiles,horizontalOffset:aimOffset)
+                if pourTime != nil { pourTime! += timeStep }; advancePose()
+                var vessels = currentVessels
+                for i in vessels.indices {
+                    if previousWorlds.count == vessels.count { vessels[i].previousWorld=previousWorlds[i] }
+                }
+                previousWorlds=vessels.map(\.world)
                 var stepUniforms=u
                 stepUniforms.viewport.w=simulationTime
                 if simulationTime < 1 { stepUniforms.physics.w=max(viscosity,0.35) }
@@ -242,7 +363,7 @@ final class LabRenderer: NSObject, MTKViewDelegate {
             }
         }
         u.viewport.w = simulationTime
-        let vessels = labVessels(time:pourTime,profiles:profiles,horizontalOffset:aimOffset)
+        let vessels = currentVessels
         let depthEncoder = command.makeRenderCommandEncoder(descriptor:pass(color:depth,clear:MTLClearColorMake(1,1,1,1),depth:depthTest))!
         depthEncoder.label = "Particle surface depth"
         depthEncoder.setRenderPipelineState(depthPipeline); depthEncoder.setDepthStencilState(depthState)
@@ -347,10 +468,11 @@ final class LabRenderer: NSObject, MTKViewDelegate {
                 inFlight.signal()
                 return
             }
-            if paused {
+            if paused || resting {
                 let signature=SIMD4<Float>(Float(view.drawableSize.width),Float(view.drawableSize.height),orbit,pointMode ? 1:0)
                 if pausedSignature == signature { inFlight.signal(); return }
                 pausedSignature=signature
+                if lastCommand?.status == .completed { onUpdate?(snapshot(wait:false),phase,pourTime ?? 0) }
             } else { pausedSignature=nil }
             guard let drawable=view.currentDrawable else { inFlight.signal(); return }
             if frame % 30 == 0, lastCommand?.status == .completed {

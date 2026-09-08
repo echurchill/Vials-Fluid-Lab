@@ -1,13 +1,13 @@
 #include <metal_stdlib>
 using namespace metal;
 
-struct Particle { float4 position; float4 predicted; float4 velocity; };
+struct Particle { float4 position; float4 predicted; float4 velocity; float4 visual; };
 struct Uniforms {
     float4x4 viewProjection, inverseViewProjection, view;
     float4 camera, viewport, physics;
     uint4 options;
 };
-struct Vessel { float4x4 world, inverseWorld; float4 dimensions, marks; };
+struct Vessel { float4x4 world, inverseWorld, previousWorld; float4 dimensions, marks; };
 struct Vertex { float4 position, normal; };
 constant uint gridCount = 64*48*32;
 
@@ -138,9 +138,32 @@ kernel void labApply(device Particle *p [[buffer(0)]], constant Uniforms &u [[bu
     if(i<u.options.x) p[i].predicted=collide(p[i].predicted+deltas[i],v,profiles);
 }
 kernel void labVelocity(device const Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]],
-                        device float4 *velocities [[buffer(2)]], uint i [[thread_position_in_grid]]) {
+                        constant Vessel *vessels [[buffer(2)]], device const float *profiles [[buffer(3)]],
+                        device float4 *velocities [[buffer(4)]], uint i [[thread_position_in_grid]]) {
     if(i>=u.options.x) return;
     float3 velocity=(p[i].predicted.xyz-p[i].position.xyz)/u.physics.x;
+    int owner=int(round(p[i].predicted.w));
+    if(owner>=0 && owner<2) {
+        constant Vessel &v=vessels[owner];
+        float3 q=(v.inverseWorld*float4(p[i].predicted.xyz,1)).xyz;
+        float3 wallVelocity=((v.world*float4(q,1))-(v.previousWorld*float4(q,1))).xyz/u.physics.x;
+        float3 relative=velocity-wallVelocity;
+        float radial=length(q.xz);
+        float r=radiusAt(q.y,v,profiles);
+        bool contact=false;
+        if(radial > r-0.045f && radial>0.001f && q.y < v.dimensions.x) {
+            float slope=(radiusAt(q.y+0.005f,v,profiles)-radiusAt(q.y-0.005f,v,profiles))/0.01f;
+            float3 normal=(v.world*float4(normalize(float3(q.x/radial,-slope,q.z/radial)),0)).xyz;
+            relative-=normal*max(dot(relative,normal),0.0f);
+            contact=true;
+        }
+        if(q.y < 0.045f) {
+            float3 normal=(v.world*float4(0,-1,0,0)).xyz;
+            relative-=normal*max(dot(relative,normal),0.0f);
+            contact=true;
+        }
+        if(contact) velocity=wallVelocity+relative*0.96f;
+    }
     if(p[i].predicted.y<0.047) velocity.xz*=0.90;
     velocities[i]=float4(velocity,p[i].velocity.w);
 }
@@ -173,7 +196,7 @@ vertex QuadOut labFullscreen(uint id [[vertex_id]]) {
     float2 uv=float2((id<<1)&2,id&2);
     return {float4(uv*float2(2,-2)+float2(-1,1),0,1),uv};
 }
-struct ParticleOut { float4 position [[position]]; float2 corner; float3 center; float dye; float owner; };
+struct ParticleOut { float4 position [[position]]; float2 corner; float3 center; float dye; float owner; float radius; };
 vertex ParticleOut labParticleVertex(uint id [[vertex_id]], uint instance [[instance_id]],
                                     device const Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]]) {
     const float2 corners[6]={{-1,-1},{1,-1},{1,1},{-1,-1},{1,1},{-1,1}};
@@ -181,8 +204,10 @@ vertex ParticleOut labParticleVertex(uint id [[vertex_id]], uint instance [[inst
     float3 center=p[instance].position.xyz;
     float3 right=float3(u.view[0][0],u.view[1][0],u.view[2][0]);
     float3 up=float3(u.view[0][1],u.view[1][1],u.view[2][1]);
-    float3 world=center+(right*c.x+up*c.y)*u.viewport.z;
-    return {u.viewProjection*float4(world,1),c,center,p[instance].velocity.w,p[instance].position.w};
+    float fade=p[instance].visual.x>0 ? smoothstep(0.0f,0.30f,u.viewport.w-p[instance].visual.x):1.0f;
+    float radius=u.viewport.z*fade;
+    float3 world=center+(right*c.x+up*c.y)*radius;
+    return {u.viewProjection*float4(world,1),c,center,p[instance].velocity.w,p[instance].position.w,radius};
 }
 struct DepthOut { float depthColor [[color(0)]]; float depth [[depth(any)]]; };
 fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *vessels [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
@@ -191,7 +216,7 @@ fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniform
     float3 right=float3(u.view[0][0],u.view[1][0],u.view[2][0]);
     float3 up=float3(u.view[0][1],u.view[1][1],u.view[2][1]);
     float3 facing=float3(u.view[0][2],u.view[1][2],u.view[2][2]);
-    float3 surface=in.center+(right*in.corner.x+up*in.corner.y+facing*sqrt(1-r2))*u.viewport.z;
+    float3 surface=in.center+(right*in.corner.x+up*in.corner.y+facing*sqrt(1-r2))*in.radius;
     int owner=int(round(in.owner));
     if(owner>=0 && owner<2) {
         constant Vessel &v=vessels[owner];
@@ -205,7 +230,7 @@ fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniform
 fragment float4 labParticleThickness(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]]) {
     float r2=dot(in.corner,in.corner);
     if(r2>1) discard_fragment();
-    float thickness=2*u.viewport.z*sqrt(1-r2);
+    float thickness=2*in.radius*sqrt(1-r2);
     float3 color=mix(float3(0.04,0.69,0.72),float3(1.0,0.45,0.09),in.dye);
     return float4(color*thickness,thickness);
 }
@@ -215,12 +240,12 @@ kernel void labSmoothDepth(texture2d<float,access::read> source [[texture(0)]], 
     float center=source.read(id).x;
     if(center>=0.99999f) { target.write(float4(1),id); return; }
     float sum=0, weights=0;
-    for(int k=-5;k<=5;k++) {
+    for(int k=-7;k<=7;k++) {
         int2 xy=clamp(int2(id)+int2(direction)*k,int2(0),int2(target.get_width()-1,target.get_height()-1));
         float value=source.read(uint2(xy)).x;
         if(value>=0.99999f) continue;
-        float distance=(value-center)*1800;
-        float w=exp(-float(k*k)/15.0f-distance*distance);
+        float distance=(value-center)*1250;
+        float w=exp(-float(k*k)/26.0f-distance*distance);
         sum+=value*w; weights+=w;
     }
     target.write(float4(sum/max(weights,0.0001f)),id);
@@ -233,7 +258,8 @@ float3 studio(float3 direction) {
     float3 color=mix(float3(0.025,0.045,0.065),float3(0.15,0.23,0.29),smoothstep(-0.2f,0.8f,direction.y));
     float key=pow(max(dot(direction,normalize(float3(-0.7,0.8,1.0))),0.0f),24.0f);
     float edge=pow(max(dot(direction,normalize(float3(1,0.4,-0.6))),0.0f),50.0f);
-    return color+key*float3(2.0,2.0,1.8)+edge*float3(0.5,1.25,1.6);
+    float strip=exp(-pow((direction.x+0.46f)*14,2.0f))*smoothstep(-0.25f,0.25f,direction.y)*smoothstep(-0.2f,0.3f,direction.z);
+    return color+key*float3(2.0,2.0,1.8)+edge*float3(0.5,1.25,1.6)+strip*float3(0.7,0.85,0.9);
 }
 float3 background(float2 uv, constant Uniforms &u) {
     float3 origin=u.camera.xyz;
@@ -292,7 +318,10 @@ fragment float4 labGlassFragment(GlassOut in [[stage_in]], constant Uniforms &u 
     float3 n=normalize(in.normal), eye=normalize(u.camera.xyz-in.world);
     if(dot(n,eye)<0) n=-n;
     float fresnel=0.04+0.96*pow(1-max(dot(n,eye),0.0f),5.0f);
-    float3 base=scene.sample(s,uv+n.xy*0.006).rgb;
+    float3 cameraNormal=(u.view*float4(n,0)).xyz;
+    float path=v.dimensions.z/max(dot(n,eye),0.18f);
+    float2 offset=cameraNormal.xy*float2(1,-1)*min(path*0.10f,0.012f);
+    float3 base=scene.sample(s,uv+offset).rgb*exp(-float3(0.38,0.12,0.06)*path);
     float3 reflected=studio(reflect(-eye,n));
     float3 color=mix(base*float3(0.96,0.985,1.0),reflected,0.045+fresnel*0.55);
     float line=0;
@@ -302,6 +331,8 @@ fragment float4 labGlassFragment(GlassOut in [[stage_in]], constant Uniforms &u 
     color=mix(color,float3(0.59,0.79,0.82),line*front*0.48);
     float rim=1-smoothstep(0.012f,0.035f,abs(in.local.y-v.dimensions.x));
     color+=rim*float3(0.15,0.22,0.25);
+    float foot=1-smoothstep(0.005f,0.055f,abs(in.local.y));
+    color+=foot*float3(0.035,0.065,0.075);
     return float4(color,1);
 }
 fragment float4 labCopy(QuadOut in [[stage_in]], texture2d<float> scene [[texture(0)]]) {

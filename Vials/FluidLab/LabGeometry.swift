@@ -77,6 +77,7 @@ struct LabParticle {
     var position: SIMD4<Float> // w: current vessel, -1 when in flight/on the tray
     var predicted: SIMD4<Float>
     var velocity: SIMD4<Float> // w: passive dye identity (0 turquoise, 1 amber)
+    var visual: SIMD4<Float> = .zero // x: final-correction fade-in timestamp; zero for untouched particles
 }
 
 struct LabVertex {
@@ -87,6 +88,7 @@ struct LabVertex {
 struct LabVesselUniform {
     var world: simd_float4x4
     var inverseWorld: simd_float4x4
+    var previousWorld: simd_float4x4
     var dimensions: SIMD4<Float> // height, profile index, wall thickness, unused
     var marks: SIMD4<Float>
 }
@@ -127,44 +129,60 @@ func labSmooth(_ t: Float) -> Float {
     return t*t*t*(t*(t*6-15)+10)
 }
 
-func labVessels(time: Float?, profiles: [LabVesselProfile], horizontalOffset: Float = 0) -> [LabVesselUniform] {
+/// A pose driven by the metering controller. Return begins only after flow cutoff.
+func labVessels(time: Float?, profiles: [LabVesselProfile], horizontalOffset: Float = 0,
+                tilt: Float = 0, returnTime: Float? = nil, cutoffTilt: Float? = nil, cutoffElapsed: Float = 0) -> [LabVesselUniform] {
     let home = SIMD3<Float>(-1.25, 0.18, 0)
     let receiver = SIMD3<Float>(1.10, 0.18, 0)
+    let highHome = home + SIMD3<Float>(0, 2.45, 0)
+    let highLip = SIMD3<Float>(0.65 + horizontalOffset, highHome.y + profiles[0].height, 0)
+    let pouringLip = SIMD3<Float>(0.65 + horizontalOffset, 3.10, 0)
     var position = home
-    var angle: Float = 0
+    let angle = -tilt
     if let time {
-        // The grip travels first. The lip then stays above the receiver while tilting.
-        let highHome = home + SIMD3<Float>(0, 2.45, 0)
-        let highLip = SIMD3<Float>(0.65 + horizontalOffset, highHome.y + profiles[0].height, 0)
-        let pouringLip = SIMD3<Float>(0.65 + horizontalOffset, 3.16, 0)
-        let lift = labSmooth(time / 1.4)
-        let travel = labSmooth((time - 1.4) / 1.6)
-        let tilt = labSmooth((time - 3.6) / 2.8)
-        let untilt = labSmooth((time - 10.5) / 2.8)
-        let returnTravel = labSmooth((time - 13.3) / 1.6)
-        let lower = labSmooth((time - 14.9) / 1.4)
-        let leaning = tilt * (1 - untilt)
-        angle = -1.80 * leaning
-        let topOffset = (labRotation(angle) * SIMD4<Float>(0, profiles[0].height, 0, 0)).xyz
-        position = simd_mix(home, highHome, SIMD3(repeating: lift))
+        position = simd_mix(home, highHome, SIMD3(repeating:labSmooth(time / 1.4)))
         if time >= 1.4 {
-            let raised = highLip - SIMD3<Float>(0, profiles[0].height, 0)
-            position = simd_mix(highHome, raised, SIMD3(repeating: travel))
+            position = simd_mix(highHome,highLip-SIMD3(0,profiles[0].height,0),SIMD3(repeating:labSmooth((time-1.4)/1.2)))
         }
-        if time >= 3.6 {
-            let descend = labSmooth(min(max((leaning - 0.18) / 0.65, 0), 1))
-            let lip = simd_mix(highLip, pouringLip, SIMD3(repeating: descend))
-            position = lip - topOffset
+        if time >= 2.6 {
+            let descend = labSmooth((tilt-0.32)/0.85)
+            let lip = simd_mix(highLip,pouringLip,SIMD3(repeating:descend))
+            position = lip - (labRotation(angle)*SIMD4<Float>(0,profiles[0].height,0,0)).xyz
         }
-        position = simd_mix(position, highHome, SIMD3(repeating: returnTravel))
-        position = simd_mix(position, home, SIMD3(repeating: lower))
+        if let initialTilt=cutoffTilt {
+            let initialLip=simd_mix(highLip,pouringLip,SIMD3(repeating:labSmooth((initialTilt-0.32)/0.85)))
+            if cutoffElapsed < 0.8 {
+                // Keep the actual mouth over the receiver until the tail drains.
+                position=initialLip-(labRotation(angle)*SIMD4<Float>(0,profiles[0].height,0,0)).xyz
+            } else {
+                let stoppedTilt=max(0,initialTilt-0.45)
+                let pivot=initialLip-(labRotation(-stoppedTilt)*SIMD4<Float>(0,profiles[0].height,0,0)).xyz
+                position=simd_mix(pivot,highHome,SIMD3(repeating:labSmooth((cutoffElapsed-0.8)/1.6)))
+            }
+        }
+        if let back=returnTime {
+            position = highHome
+            position = simd_mix(position,home,SIMD3(repeating:labSmooth(back/1.4)))
+        }
     }
-    return profiles.enumerated().map { i, p in
-        let world = labTranslation(i == 0 ? position : receiver) * labRotation(i == 0 ? angle : 0)
-        return LabVesselUniform(world: world, inverseWorld: world.inverse,
-            dimensions: SIMD4(p.height, Float(i), 0.035, 0),
-            marks: SIMD4(p.height(for: p.usableVolume * 0.25), p.height(for: p.usableVolume * 0.5),
-                         p.height(for: p.usableVolume * 0.75), p.height(for: p.usableVolume)))
+    return profiles.enumerated().map { i,p in
+        let world=labTranslation(i == 0 ? position:receiver)*labRotation(i == 0 ? angle:0)
+        return LabVesselUniform(world:world,inverseWorld:world.inverse,previousWorld:world,
+            dimensions:SIMD4(p.height,Float(i),0.035,0),
+            marks:SIMD4(p.height(for:p.usableVolume*0.25),p.height(for:p.usableVolume*0.5),
+                        p.height(for:p.usableVolume*0.75),p.height(for:p.usableVolume)))
+    }
+}
+
+/// Integer puzzle quantities stay independent of GPU floating-point outcomes.
+/// A transfer is only committed after the visible pour passes its acceptance gate.
+struct LabTransferLedger {
+    private(set) var sourceUnits = 3
+    private(set) var destinationUnits = 0
+    private(set) var committed = false
+    mutating func commitOneUnit() {
+        guard !committed, sourceUnits > 0, destinationUnits < 4 else { return }
+        sourceUnits -= 1; destinationUnits += 1; committed = true
     }
 }
 
@@ -213,6 +231,28 @@ func labGlassMesh(_ profile: LabVesselProfile) -> [LabVertex] {
             a.normal=n; b.normal=n; c.normal=n; d.normal=n
             vertices += [a,b,c,a,c,d]
         }
+    }
+    // Solid glass base: a cavity floor and an underside, with a short outer skirt.
+    let baseRadius=profile.radius(at:0)
+    for s in 0..<segments {
+        let a=Float(s)/Float(segments)*2*Float.pi
+        let b=Float(s+1)/Float(segments)*2*Float.pi
+        for underside in [false,true] {
+            let y:Float=underside ? -0.06:0
+            let r=baseRadius+(underside ? 0.035:0)
+            let normal=SIMD4<Float>(0,underside ? -1:1,0,0)
+            let center=LabVertex(position:SIMD4(0,y,0,1),normal:normal)
+            let va=LabVertex(position:SIMD4(r*cos(a),y,r*sin(a),1),normal:normal)
+            let vb=LabVertex(position:SIMD4(r*cos(b),y,r*sin(b),1),normal:normal)
+            vertices += [center,va,vb]
+        }
+        let r=baseRadius+0.035
+        let na=SIMD4<Float>(cos(a),0,sin(a),0), nb=SIMD4<Float>(cos(b),0,sin(b),0)
+        let va=LabVertex(position:SIMD4(r*cos(a),0,r*sin(a),1),normal:na)
+        let vb=LabVertex(position:SIMD4(r*cos(b),0,r*sin(b),1),normal:nb)
+        let vc=LabVertex(position:SIMD4(r*cos(b),-0.06,r*sin(b),1),normal:nb)
+        let vd=LabVertex(position:SIMD4(r*cos(a),-0.06,r*sin(a),1),normal:na)
+        vertices += [va,vb,vc,va,vc,vd]
     }
     return vertices
 }

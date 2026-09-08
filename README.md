@@ -1,8 +1,8 @@
 # Vials Fluid Lab
 
-Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 01 now opens as the default screen; the original sorting game remains available through **Classic**.
+Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 02 now opens as the default screen; the original sorting game remains available through **Classic**.
 
-See [prototype review notes, measured results, and captures](Reports/Prototype/README.md).
+See [prototype review notes, measured results, and captures](Reports/Prototype02/README.md).
 
 Open `Vials Fluid Lab.xcodeproj` and select the shared **Vials Fluid Lab** scheme.
 The target/product is `VialsFluidLab`; the installed display name is **Vials Fluid Lab**.
@@ -42,7 +42,7 @@ All copied game source, scripts, and assets match the source snapshot.
 
 ## Prototype verification
 
-Prototype 01 passes unsigned macOS and iOS builds and offscreen fluid/geometry checks.
+Prototype 02 passes unsigned macOS and iOS builds and 14 offscreen checks for measured pouring, bounded 5% cleanup, exact final quantities, conservation, and rejection of larger misses.
 Run `bash Scripts/validate_fluid_lab.sh` to reproduce the automated checks.
-Live macOS controls and pouring were checked on September 8, 2026, including pause/reset, material selection, diagnostics, camera orbit, window zoom, and Classic return. No application-code fixes were required.
-See the prototype report for capture losses, GPU timings, and remaining limitations.
+Live checks of the second prototype's controls and measured pour passed. The final cleanup-enabled interactive check remains pending because the Mac locked again; physical iPhone/iPad testing also remains pending.
+See the prototype report for the actual measurements, captures, and remaining limitations.

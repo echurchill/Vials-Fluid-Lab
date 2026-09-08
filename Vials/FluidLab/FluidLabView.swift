@@ -4,7 +4,7 @@ import Combine
 
 @MainActor
 final class FluidLabSession: ObservableObject {
-    @Published var phase = "Ready to pour"
+    @Published var phase = "Ready to pour one unit"
     @Published var stats = LabFrameStats()
     @Published var isPouring = false
     @Published var isPaused = false
@@ -13,6 +13,7 @@ final class FluidLabSession: ObservableObject {
     @Published var error: String?
     @Published var diagnostics = false
     @Published var orbit: Double = 0.35
+    @Published var slowMotion = false
     let renderer: LabRenderer?
 
     init() {
@@ -34,7 +35,7 @@ final class FluidLabSession: ObservableObject {
     func reset() {
         renderer?.reset(twoColors:material == 2)
         renderer?.viscosity = material == 1 ? 0.32 : 0.08
-        phase="Ready to pour"; isPouring=false; isPaused=false
+        phase="Ready to pour one unit"; isPouring=false; isPaused=false
         stats=renderer?.snapshot() ?? LabFrameStats()
     }
     func pause() { isPaused.toggle(); renderer?.paused=isPaused; stats=renderer?.snapshot() ?? stats }
@@ -64,10 +65,10 @@ struct FluidLabView: View {
                         ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "The renderer could not start."))
                     }
                     VStack(alignment:.leading,spacing:7) {
-                        Text("01 / VOLUME & MOTION")
+                        Text("02 / THE MEASURED POUR")
                             .font(.system(size:10,weight:.semibold,design:.monospaced)).tracking(2).foregroundStyle(teal.opacity(0.8))
                         Text(session.isPaused ? "Paused" : session.phase).font(.system(size:compact ? 20:26,weight:.light,design:.serif)).foregroundStyle(ink)
-                        Text("Equal volumes. Different silhouettes.")
+                        Text("One unit. Shaped by the vessel.")
                             .font(.system(size:12)).foregroundStyle(ink.opacity(0.52))
                     }.padding(compact ? 22:36).allowsHitTesting(false)
                     if let error=session.error, session.renderer != nil {
@@ -94,6 +95,7 @@ struct FluidLabView: View {
             }.frame(minWidth:320,minHeight:560)
         }
         .onChange(of:session.material) { _,_ in session.reset() }
+        .onChange(of:session.slowMotion) { _,value in session.renderer?.playbackSpeed=value ? 0.35:1 }
         .onChange(of:session.points) { _,value in session.renderer?.pointMode=value }
         .onChange(of:session.orbit) { _,value in session.renderer?.orbit=Float(value) }
         .onChange(of:classic) { _,value in session.renderer?.paused=value || session.isPaused }
@@ -134,7 +136,7 @@ struct FluidLabView: View {
                 Text("For reduced motion, pause the scene and inspect the vessels with the view control.")
                     .font(.caption).foregroundStyle(ink.opacity(0.5))
             } else {
-                Text("A live fluid study · Reset to try another material")
+                Text("One-unit study · Reset to repeat the transfer")
                     .font(.system(size:11)).foregroundStyle(ink.opacity(0.38))
             }
         }
@@ -154,7 +156,7 @@ struct FluidLabView: View {
             Button { session.pause() } label: { Image(systemName:session.isPaused ? "play.fill":"pause.fill").frame(width:24,height:22) }
                 .buttonStyle(.bordered).accessibilityLabel(session.isPaused ? "Resume simulation":"Pause simulation")
             Button { session.pour() } label: {
-                Label("Pour liquid",systemImage:"drop.fill").font(.system(size:13,weight:.semibold)).padding(.horizontal,10).padding(.vertical,4)
+                Label("Pour one unit",systemImage:"drop.fill").font(.system(size:13,weight:.semibold)).padding(.horizontal,10).padding(.vertical,4)
             }.buttonStyle(.borderedProminent).tint(teal).foregroundStyle(Color(red:0.03,green:0.16,blue:0.16))
                 .disabled(session.isPouring || session.renderer == nil)
         }
@@ -167,6 +169,9 @@ struct FluidLabView: View {
     }
     private func amount(source:Bool) -> String {
         guard let renderer=session.renderer else { return "—" }
+        if renderer.ledger.committed {
+            return "\(source ? renderer.ledger.sourceUnits:renderer.ledger.destinationUnits).00 units"
+        }
         let count=source ? session.stats.source:session.stats.destination
         if !session.isPouring { return source ? "3.00 units":"Empty · 4 unit capacity" }
         return String(format:"%.2f units",Float(count)/Float(renderer.particleCount)*3)
@@ -176,6 +181,14 @@ struct FluidLabView: View {
             Text("SIMULATION").font(.system(size:9,weight:.bold,design:.monospaced)).tracking(2)
             Text("\(session.renderer?.particleCount ?? 0) particles · \(session.stats.gpuMilliseconds,specifier:"%.1f") ms GPU")
             Text("In flight: \(session.stats.airborne) · On tray: \(session.stats.spilled)")
+            if let renderer=session.renderer {
+                Text("Physical transfer: \(Float(session.stats.destination)/Float(max(1,renderer.particleCount))*3,specifier:"%.3f") units")
+                Text(renderer.ledger.committed ? "Puzzle transfer accepted: exactly 1 unit" : "Puzzle transfer pending")
+                if renderer.cleanupTime != nil {
+                    Text("Before cleanup: \(renderer.unitsBeforeCleanup,specifier:"%.3f") units · \(renderer.cleanupParticleCount) particles adjusted")
+                }
+            }
+            Toggle("Slow motion",isOn:$session.slowMotion).toggleStyle(.switch).controlSize(.mini)
             Toggle("Show particles",isOn:$session.points).toggleStyle(.switch).controlSize(.mini)
             HStack { Text("View"); Slider(value:$session.orbit,in: -0.65...0.8).frame(width:140) }
             if session.material == 2 { Text("Passive dyes: no chemistry or density separation yet.").font(.caption2) }
