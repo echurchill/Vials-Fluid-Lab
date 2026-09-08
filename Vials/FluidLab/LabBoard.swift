@@ -45,14 +45,17 @@ struct LabBoardState: Equatable, Codable {
         return next
     }
     var colorKey: String { stacks.map { $0.map { String(colors[$0]) }.joined(separator:",") }.joined(separator:"|") }
+    // Vial permutations have the same reachability; retain the actual route and IDs.
+    private var searchKey:String { stacks.map { $0.map { String(colors[$0]) }.joined(separator:",") }.sorted().joined(separator:"|") }
     func solution(limit:Int=20_000) -> [LabBoardMove]? {
         if solved { return [] }
         var queue:[(LabBoardState,[LabBoardMove])]=[(self,[])], head=0
-        var seen:Set<String>=[colorKey]
+        var seen:Set<String>=[searchKey]
         while head < queue.count && head < limit {
             let (state,path)=queue[head];head += 1
             for a in state.stacks.indices { for b in state.stacks.indices {
-                guard let move=state.move(from:a,to:b), let next=state.applying(move), seen.insert(next.colorKey).inserted else { continue }
+                if state.stacks[b].isEmpty, Set(state.stacks[a].map { state.colors[$0] }).count == 1 { continue }
+                guard let move=state.move(from:a,to:b), let next=state.applying(move), seen.insert(next.searchKey).inserted else { continue }
                 let route=path+[move]
                 if next.solved { return route }
                 queue.append((next,route))

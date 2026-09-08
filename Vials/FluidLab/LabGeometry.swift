@@ -202,9 +202,8 @@ func labCamera(aspect: Float, azimuth: Float = 0.35) -> (simd_float4x4, simd_flo
     return (projection * view, view, eye)
 }
 
-func labGlassMesh(_ profile: LabVesselProfile) -> [LabVertex] {
+func labGlassMesh(_ profile: LabVesselProfile, rings:Int = 96, segments:Int = 96) -> [LabVertex] {
     var vertices: [LabVertex] = []
-    let rings = 96, segments = 96
     func vertex(_ ring: Int, _ segment: Int, inner: Bool) -> LabVertex {
         let y = Float(ring) / Float(rings) * profile.height
         let a = Float(segment) / Float(segments) * 2 * Float.pi

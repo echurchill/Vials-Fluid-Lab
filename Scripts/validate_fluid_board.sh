@@ -12,6 +12,7 @@ xcodebuild -project 'Vials Fluid Lab.xcodeproj' -scheme 'Vials Fluid Lab' \
 xcrun swiftc -O -parse-as-library Vials/FluidLab/LabGeometry.swift \
   Vials/FluidLab/LabRenderer.swift Vials/FluidLab/LabBoard.swift \
   Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardRenderer.swift \
+  Vials/FluidLab/LabBoardPreferences.swift \
   Scripts/validate_fluid_board.swift -o "$lab_output/validate-fluid-board"
 lab_library="$lab_output/DerivedData/Build/Products/Debug/VialsFluidLab.app/Contents/Resources/default.metallib"
 for lab_fixture in level shortest three partial last pear; do

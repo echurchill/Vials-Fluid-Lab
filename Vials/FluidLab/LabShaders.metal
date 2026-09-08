@@ -16,7 +16,7 @@ float radiusAt(float y, constant Vessel &v, device const float *profiles) {
     uint i = min(uint(f),126u), offset = uint(v.dimensions.y)*128;
     return mix(profiles[offset+i], profiles[offset+i+1], f-float(i));
 }
-int3 gridCell(float3 p, float h) { return int3(floor((p+float3(6,0.4,2.6))/0.20f)); }
+int3 gridCell(float3 p, float h) { return int3(floor((p+float3(6.4,0.4,2.6))/0.20f)); }
 uint gridIndex(int3 c) { c=clamp(c,int3(0),int3(63,47,31)); return uint(c.x+64*(c.y+48*c.z)); }
 float poly6(float r2, float h) {
     float q = max(0.0f,1-r2/(h*h));
@@ -63,26 +63,28 @@ float4 collide(float4 point, constant Vessel *vessels, device const float *profi
         }
     }
     p.y=max(p.y,0.045f);
-    p.xz=clamp(p.xz,float2(board ? -4.6:-3.7,-2.35),float2(board ? 4.6:3.7,board ? 3.3:2.35));
+    p.xz=clamp(p.xz,float2(board ? -6.35:-3.7,-2.35),float2(board ? 6.35:3.7,board ? 3.3:2.35));
     return float4(p,float(owner));
 }
 
 // A temporary, invisible cone guides near-misses above the active mouth.
 // It only redirects selected airborne liquid; ownership still changes at
-// the real opening, and particles below the lip are never pulled back.
+// the real opening. A short throat follows the inner rim so a fast particle
+// cannot step across the lip and escape between discrete collision checks.
+// Liquid farther below the rim is never pulled back.
 float4 boardGuide(float4 point, constant Uniforms &u, constant Vessel *vessels,
                   device const float *profiles, bool eligible) {
-    if (!(u.options.w&32u) || !eligible || point.w>=0) return point;
+    if (!(u.options.w&65536u) || !eligible || point.w>=0) return point;
     for (uint owner=0;owner<u.options.z;owner++) {
         constant Vessel &v=vessels[owner];
         if (v.dimensions.w!=2) continue;
         float3 local=(v.inverseWorld*float4(point.xyz,1)).xyz;
         float above=local.y-v.dimensions.x;
-        const float height=0.55f, apron=0.28f;
-        if (above<0 || above>height) return point;
-        float mouth=radiusAt(v.dimensions.x,v,profiles)-0.025f;
+        const float height=1.25f, apron=0.80f;
+        if (above< -0.12f || above>height) return point;
+        float mouth=radiusAt(min(local.y,v.dimensions.x),v,profiles)-0.025f;
         float radial=length(local.xz),outer=mouth+apron;
-        float cone=mouth+apron*(above/height);
+        float cone=mouth+apron*max(0.0f,above/height);
         if (radial>cone && radial<=outer) {
             local.xz*=cone/max(radial,0.0001f);
             point.xyz=(v.world*float4(local,1)).xyz;
@@ -272,17 +274,21 @@ DepthOut particleDepth(ParticleOut in, constant Uniforms &u, constant Vessel *ve
 fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
     return particleDepth(in,u,v,profiles);
 }
-struct BoardDepthOut { float depthColor [[color(0)]]; float frontDye [[color(1)]]; float depth [[depth(any)]]; };
+float3 boardColor(float dye) {
+    if(dye>1.5f) return float3(0.20,0.76,0.36);
+    return dye>0.5f ? float3(0.96,0.34,0.07):float3(0.05,0.58,0.86);
+}
+struct BoardDepthOut { float depthColor [[color(0)]]; float4 frontDye [[color(1)]]; float depth [[depth(any)]]; };
 fragment BoardDepthOut labBoardParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
     DepthOut surface=particleDepth(in,u,v,profiles);
-    return {surface.depthColor,in.dye,surface.depth};
+    return {surface.depthColor,float4(boardColor(in.dye),1),surface.depth};
 }
 
 fragment float4 labParticleThickness(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]]) {
     float r2=dot(in.corner,in.corner);
     if(r2>1) discard_fragment();
     float thickness=2*in.radius*sqrt(1-r2);
-    float3 color=(u.options.w&1u) ? mix(float3(0.05,0.58,0.86),float3(0.96,0.34,0.07),clamp(in.dye,0.0f,1.0f)) : mix(float3(0.04,0.69,0.72),float3(1.0,0.45,0.09),in.dye);
+    float3 color=(u.options.w&1u) ? boardColor(in.dye) : mix(float3(0.04,0.69,0.72),float3(1.0,0.45,0.09),in.dye);
     return float4(color*thickness,thickness);
 }
 kernel void labSmoothDepth(texture2d<float,access::read> source [[texture(0)]], texture2d<float,access::write> target [[texture(1)]],
@@ -322,18 +328,18 @@ kernel void labBoardSmoothDepth(texture2d<float,access::read> source [[texture(0
 kernel void labSmoothDye(texture2d<float,access::read> source [[texture(0)]], texture2d<float,access::write> target [[texture(1)]],
                          texture2d<float,access::read> depth [[texture(2)]], constant uint2 &direction [[buffer(0)]], uint2 id [[thread_position_in_grid]]) {
     if(id.x>=target.get_width() || id.y>=target.get_height()) return;
-    float center=source.read(id).x,d=depth.read(id).x;
-    if(center<0) { target.write(float4(-1),id);return; }
-    float sum=0,weights=0;
+    float3 center=source.read(id).rgb;float d=depth.read(id).x;
+    if(center.x<0) { target.write(float4(-1),id);return; }
+    float3 sum=0;float weights=0;
     for(int k=-5;k<=5;k++) {
         int2 xy=clamp(int2(id)+int2(direction)*k,int2(0),int2(target.get_width()-1,target.get_height()-1));
-        float color=source.read(uint2(xy)).x;
-        if(color<0) continue;
+        float3 color=source.read(uint2(xy)).rgb;
+        if(color.x<0) continue;
         float distance=(depth.read(uint2(xy)).x-d)*800;
         float weight=exp(-float(k*k)/14.0f-distance*distance);
         sum+=color*weight;weights+=weight;
     }
-    target.write(float4(sum/max(weights,0.0001f)),id);
+    target.write(float4(sum/max(weights,0.0001f),1),id);
 }
 
 float3 worldAt(float2 uv, float depth, constant Uniforms &u) {
@@ -358,7 +364,7 @@ float3 background(float2 uv, constant Uniforms &u) {
         float shadow=0.35*exp(-dot((p.xz-float2(-1.25,0))*float2(1,1.5),(p.xz-float2(-1.25,0))*float2(1,1.5))*2.2);
         shadow+=0.40*exp(-dot((p.xz-float2(1.1,0))*float2(1,1.5),(p.xz-float2(1.1,0))*float2(1,1.5))*1.8);
         color=mix(color,float3(0.022,0.035,0.045)*(1-shadow),vignette);
-        float ellipse=length(p.xz/((u.options.w&1u) ? float2(4.7,2.4):float2(3.05,1.6)));
+        float ellipse=length(p.xz/((u.options.w&1u) ? float2(u.options.z>4 ? 6.9:4.7,2.4):float2(3.05,1.6)));
         color+=float3(0.045,0.075,0.087)*exp(-pow((ellipse-1)*110,2.0f));
     }
     return color;
@@ -383,8 +389,8 @@ fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffe
     if (u.options.w&1u) {
         // Shade the nearest fluid identity rather than optically averaging
         // every particle behind it into a muddy third color.
-        float dye=frontDye.sample(s,uv).x;
-        if (dye>=0) tint=mix(float3(0.05,0.58,0.86),float3(0.96,0.34,0.07),smoothstep(0.15f,0.85f,dye));
+        float3 color=frontDye.sample(s,uv).rgb;
+        if (color.x>=0) tint=color;
     }
     float opticalDepth=medium.a*0.55;
     float3 absorption=exp(-(1-tint)*opticalDepth*2.8);

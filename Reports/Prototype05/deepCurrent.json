@@ -1,0 +1,149 @@
+{
+  "device" : "Apple M4",
+  "errors" : [
+
+  ],
+  "fixture" : "deepCurrent",
+  "fps" : 60,
+  "funnelEnabled" : true,
+  "maximumVesselPenetration" : 0,
+  "moves" : [
+    {
+      "arrivalBeforeCorrection" : 0.99843752384185791,
+      "committed" : true,
+      "correctedParticles" : 1,
+      "destination" : 1,
+      "durationSeconds" : 3.9500000476837158,
+      "frameMedianMs" : 8.211970329284668,
+      "gpuMedianMs" : 5.8907083293888718,
+      "guidedParticles" : 59,
+      "move" : 0,
+      "source" : 0,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99687498807907104,
+      "committed" : true,
+      "correctedParticles" : 2,
+      "destination" : 3,
+      "durationSeconds" : 4.2833333015441895,
+      "frameMedianMs" : 8.1269741058349609,
+      "gpuMedianMs" : 5.8759583334904164,
+      "guidedParticles" : 27,
+      "move" : 1,
+      "source" : 0,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99687498807907104,
+      "committed" : true,
+      "correctedParticles" : 2,
+      "destination" : 1,
+      "durationSeconds" : 4.5666666030883789,
+      "frameMedianMs" : 7.9270601272583008,
+      "gpuMedianMs" : 5.7306666712975129,
+      "guidedParticles" : 9,
+      "move" : 2,
+      "source" : 0,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99687498807907104,
+      "committed" : true,
+      "correctedParticles" : 2,
+      "destination" : 3,
+      "durationSeconds" : 4.9166665077209473,
+      "frameMedianMs" : 7.799983024597168,
+      "gpuMedianMs" : 5.8310000022174791,
+      "guidedParticles" : 4,
+      "move" : 3,
+      "source" : 0,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99843752384185791,
+      "committed" : true,
+      "correctedParticles" : 1,
+      "destination" : 3,
+      "durationSeconds" : 3.9500000476837158,
+      "frameMedianMs" : 8.7120532989501953,
+      "gpuMedianMs" : 6.0479166713776067,
+      "guidedParticles" : 58,
+      "move" : 4,
+      "source" : 4,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99843752384185791,
+      "committed" : true,
+      "correctedParticles" : 1,
+      "destination" : 1,
+      "durationSeconds" : 4.3333334922790527,
+      "frameMedianMs" : 8.8479518890380859,
+      "gpuMedianMs" : 6.1704583349637687,
+      "guidedParticles" : 27,
+      "move" : 5,
+      "source" : 4,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99843752384185791,
+      "committed" : true,
+      "correctedParticles" : 1,
+      "destination" : 4,
+      "durationSeconds" : 4.2833333015441895,
+      "frameMedianMs" : 8.2629919052124023,
+      "gpuMedianMs" : 5.9817500005010515,
+      "guidedParticles" : 2,
+      "move" : 6,
+      "source" : 2,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99687498807907104,
+      "committed" : true,
+      "correctedParticles" : 2,
+      "destination" : 3,
+      "durationSeconds" : 4.5833334922790527,
+      "frameMedianMs" : 8.5340738296508789,
+      "gpuMedianMs" : 6.0657499998342246,
+      "guidedParticles" : 37,
+      "move" : 7,
+      "source" : 2,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 1,
+      "committed" : true,
+      "correctedParticles" : 0,
+      "destination" : 1,
+      "durationSeconds" : 4.7333331108093262,
+      "frameMedianMs" : 8.2219839096069336,
+      "gpuMedianMs" : 6.003458343911916,
+      "guidedParticles" : 31,
+      "move" : 8,
+      "source" : 2,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 1,
+      "committed" : true,
+      "correctedParticles" : 0,
+      "destination" : 4,
+      "durationSeconds" : 5.0166668891906738,
+      "frameMedianMs" : 8.4559917449951172,
+      "gpuMedianMs" : 6.1527500074589625,
+      "guidedParticles" : 8,
+      "move" : 9,
+      "source" : 2,
+      "units" : 1
+    }
+  ],
+  "particles" : 7680,
+  "playbackSpeed" : 1.6000000238418579,
+  "resolution" : [
+    1000,
+    650
+  ],
+  "vialCount" : 6
+}

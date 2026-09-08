@@ -15,7 +15,8 @@ struct LabBoardMetrics {
 @MainActor
 final class LabBoardRenderer: NSObject, MTKViewDelegate {
     let device:MTLDevice
-    let profiles=LabBoardLayout.profiles()
+    private(set) var profiles=LabBoardLayout.profiles()
+    var homes:[SIMD3<Float>] { LabBoardLayout.homes(count:profiles.count) }
     let queue:MTLCommandQueue
     let library:MTLLibrary
     static let particlesPerUnit=640
@@ -36,6 +37,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private(set) var arrivalBeforeCorrection:Float=0
     private(set) var lastOutcome=""
     private var layerBands:[LabBoardBand]=[]
+    var quality:LabRenderQuality = .automatic
     var funnelEnabled=true
     var paused=false
     var pointMode=false
@@ -110,7 +112,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         profilesBuffer = makeBuffer(profiles.flatMap(\.radii))
         heads = device.makeBuffer(length: 64*48*32*MemoryLayout<Int32>.stride, options: .storageModePrivate)
         meshes = profiles.map { profile in
-            let vertices = labGlassMesh(profile)
+            let vertices = labGlassMesh(profile,rings:48,segments:64)
             return (makeBuffer(vertices), vertices.count)
         }
         reset()
@@ -123,7 +125,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         d.vertexFunction = library.makeFunction(name: vertex)
         d.fragmentFunction = library.makeFunction(name: fragment)
         d.colorAttachments[0].pixelFormat = format
-        if fragment == "labBoardParticleDepth" { d.colorAttachments[1].pixelFormat = .r16Float }
+        if fragment == "labBoardParticleDepth" { d.colorAttachments[1].pixelFormat = .rgba16Float }
         if depth { d.depthAttachmentPixelFormat = .depth32Float }
         if additive {
             let a = d.colorAttachments[0]!
@@ -148,6 +150,11 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     func reset(state:LabBoardState = .firstSort) {
         lastCommand?.waitUntilCompleted()
         game=LabBoardGame(state:state);simulationTime=0;clearMotion();historyParticles=[];beforeParticles=[];lastOutcome=""
+        if profiles.count != state.stacks.count {
+            profiles=LabBoardLayout.profiles(count:state.stacks.count)
+            profilesBuffer=makeBuffer(profiles.flatMap(\.radii))
+            meshes=profiles.map { let vertices=labGlassMesh($0,rings:48,segments:64);return (makeBuffer(vertices),vertices.count) }
+        }
         let values=seed(state:state)
         particleCount=values.count;particleVolume=profiles[0].usableVolume/4/Float(Self.particlesPerUnit)
         particles=makeBuffer(values)
@@ -174,7 +181,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private func seed(state:LabBoardState) -> [LabParticle] {
         var values:[LabParticle]=[]
         for owner in state.stacks.indices {
-            let profile=profiles[owner],world=labTranslation(LabBoardLayout.homes[owner]),unit=profile.usableVolume/4
+            let profile=profiles[owner],world=labTranslation(homes[owner]),unit=profile.usableVolume/4
             for (layer,parcel) in state.stacks[owner].enumerated() {
                 for i in 0..<Self.particlesPerUnit {
                     let v=(Float(layer)+(Float(i)+0.5)/Float(Self.particlesPerUnit))*unit
@@ -227,7 +234,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             if elapsed>=LabBoardTiming.untilted,returnStart == nil { returnStart=t }
         } else if t>=LabBoardTiming.tiltStart {
             let rate:Float=lastMetrics.departed<20 ? LabBoardTiming.approachRate:LabBoardTiming.pouringRate
-            tilt=min(2.15,tilt+rate*timeStep)
+            tilt=min(2.15,tilt+rate*labSmooth((t-LabBoardTiming.tiltStart)/0.25)*timeStep)
             if t>LabBoardTiming.timeout { cutoffTime=t;cutoffTilt=tilt }
         }
     }
@@ -235,7 +242,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         guard let move=game.pending,let t=pourTime else { return }
         lastMetrics=measure()
         let target=move.amount*Self.particlesPerUnit
-        if cutoffTime == nil,lastMetrics.departed>=Int(Float(target)*0.99),lastMetrics.arrived>=Int(Float(target)*0.955) {
+        if cutoffTime == nil,lastMetrics.departed>=Int(Float(target)*0.99),lastMetrics.arrived>=target-Int(Float(target)*0.05) {
             cutoffTime=t;cutoffTilt=tilt
         }
         if let cleanup=cleanupStart {
@@ -283,7 +290,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let y=max(0.055,targetHeight-0.06)
             let radius=max(0.02,profile.radius(at:y)-0.10)*sqrt((Float(n)+0.5)/Float(max(1,missing.count)))
             let a=Float(n)*2.3999632
-            let world=LabBoardLayout.homes[move.destination]+SIMD3(radius*cos(a),y,radius*sin(a))
+            let world=homes[move.destination]+SIMD3(radius*cos(a),y,radius*sin(a))
             let point=SIMD4(world,Float(move.destination))
             p[i].position=point;p[i].predicted=point;p[i].velocity=SIMD4(0,0,0,p[i].velocity.w);p[i].visual.x=simulationTime
         }
@@ -306,7 +313,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
     private func makeBands() -> [LabBoardBand] {
         let count=game.state.colors.count
-        var result=[LabBoardBand](repeating:LabBoardBand(range:SIMD4(-100,100,0,0)),count:count*4)
+        var result=[LabBoardBand](repeating:LabBoardBand(range:SIMD4(-100,100,0,0)),count:count*profiles.count)
         let move=game.pending, selected=Set(move?.parcels ?? [])
         let after=cleanupStart == nil ? nil:move.flatMap { game.state.applying($0) }
         let state=after ?? game.state
@@ -377,9 +384,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         lastCommand?.waitUntilCompleted()
         viewportSize = SIMD2(width,height)
         depth = texture(.r32Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
-        frontDye = texture(.r16Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
-        dyeA = texture(.r16Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
-        dyeB = texture(.r16Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
+        frontDye = texture(.rgba16Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
+        dyeA = texture(.rgba16Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
+        dyeB = texture(.rgba16Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
         smoothA = texture(.r32Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
         smoothB = texture(.r32Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
         depthTest = texture(.depth32Float,width:width,height:height,usage:.renderTarget)
@@ -440,10 +447,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         resize(width:target.width,height:target.height)
         let command = queue.makeCommandBuffer()!
         command.label = "Fluid Lab frame"
-        let (vp,view,eye) = LabBoardLayout.camera(aspect:Float(target.width)/Float(target.height), azimuth:orbit)
+        let (vp,view,eye) = LabBoardLayout.camera(aspect:Float(target.width)/Float(target.height), azimuth:orbit,vesselCount:profiles.count)
         var u = LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
-            viewport:SIMD4(Float(target.width),Float(target.height),pointMode ? spacing*0.30 : spacing*1.02,simulationTime),
-            physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,4,1 | (funnelEnabled ? 32:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
+            viewport:SIMD4(Float(target.width),Float(target.height),pointMode ? spacing*0.30 : spacing*1.16,simulationTime),
+            physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,UInt32(profiles.count),1 | (funnelEnabled ? 65536:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
         if !paused && !resting {
             accumulator = min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
             var steps = 0
@@ -458,7 +465,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 layerBands=makeBands()
                 var stepUniforms=u
                 stepUniforms.viewport.w=simulationTime
-                if (pourTime ?? 0) < 0 { stepUniforms.physics.w=max(viscosity,0.35) }
+                if (pourTime ?? 0) < 0 || returnStart != nil { stepUniforms.physics.w=max(viscosity,0.30) }
                 simulate(command:command,uniforms:stepUniforms,vessels:vessels)
                 accumulator -= timeStep; steps += 1
             }
@@ -553,7 +560,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             guard inFlight.wait(timeout:.now()) == .success else { return }
             let bounds=view.bounds.size
             if bounds.width > 0 && bounds.height > 0 {
-                let scale=min(1.5,1000/max(bounds.width,bounds.height))
+                let scale=min(1.5,quality.maximumDimension/max(bounds.width,bounds.height))
                 let desired=CGSize(width:max(1,Int(bounds.width*scale)),height:max(1,Int(bounds.height*scale)))
                 if view.drawableSize != desired { view.drawableSize=desired }
             }

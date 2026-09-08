@@ -17,6 +17,7 @@ import AppKit
         let texture=device.makeTexture(descriptor:desc)!
         var errors:[String]=[],results:[[String:Any]]=[]
         let fixture=option("--fixture","level")
+        if let puzzle=LabBoardPuzzle(rawValue:fixture) { renderer.reset(state:puzzle.initial) }
         if fixture == "pear" { renderer.reset(state:LabBoardState(layers:[[],[],[],[0,1,1,1]])) }
         if fixture == "three" { renderer.reset(state:LabBoardState(layers:[[0,1,1,1],[],[],[]])) }
         if fixture == "partial" { renderer.reset(state:LabBoardState(layers:[[0,0],[0,0,0],[],[]])) }
@@ -28,7 +29,7 @@ import AppKit
         if initial.move(from:0,to:0) != nil || initial.move(from:-1,to:0) != nil { errors.append("Illegal move accepted") }
         if fixture == "level" && initial.move(from:0,to:1) != nil { errors.append("Different top colors accepted") }
         guard let solution=initial.solution() ?? (fixture == "level" ? nil:[]) else { throw LabError.message("Initial level has no solution") }
-        let route: [(Int,Int)] = fixture == "shortest" ? solution.map { ($0.source,$0.destination) } : fixture == "pear" ? [(3,1)] : fixture == "level" ? [(0,3),(1,0),(2,3),(2,0),(1,3)] : [(0,fixture == "partial" ? 1:3)]
+        let route: [(Int,Int)] = (fixture == "shortest" || LabBoardPuzzle(rawValue:fixture) != nil) ? solution.map { ($0.source,$0.destination) } : fixture == "pear" ? [(3,1)] : fixture == "level" ? [(0,3),(1,0),(2,3),(2,0),(1,3)] : [(0,fixture == "partial" ? 1:3)]
         print("Fixture \(fixture), particles \(renderer.particleCount), shortest solution \(solution.count) moves")
         renderer.encodeFrame(target:texture,deltaTime:0).waitUntilCompleted()
         try save(texture,to:output.appendingPathComponent("ready.png"))
@@ -65,7 +66,7 @@ import AppKit
                         let profile=renderer.profiles[pair.0],y=Float(ring)/16*profile.height,r=profile.radius(at:y)+0.035
                         let a=Float(segment)/24*2*Float.pi
                         let point=vessels[pair.0].world*SIMD4<Float>(r*cos(a),y,r*sin(a),1)
-                        for other in 0..<4 where other != pair.0 {
+                        for other in renderer.profiles.indices where other != pair.0 {
                             let q=(vessels[other].inverseWorld*point).xyz
                             if q.y>=0 && q.y<=renderer.profiles[other].height { maxPenetration=max(maxPenetration,renderer.profiles[other].radius(at:q.y)+0.035-simd_length(SIMD2(q.x,q.z))) }
                         }
@@ -84,6 +85,10 @@ import AppKit
             if committed && observedCommits != renderer.game.moveCount { errors.append("Commit did not notify the UI before resting") }
             if !committed { errors.append("Move \(index) did not commit: \(renderer.lastOutcome)") }
             let samples=renderer.particleSamples()
+            let activeOwners=Set([pair.0,pair.1])
+            for (before,after) in zip(snapshots[index],samples) where !activeOwners.contains(Int(before.position.w)) {
+                if before.position != after.position { errors.append("Inactive vial moved during another pair's pour");break }
+            }
             if samples.count != initial.colors.count*LabBoardRenderer.particlesPerUnit { errors.append("Particle count changed") }
             let expectedState=states[index].applying(expected)!
             if committed && renderer.game.state != expectedState { errors.append("Wrong puzzle state after move \(index)") }
@@ -112,7 +117,7 @@ import AppKit
             if !errors.isEmpty { break }
         }
         if maxPenetration>0.02 { errors.append("Vessels intersected by \(maxPenetration) scene units") }
-        if ["level","shortest"].contains(fixture), !renderer.game.state.solved { errors.append("The complete solution did not solve the board") }
+        if (["level","shortest"].contains(fixture) || LabBoardPuzzle(rawValue:fixture) != nil), !renderer.game.state.solved { errors.append("The complete solution did not solve the board") }
         // Undo restores exact particle snapshots and puzzle history, including colors.
         if renderer.game.pending == nil {
             for index in (0..<renderer.game.moveCount).reversed() {
@@ -128,7 +133,7 @@ import AppKit
         for _ in 0..<30 { renderer.encodeFrame(target:texture,deltaTime:1/fps).waitUntilCompleted() }
         renderer.reset()
         if renderer.game.pending != nil || renderer.game.moveCount != 0 || renderer.game.state != .firstSort || zip(resetParticles,renderer.particleSamples()).contains(where: { $0.position != $1.position }) { errors.append("Reset failed to cancel and restore") }
-        let report:[String:Any]=["playbackSpeed":renderer.playbackSpeed,"funnelEnabled":renderer.funnelEnabled,"fixture":fixture,"device":device.name,"fps":fps,"resolution":[width,height],"particles":renderer.particleCount,"maximumVesselPenetration":maxPenetration,"moves":results,"errors":errors]
+        let report:[String:Any]=["playbackSpeed":renderer.playbackSpeed,"funnelEnabled":renderer.funnelEnabled,"fixture":fixture,"device":device.name,"fps":fps,"resolution":[width,height],"particles":initial.colors.count*LabBoardRenderer.particlesPerUnit,"vialCount":initial.stacks.count,"maximumVesselPenetration":maxPenetration,"moves":results,"errors":errors]
         try JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]).write(to:output.appendingPathComponent("report.json"))
         print("REPORT \(output.path)/report.json")
         if !errors.isEmpty { print(errors.joined(separator:"\n"));exit(1) }

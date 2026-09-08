@@ -24,9 +24,15 @@ struct FluidBoardView:View {
                     Button { session.diagnostics.toggle() } label: { Image(systemName:"slider.horizontal.3").frame(width:34,height:34) }
                         .buttonStyle(.plain).accessibilityLabel("Board diagnostics")
                     Menu {
+                        Toggle("Pouring sound",isOn:$session.soundEnabled)
+                        #if os(iOS)
+                        Toggle("Haptics",isOn:$session.hapticsEnabled)
+                        #endif
+                        Picker("Fluid detail",selection:$session.quality) { ForEach(LabRenderQuality.allCases,id:\.self) { Text($0.title).tag($0) } }.disabled(session.busy)
+                        Divider()
                         Button("Pour study") { sheet = .study }
                         Button("Original game") { sheet = .classic }
-                    } label: { Image(systemName:"ellipsis.circle").frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Other experiments")
+                    } label: { Image(systemName:"ellipsis.circle").frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Board options")
                 }.padding(.horizontal,compact ? 20:32).padding(.top,20).padding(.bottom,12)
                 HStack(spacing:12) {
                     Picker("Presentation",selection:Binding(get:{session.presentation},set:session.changePresentation)) {
@@ -37,9 +43,10 @@ struct FluidBoardView:View {
                     }.pickerStyle(.segmented).frame(maxWidth:220)
                     Spacer(minLength:0)
                     Menu {
-                        ForEach(LabBoardPuzzle.allCases,id:\.self) { puzzle in Button(puzzle.title) { session.changePuzzle(puzzle) } }
+                        ForEach(LabBoardPuzzle.allCases,id:\.self) { puzzle in Button("\(puzzle.number). \(puzzle.title)\(session.hasCompleted(puzzle) ? " ✓":"")") { session.changePuzzle(puzzle) } }
                     } label: { Image(systemName:"square.grid.2x2").frame(width:28,height:28) }.accessibilityLabel("Choose puzzle")
                 }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
+                HStack { Text(session.puzzle.detail);Spacer();Text("\(session.completedPuzzleCount) complete") }.font(.system(size:10,design:.monospaced)).foregroundStyle(ink.opacity(0.55)).padding(.horizontal,compact ? 20:32)
                 HStack {
                     Text(session.paused ? "Paused":session.phase).font(.system(size:compact ? 19:24,weight:.light,design:.serif))
                     Spacer()
@@ -50,7 +57,7 @@ struct FluidBoardView:View {
                         if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
-                        ForEach(0..<4,id:\.self) { index in
+                        ForEach(session.state.stacks.indices,id:\.self) { index in
                             let rect=hitRect(index,size:board.size)
                             Button { session.select(index) } label: {
                                 RoundedRectangle(cornerRadius:20)
@@ -68,8 +75,8 @@ struct FluidBoardView:View {
                     }
                 }.frame(minHeight:220)
                 VStack(spacing:14) {
-                    HStack(spacing:8) {
-                        ForEach(0..<4,id:\.self) { index in
+                    LazyVGrid(columns:Array(repeating:GridItem(.flexible(),spacing:8),count:compact && session.state.stacks.count>4 ? 3:session.state.stacks.count),spacing:8) {
+                        ForEach(session.state.stacks.indices,id:\.self) { index in
                             Button { session.select(index) } label: {
                                 VStack(spacing:5) {
                                     HStack(spacing:5) {
@@ -86,6 +93,9 @@ struct FluidBoardView:View {
                             }.buttonStyle(.plain).disabled(session.busy || session.state.solved)
                             .accessibilityLabel("Select "+session.accessibility(index))
                         }
+                    }
+                    if session.state.solved,let next=session.puzzle.next {
+                        Button("Next: \(next.title)",systemImage:"arrow.right") { session.nextPuzzle() }.buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
                     }
                     Text(session.notice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity,minHeight:30).multilineTextAlignment(.center)
                     HStack(spacing:12) {
@@ -129,10 +139,10 @@ struct FluidBoardView:View {
         }.font(.system(size:10,design:.monospaced)).padding(12).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:12))
     }
     private func hitRect(_ index:Int,size:CGSize) -> CGRect {
-        let profiles=session.renderer?.profiles ?? LabBoardLayout.profiles()
-        if session.presentation == .classic { return LabClassicLayout(size:size).hitRect(index,profile:profiles[index]) }
-        let matrix=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:Float(session.orbit)).0
-        let home=LabBoardLayout.homes[index],r=(profiles[index].radii.max() ?? 0.6)+0.05
+        let profiles=LabBoardLayout.profiles(count:session.state.stacks.count)
+        if session.presentation == .classic { return LabClassicLayout(size:size,vesselCount:session.state.stacks.count).hitRect(index,profile:profiles[index]) }
+        let matrix=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:Float(session.orbit),vesselCount:session.state.stacks.count).0
+        let home=LabBoardLayout.homes(count:session.state.stacks.count)[index],r=(profiles[index].radii.max() ?? 0.6)+0.05
         var xs:[CGFloat]=[],ys:[CGFloat]=[]
         for x in [-r,r] { for z in [-r,r] { for y:Float in [0,profiles[index].height] {
             let p=matrix*SIMD4(home+SIMD3(x,y,z),1)

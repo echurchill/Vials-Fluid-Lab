@@ -1,8 +1,8 @@
 # Vials Fluid Lab
 
-Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 04 opens three matched puzzles with switchable **Classic / Fluid** presentation and **Relaxed / Quick** pacing. Both styles share progress, hints and undo. The teal pouring-vial icon distinguishes this Lab from the original game. **Other experiments** contains the earlier **Pour study** and the **Original game**.
+Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 05 has a 12-puzzle progression with four- and six-vial boards, up to three colors, switchable **Classic / Fluid** presentation and **Relaxed / Quick** pacing. Both styles share progress, hints and undo. Board options include optional pouring sound, haptics on supported hardware and render-detail choices. The teal pouring-vial icon distinguishes this Lab from the original game. **Board options** also contains the earlier **Pour study** and the **Original game**.
 
-See [prototype review notes, measured results, and captures](Reports/Prototype04/README.md).
+See [prototype review notes, measured results, and captures](Reports/Prototype05/README.md).
 
 Open `Vials Fluid Lab.xcodeproj` and select the shared **Vials Fluid Lab** scheme.
 The target/product is `VialsFluidLab`; the installed display name is **Vials Fluid Lab**.
@@ -42,6 +42,6 @@ All copied game source, scripts, and assets match the source snapshot.
 
 ## Prototype verification
 
-Prototype 04 passes macOS and signed iOS builds, 63 reported comparison/board transfers, shared progress and undo checks, and the retained pour-study regression. Quick Fluid fixture turns take 4.52–5.07 seconds with at most 2.27% cleanup; Relaxed takes 7.20–8.10 seconds with at most 2.89%. Run `bash Scripts/validate_comparison.sh` and `bash Scripts/validate_fluid_board.sh` to reproduce.
+Prototype 05 passes macOS and signed iOS builds, 162 progression/comparison transfers, and the retained pour-study regression. All 12 authored levels have verified legal solutions. New-level Quick Fluid turns take 3.92–5.27 seconds in the fixtures, with at most 0.625% cleanup. Run `bash Scripts/validate_progression.sh` to reproduce the main suite.
 
-Live Mac comparison and persistence checks passed. An initial iPad candidate completed 24 Quick Fluid turns at roughly 60 draw intervals/second before automatic lock suspended it. Final polish and unplugged battery comparison still need an unlocked iPad. See [current results and limitations](Reports/Prototype04/README.md), [tester instructions](Reports/Prototype04/Testing.md), and [icon artwork and prompt](Reports/Prototype04/Icon.md).
+Ten-minute unplugged iPad trials compare Classic and Fluid on the same six-vial puzzle. Read the [measurements and their limits](Reports/Prototype05/Measurements.md), [prototype notes](Reports/Prototype05/README.md), and [tester instructions](Reports/Prototype05/Testing.md). Historical results and the icon generation prompt remain in Reports/Prototype04.

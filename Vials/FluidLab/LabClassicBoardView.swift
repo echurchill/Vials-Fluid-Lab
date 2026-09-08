@@ -2,8 +2,9 @@ import SwiftUI
 
 struct LabClassicLayout {
     let size:CGSize
-    var scale:CGFloat { min(size.width/9.5,size.height/6.4) }
-    func base(_ index:Int) -> CGPoint { CGPoint(x:size.width/2+CGFloat(LabBoardLayout.homes[index].x)*scale,y:size.height*0.82) }
+    var vesselCount:Int = 4
+    var scale:CGFloat { min(size.width/(CGFloat(vesselCount)*2.2+0.7),size.height/6.4) }
+    func base(_ index:Int) -> CGPoint { CGPoint(x:size.width/2+CGFloat(LabBoardLayout.homes(count:vesselCount)[index].x)*scale,y:size.height*0.82) }
     func hitRect(_ index:Int,profile:LabVesselProfile) -> CGRect {
         let point=base(index),radius=CGFloat(profile.radii.max() ?? 0.6)*scale
         return CGRect(x:point.x-radius-8,y:point.y-CGFloat(profile.height)*scale-8,width:radius*2+16,height:CGFloat(profile.height)*scale+16)
@@ -14,14 +15,14 @@ struct LabClassicLayout {
 struct LabClassicBoardView:View {
     let state:LabBoardState
     let pour:LabClassicPour?
-    private let profiles=LabBoardLayout.profiles()
+    private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(count:state.stacks.count) }
     var body:some View {
         Canvas { context,size in
-            let layout=LabClassicLayout(size:size),scale=layout.scale
+            let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count),scale=layout.scale
             let tray=CGRect(x:size.width*0.06,y:layout.base(0).y-10,width:size.width*0.88,height:40)
             context.stroke(Path(ellipseIn:tray),with:.color(.white.opacity(0.08)),lineWidth:1)
             let moving=pour?.move.source
-            for index in 0..<4 where index != moving { drawVial(index,context:context,layout:layout) }
+            for index in state.stacks.indices where index != moving { drawVial(index,context:context,layout:layout) }
             if let pour {
                 let pose=pose(pour,layout:layout)
                 if pour.progress>0 && pour.progress<1 {

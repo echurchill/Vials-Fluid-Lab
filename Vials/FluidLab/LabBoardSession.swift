@@ -26,6 +26,13 @@ import Combine
     @Published var error:String?
     @Published private(set) var measurementActive=false
     @Published private(set) var reportURL:URL?
+    @Published var soundEnabled=false { didSet { feedback.soundEnabled=soundEnabled;defaults?.set(soundEnabled,forKey:"lab.sound");updateFeedback() } }
+    @Published var hapticsEnabled=true { didSet { feedback.hapticsEnabled=hapticsEnabled;defaults?.set(hapticsEnabled,forKey:"lab.haptics") } }
+    @Published var quality:LabRenderQuality = .automatic { didSet { renderer?.quality=quality;defaults?.set(quality.rawValue,forKey:"lab.quality");finishMeasurement(reason:"quality changed") } }
+    private let feedback=LabBoardFeedback()
+    var completedPuzzleCount:Int { saved.games.values.filter { $0.state.solved }.count }
+    func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool { puzzle == self.puzzle ? state.solved:(saved.games[puzzle.rawValue]?.state.solved ?? false) }
+    func nextPuzzle() { if !busy,let next=puzzle.next { changePuzzle(next) } }
     let performance=LabPerformanceRecorder()
     private var trialStarted=false
     private var suspended=false
@@ -47,11 +54,15 @@ import Combine
         self.defaults=trial == nil ? defaults:nil;self.device=device;self.library=library
         var save=self.defaults?.data(forKey:"lab.comparison.v1").flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) } ?? LabComparisonSave()
         if let restoredSave { save=restoredSave }
-        if let trial { save=LabComparisonSave(presentation:trial.presentation,pace:trial.pace,puzzle:.firstSort,games:[:]) }
+        if let trial { save=LabComparisonSave(presentation:trial.presentation,pace:trial.pace,puzzle:trial.puzzle,games:[:]) }
+        soundEnabled=self.defaults?.bool(forKey:"lab.sound") ?? false
+        hapticsEnabled=self.defaults?.object(forKey:"lab.haptics") as? Bool ?? (self.defaults != nil)
+        quality=trial?.quality ?? LabRenderQuality(rawValue:self.defaults?.string(forKey:"lab.quality") ?? "automatic") ?? .automatic
         saved=save;presentation=save.presentation;pace=save.pace;puzzle=save.puzzle
         var restored=save.games[save.puzzle.rawValue] ?? LabBoardGame(state:save.puzzle.initial)
         restored.cancel() // A launch restores the last committed move.
         game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
+        feedback.soundEnabled=soundEnabled;feedback.hapticsEnabled=hapticsEnabled
         if presentation == .fluid { prepareFluid() }
         refresh()
     }
@@ -68,7 +79,7 @@ import Combine
                 renderer=engine
             }
             renderer?.install(game:game,samples:settledParticles)
-            renderer?.pointMode=points;renderer?.orbit=Float(orbit);updateSpeed();updatePause()
+            renderer?.quality=quality;renderer?.pointMode=points;renderer?.orbit=Float(orbit);updateSpeed();updatePause()
         } catch { self.error=error.localizedDescription;presentation = .classic }
     }
     private func checkpoint() {
@@ -98,6 +109,7 @@ import Combine
         notice="Same puzzle and rules in both views.";checkpoint();refresh()
     }
     func refresh() {
+        updateFeedback()
         if state.solved { phase="Sorted beautifully";notice="Every color has a home. Undo to explore, or play again." }
         else if let pour=classicPour {
             phase=pour.time<0.95 ? "Moving into position":(pour.returning ? "Returning the vial":"Pouring \(pour.move.amount) \(pour.move.amount == 1 ? "unit":"units")")
@@ -113,6 +125,7 @@ import Combine
             if committed { undoParticles.append(beforeParticles);game=renderer.game;settledParticles=renderer.particleSamples() }
             else { game.cancel();notice=renderer.lastOutcome }
             performance.endMove(committed:committed,correctionPercent:Double(correction)/Double(amount*640)*100)
+            if committed { feedback.completed(solved:state.solved) } else { feedback.stop() }
             beforeParticles=nil;checkpoint()
         }
         refresh()
@@ -130,7 +143,7 @@ import Combine
             }
         } else {
             guard !state.stacks[index].isEmpty else { notice="Choose a vial that contains liquid first.";return }
-            selected=index;hintTarget=nil;notice="Now choose a matching color or an empty vial."
+            feedback.selection();selected=index;hintTarget=nil;notice="Now choose a matching color or an empty vial."
         }
     }
     @discardableResult func begin(_ move:LabBoardMove,automaticClock:Bool = true) -> Bool {
@@ -169,6 +182,7 @@ import Combine
         if pour.finished {
             guard game.commit(pour.move) else { return }
             performance.endMove(committed:true,correctionPercent:0)
+            feedback.completed(solved:state.solved)
             undoParticles.append(beforeParticles);beforeParticles=nil;settledParticles=nil
             classicPour=nil;classicTask?.cancel();classicTask=nil;checkpoint()
         } else { classicPour=pour }
@@ -176,6 +190,7 @@ import Combine
         performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:nil)
     }
     func reset() {
+        feedback.stop()
         classicTask?.cancel();classicTask=nil;classicPour=nil
         game=LabBoardGame(state:puzzle.initial);undoParticles=[];settledParticles=nil;beforeParticles=nil
         renderer?.reset(state:puzzle.initial)
@@ -198,11 +213,21 @@ import Combine
     }
     func setSuspended(_ value:Bool) { suspended=value;updatePause() }
     func togglePause() { paused.toggle();updatePause() }
-    private func updatePause() { renderer?.paused=paused || suspended || presentation != .fluid }
+    private func updatePause() { renderer?.paused=paused || suspended || presentation != .fluid;updateFeedback() }
+    private func updateFeedback() {
+        let visibleStream:Bool
+        if let pour=classicPour { visibleStream=pour.progress>0 && pour.progress<1 }
+        else { visibleStream=busy && (renderer?.lastMetrics.departed ?? 0)>20 && renderer?.cutoffTime == nil }
+        feedback.setPouring(visibleStream && !paused && !suspended)
+    }
+    private func beginMeasurement() {
+        performance.context=["puzzle":puzzle.rawValue,"vialCount":state.stacks.count,"colorCount":Set(state.colors).count,"quality":quality.rawValue,"maximumRenderDimension":quality.maximumDimension,"particleCount":presentation == .fluid ? (renderer?.particleCount ?? 0):0]
+        performance.begin(presentation:presentation,pace:pace);measurementActive=true;reportURL=nil
+    }
     private func updateSpeed() { renderer?.playbackSpeed=effectiveSpeed }
     func toggleMeasurement() {
         if measurementActive { finishMeasurement() }
-        else { performance.begin(presentation:presentation,pace:pace);measurementActive=true;reportURL=nil }
+        else { beginMeasurement() }
     }
     private func finishMeasurement(filename:String? = nil,reason:String="completed") {
         guard measurementActive else { return }
@@ -213,8 +238,13 @@ import Combine
     func runTrialIfRequested() async {
         guard !trialStarted,let trial=LabTrialConfiguration.current else { return }
         trialStarted=true
+        #if os(iOS)
+        let previousIdleTimer=UIApplication.shared.isIdleTimerDisabled
+        if ProcessInfo.processInfo.arguments.contains("--keep-awake") { UIApplication.shared.isIdleTimerDisabled=true }
+        defer { UIApplication.shared.isIdleTimerDisabled=previousIdleTimer }
+        #endif
         try? await Task.sleep(for:.seconds(2))
-        performance.begin(presentation:presentation,pace:pace);measurementActive=true
+        beginMeasurement()
         let start=ProcessInfo.processInfo.systemUptime
         var reason="completed"
         while !Task.isCancelled && ProcessInfo.processInfo.systemUptime-start<trial.seconds {
@@ -228,7 +258,7 @@ import Combine
         if Task.isCancelled { reason="cancelled" }
         // Do not count an unfinished move as a successful transfer.
         paused=true;updatePause()
-        finishMeasurement(filename:"trial-\(trial.presentation.rawValue)-\(trial.pace.rawValue)",reason:reason)
+        finishMeasurement(filename:"trial-\(trial.puzzle.rawValue)-\(trial.presentation.rawValue)-\(trial.pace.rawValue)-\(trial.quality.rawValue)",reason:reason)
         notice="Measurement saved. Reset to play again."
         #if os(macOS)
         if ProcessInfo.processInfo.arguments.contains("--exit-after-trial") { NSApplication.shared.terminate(nil) }
@@ -236,8 +266,8 @@ import Combine
     }
 
     static func letter(_ index:Int) -> String { String(UnicodeScalar(65+index)!) }
-    static func name(_ color:Int) -> String { color == 0 ? "Tide":"Ember" }
-    static func color(_ value:Int) -> Color { value == 0 ? Color(red:0.05,green:0.58,blue:0.86):Color(red:0.96,green:0.34,blue:0.07) }
+    static func name(_ color:Int) -> String { color == 0 ? "Tide":(color == 1 ? "Ember":"Leaf") }
+    static func color(_ value:Int) -> Color { value == 0 ? Color(red:0.05,green:0.58,blue:0.86):(value == 1 ? Color(red:0.96,green:0.34,blue:0.07):Color(red:0.20,green:0.76,blue:0.36)) }
     func accessibility(_ index:Int) -> String {
         let layers=state.stacks[index].reversed().map { Self.name(state.colors[$0]) }.joined(separator:", ")
         return "Vial \(Self.letter(index)), \(state.stacks[index].count) of 4 units. \(layers.isEmpty ? "Empty":"Top to bottom: "+layers)."

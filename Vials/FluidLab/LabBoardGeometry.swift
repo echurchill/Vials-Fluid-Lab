@@ -24,17 +24,22 @@ enum LabBoardTiming {
 
 struct LabBoardLayout {
     static let homes:[SIMD3<Float>]=[-3.3,-1.1,1.1,3.3].map { SIMD3($0,0.18,0) }
-    static func profiles() -> [LabVesselProfile] {
+    static func homes(count:Int) -> [SIMD3<Float>] {
+        (0..<count).map { SIMD3((Float($0)-Float(count-1)/2)*2.2,0.18,0) }
+    }
+    static func profiles(count:Int = 4) -> [LabVesselProfile] {
         let base=LabVesselProfile.pair()
         func shape(_ name:String,_ knots:[(Float,Float)]) -> LabVesselProfile {
             let raw=LabVesselProfile(name:name,height:2.35,knots:knots)
             return LabVesselProfile(name:name,height:2.35,knots:knots,radialScale:sqrt(base[0].usableVolume/raw.usableVolume))
         }
-        return [base[0],base[1],shape("Tapered flask",[(0,0.58),(0.07,0.64),(0.52,0.50),(0.80,0.31),(0.91,0.34),(1,0.54)]),
+        let shapes=[base[0],base[1],shape("Tapered flask",[(0,0.58),(0.07,0.64),(0.52,0.50),(0.80,0.31),(0.91,0.34),(1,0.54)]),
                 shape("Pear flask",[(0,0.25),(0.06,0.48),(0.27,0.69),(0.49,0.59),(0.73,0.32),(0.91,0.32),(1,0.54)])]
+        return (0..<count).map { shapes[$0 % shapes.count] }
     }
     static func vessels(profiles:[LabVesselProfile],move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?) -> [LabVesselUniform] {
-        var positions=homes,rotations=[simd_float4x4](repeating:matrix_identity_float4x4,count:4)
+        let homes=homes(count:profiles.count)
+        var positions=homes,rotations=[simd_float4x4](repeating:matrix_identity_float4x4,count:profiles.count)
         if let move {
             let home=homes[move.source], receiver=homes[move.destination]
             let sign:Float=receiver.x >= home.x ? 1:-1
@@ -77,8 +82,9 @@ struct LabBoardLayout {
                 dimensions:SIMD4(p.height,Float(i),0.035,role),marks:SIMD4(p.height(for:p.usableVolume/4),p.height(for:p.usableVolume/2),p.height(for:p.usableVolume*0.75),p.height(for:p.usableVolume)))
         }
     }
-    static func camera(aspect:Float,azimuth:Float) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
-        let eye=SIMD3<Float>(sin(azimuth)*14,5.4,cos(azimuth)*14),target=SIMD3<Float>(0,2.5,0)
+    static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
+        let distance:Float=vesselCount>4 ? 20:14
+        let eye=SIMD3<Float>(sin(azimuth)*distance,5.4,cos(azimuth)*distance),target=SIMD3<Float>(0,2.5,0)
         let forward=simd_normalize(eye-target),right=simd_normalize(simd_cross(SIMD3<Float>(0,1,0),forward)),up=simd_cross(forward,right)
         let view=simd_float4x4(SIMD4(right.x,up.x,forward.x,0),SIMD4(right.y,up.y,forward.y,0),SIMD4(right.z,up.z,forward.z,0),SIMD4(-simd_dot(right,eye),-simd_dot(up,eye),-simd_dot(forward,eye),1))
         let y:Float=1/tan(aspect<1.4 ? 0.235*1.4/max(aspect,0.55):0.235),near:Float=0.1,far:Float=50

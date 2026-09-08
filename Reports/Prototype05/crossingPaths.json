@@ -1,0 +1,149 @@
+{
+  "device" : "Apple M4",
+  "errors" : [
+
+  ],
+  "fixture" : "crossingPaths",
+  "fps" : 60,
+  "funnelEnabled" : true,
+  "maximumVesselPenetration" : 0,
+  "moves" : [
+    {
+      "arrivalBeforeCorrection" : 0.99843752384185791,
+      "committed" : true,
+      "correctedParticles" : 1,
+      "destination" : 0,
+      "durationSeconds" : 4.4166665077209473,
+      "frameMedianMs" : 8.2939863204956055,
+      "gpuMedianMs" : 5.9968749992549419,
+      "guidedParticles" : 1,
+      "move" : 0,
+      "source" : 1,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99531251192092896,
+      "committed" : true,
+      "correctedParticles" : 3,
+      "destination" : 2,
+      "durationSeconds" : 4.6500000953674316,
+      "frameMedianMs" : 8.0939531326293945,
+      "gpuMedianMs" : 5.8332500047981739,
+      "guidedParticles" : 119,
+      "move" : 1,
+      "source" : 1,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99843752384185791,
+      "committed" : true,
+      "correctedParticles" : 1,
+      "destination" : 0,
+      "durationSeconds" : 4.3499999046325684,
+      "frameMedianMs" : 8.4739923477172852,
+      "gpuMedianMs" : 6.0122499999124557,
+      "guidedParticles" : 2,
+      "move" : 2,
+      "source" : 3,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99843752384185791,
+      "committed" : true,
+      "correctedParticles" : 1,
+      "destination" : 1,
+      "durationSeconds" : 4.6166667938232422,
+      "frameMedianMs" : 8.2020759582519531,
+      "gpuMedianMs" : 5.949874990619719,
+      "guidedParticles" : 70,
+      "move" : 3,
+      "source" : 3,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99843752384185791,
+      "committed" : true,
+      "correctedParticles" : 1,
+      "destination" : 2,
+      "durationSeconds" : 4.7333331108093262,
+      "frameMedianMs" : 8.2750320434570312,
+      "gpuMedianMs" : 5.8893749956041574,
+      "guidedParticles" : 55,
+      "move" : 4,
+      "source" : 3,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99531251192092896,
+      "committed" : true,
+      "correctedParticles" : 6,
+      "destination" : 3,
+      "durationSeconds" : 4.9499998092651367,
+      "frameMedianMs" : 8.2749128341674805,
+      "gpuMedianMs" : 5.9834999992744997,
+      "guidedParticles" : 90,
+      "move" : 5,
+      "source" : 1,
+      "units" : 2
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99609375,
+      "committed" : true,
+      "correctedParticles" : 5,
+      "destination" : 1,
+      "durationSeconds" : 5.0333333015441895,
+      "frameMedianMs" : 8.4290504455566406,
+      "gpuMedianMs" : 6.0431250021792948,
+      "guidedParticles" : 3,
+      "move" : 6,
+      "source" : 0,
+      "units" : 2
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99687498807907104,
+      "committed" : true,
+      "correctedParticles" : 2,
+      "destination" : 3,
+      "durationSeconds" : 4.4166665077209473,
+      "frameMedianMs" : 8.1210136413574219,
+      "gpuMedianMs" : 5.9982499951729551,
+      "guidedParticles" : 1,
+      "move" : 7,
+      "source" : 5,
+      "units" : 1
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99531251192092896,
+      "committed" : true,
+      "correctedParticles" : 6,
+      "destination" : 2,
+      "durationSeconds" : 4.9499998092651367,
+      "frameMedianMs" : 8.4890127182006836,
+      "gpuMedianMs" : 6.0516666708281264,
+      "guidedParticles" : 71,
+      "move" : 8,
+      "source" : 5,
+      "units" : 2
+    },
+    {
+      "arrivalBeforeCorrection" : 0.99374997615814209,
+      "committed" : true,
+      "correctedParticles" : 12,
+      "destination" : 5,
+      "durationSeconds" : 5.2666668891906738,
+      "frameMedianMs" : 8.8419914245605469,
+      "gpuMedianMs" : 6.1872916558058932,
+      "guidedParticles" : 14,
+      "move" : 9,
+      "source" : 1,
+      "units" : 3
+    }
+  ],
+  "particles" : 7680,
+  "playbackSpeed" : 1.6000000238418579,
+  "resolution" : [
+    1000,
+    650
+  ],
+  "vialCount" : 6
+}

@@ -7,22 +7,25 @@ struct LabTrialConfiguration {
     let presentation:LabBoardPresentation
     let pace:LabBoardPace
     let seconds:Double
+    let puzzle:LabBoardPuzzle
+    let quality:LabRenderQuality
     static var current:Self? {
         let args=ProcessInfo.processInfo.arguments
         guard args.contains("--lab-trial") else { return nil }
         func option(_ name:String,_ fallback:String) -> String { guard let i=args.firstIndex(of:name),i+1<args.count else { return fallback };return args[i+1] }
         return Self(presentation:LabBoardPresentation(rawValue:option("--presentation","fluid")) ?? .fluid,
             pace:LabBoardPace(rawValue:option("--pace","quick")) ?? .quick,
-            seconds:min(900,max(10,Double(option("--seconds","180")) ?? 180)))
+            seconds:min(900,max(10,Double(option("--seconds","180")) ?? 180)),puzzle:LabBoardPuzzle(rawValue:option("--puzzle","greenArrival")) ?? .greenArrival,quality:LabRenderQuality(rawValue:option("--quality","automatic")) ?? .automatic)
     }
 }
 
 /// Local measurements only. Battery values are observations, not power estimates.
 @MainActor final class LabPerformanceRecorder {
+    var context:[String:Any]=[:]
     private(set) var active=false
     private var started:Double=0
     private var first:[String:Any]=[:]
-    private var frames:[[Double]]=[] // interval ms, CPU update/encode ms, GPU ms (-1 for Classic)
+    private var frames:[[Double]]=[] // interval ms, host update/encode wall ms, GPU ms (-1 for Classic)
     private var moves:[[String:Any]]=[]
     private var environments:[[String:Any]]=[]
     private var moveStart:Double?
@@ -74,7 +77,7 @@ struct LabTrialConfiguration {
             return ["samples":sorted.count,"median":sorted[sorted.count/2],"p95":sorted[min(sorted.count-1,Int(Double(sorted.count)*0.95))],"maximum":sorted.last!]
         }
         let report:[String:Any]=[
-            "schema":1,"date":ISO8601DateFormatter().string(from:Date()),"presentation":mode,"pace":pace,"elapsedSeconds":elapsed,"reason":reason,
+            "schema":2,"configuration":context,"keptAwakeForTrial":ProcessInfo.processInfo.arguments.contains("--keep-awake"),"date":ISO8601DateFormatter().string(from:Date()),"presentation":mode,"pace":pace,"elapsedSeconds":elapsed,"reason":reason,
             "os":ProcessInfo.processInfo.operatingSystemVersionString,"start":first,"end":last,"environmentSamples":environments,"moves":moves,
             "animationFrameIntervalMs":summary(frames.map{$0[0]}),"updateOrEncodeWallMs":summary(frames.map{$0[1]}),"fluidGPUFrameMs":summary(frames.map{$0[2]}.filter{$0>=0}),
             "intervalsOver25ms":frames.filter{$0[0]>25}.count,

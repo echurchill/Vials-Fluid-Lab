@@ -1,0 +1,566 @@
+{
+  "device" : "Apple M4",
+  "errors" : [
+
+  ],
+  "levelSolutions" : [
+    {
+      "moves" : 4,
+      "puzzle" : "firstSort",
+      "vials" : 4
+    },
+    {
+      "moves" : 6,
+      "puzzle" : "crossCurrents",
+      "vials" : 4
+    },
+    {
+      "moves" : 3,
+      "puzzle" : "lastDrops",
+      "vials" : 4
+    },
+    {
+      "moves" : 9,
+      "puzzle" : "greenArrival",
+      "vials" : 6
+    },
+    {
+      "moves" : 9,
+      "puzzle" : "tidalPool",
+      "vials" : 6
+    },
+    {
+      "moves" : 9,
+      "puzzle" : "glassGarden",
+      "vials" : 6
+    },
+    {
+      "moves" : 9,
+      "puzzle" : "switchback",
+      "vials" : 6
+    },
+    {
+      "moves" : 9,
+      "puzzle" : "estuary",
+      "vials" : 6
+    },
+    {
+      "moves" : 10,
+      "puzzle" : "crossingPaths",
+      "vials" : 6
+    },
+    {
+      "moves" : 10,
+      "puzzle" : "deepCurrent",
+      "vials" : 6
+    },
+    {
+      "moves" : 10,
+      "puzzle" : "orchard",
+      "vials" : 6
+    },
+    {
+      "moves" : 10,
+      "puzzle" : "confluence",
+      "vials" : 6
+    }
+  ],
+  "moves" : [
+    {
+      "move" : 0,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "firstSort",
+      "seconds" : 7.5999999046325684,
+      "units" : 2
+    },
+    {
+      "move" : 1,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "firstSort",
+      "seconds" : 7.9000000953674316,
+      "units" : 2
+    },
+    {
+      "move" : 2,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "firstSort",
+      "seconds" : 7.5999999046325684,
+      "units" : 3
+    },
+    {
+      "move" : 3,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "firstSort",
+      "seconds" : 8.2333335876464844,
+      "units" : 3
+    },
+    {
+      "move" : 0,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "firstSort",
+      "seconds" : 4.7666668891906738,
+      "units" : 2
+    },
+    {
+      "move" : 1,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "firstSort",
+      "seconds" : 4.9833331108093262,
+      "units" : 2
+    },
+    {
+      "move" : 2,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "firstSort",
+      "seconds" : 4.7666668891906738,
+      "units" : 3
+    },
+    {
+      "move" : 3,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "firstSort",
+      "seconds" : 5.1666665077209473,
+      "units" : 3
+    },
+    {
+      "move" : 0,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 1,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 6.8499999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 2,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 3,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 7.8833332061767578,
+      "units" : 2
+    },
+    {
+      "move" : 4,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 7.5999999046325684,
+      "units" : 3
+    },
+    {
+      "move" : 5,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 8.1999998092651367,
+      "units" : 3
+    },
+    {
+      "move" : 0,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 1,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.3166666030883789,
+      "units" : 1
+    },
+    {
+      "move" : 2,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 3,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.9499998092651367,
+      "units" : 2
+    },
+    {
+      "move" : 4,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.7666668891906738,
+      "units" : 3
+    },
+    {
+      "move" : 5,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 5.1833333969116211,
+      "units" : 3
+    },
+    {
+      "move" : 0,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "lastDrops",
+      "seconds" : 7.5999999046325684,
+      "units" : 3
+    },
+    {
+      "move" : 1,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "lastDrops",
+      "seconds" : 8.1833333969116211,
+      "units" : 3
+    },
+    {
+      "move" : 2,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "lastDrops",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 0,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "lastDrops",
+      "seconds" : 4.7666668891906738,
+      "units" : 3
+    },
+    {
+      "move" : 1,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "lastDrops",
+      "seconds" : 5.1166667938232422,
+      "units" : 3
+    },
+    {
+      "move" : 2,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "lastDrops",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 0,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 1,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "greenArrival",
+      "seconds" : 6.3000001907348633,
+      "units" : 1
+    },
+    {
+      "move" : 2,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 3,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "greenArrival",
+      "seconds" : 7.2833333015441895,
+      "units" : 1
+    },
+    {
+      "move" : 4,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 7.5999999046325684,
+      "units" : 2
+    },
+    {
+      "move" : 5,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "greenArrival",
+      "seconds" : 6.8499999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 6,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 7,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "greenArrival",
+      "seconds" : 7.4666666984558105,
+      "units" : 2
+    },
+    {
+      "move" : 8,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 0,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 1,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "greenArrival",
+      "seconds" : 3.9500000476837158,
+      "units" : 1
+    },
+    {
+      "move" : 2,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 3,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "greenArrival",
+      "seconds" : 4.5833334922790527,
+      "units" : 1
+    },
+    {
+      "move" : 4,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 4.7666668891906738,
+      "units" : 2
+    },
+    {
+      "move" : 5,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "greenArrival",
+      "seconds" : 4.3166666030883789,
+      "units" : 1
+    },
+    {
+      "move" : 6,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 7,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "greenArrival",
+      "seconds" : 4.6666665077209473,
+      "units" : 2
+    },
+    {
+      "move" : 8,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "greenArrival",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 0,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 1,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "tidalPool",
+      "seconds" : 7.3666667938232422,
+      "units" : 1
+    },
+    {
+      "move" : 2,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 3,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "tidalPool",
+      "seconds" : 7.0500001907348633,
+      "units" : 1
+    },
+    {
+      "move" : 4,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 7.5999999046325684,
+      "units" : 2
+    },
+    {
+      "move" : 5,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "tidalPool",
+      "seconds" : 8,
+      "units" : 3
+    },
+    {
+      "move" : 6,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 7,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "tidalPool",
+      "seconds" : 7.4000000953674316,
+      "units" : 1
+    },
+    {
+      "move" : 8,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 7.5999999046325684,
+      "units" : 2
+    },
+    {
+      "move" : 0,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 1,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "tidalPool",
+      "seconds" : 4.6166667938232422,
+      "units" : 1
+    },
+    {
+      "move" : 2,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 3,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "tidalPool",
+      "seconds" : 4.4166665077209473,
+      "units" : 1
+    },
+    {
+      "move" : 4,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 4.7666668891906738,
+      "units" : 2
+    },
+    {
+      "move" : 5,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "tidalPool",
+      "seconds" : 5.0166668891906738,
+      "units" : 3
+    },
+    {
+      "move" : 6,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 7,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "tidalPool",
+      "seconds" : 4.6666665077209473,
+      "units" : 1
+    },
+    {
+      "move" : 8,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "tidalPool",
+      "seconds" : 4.7666668891906738,
+      "units" : 2
+    }
+  ]
+}

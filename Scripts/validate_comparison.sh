@@ -12,7 +12,8 @@ xcodebuild -project 'Vials Fluid Lab.xcodeproj' -scheme 'Vials Fluid Lab' \
 xcrun swiftc -O -parse-as-library Vials/FluidLab/LabGeometry.swift \
   Vials/FluidLab/LabRenderer.swift Vials/FluidLab/LabBoard.swift \
   Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardRenderer.swift \
-  Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabBoardSession.swift \
+  Vials/FluidLab/LabBoardPreferences.swift \
+  Vials/FluidLab/LabBoardFeedback.swift Vials/FluidLab/LabBoardSession.swift \
   Vials/FluidLab/LabPerformance.swift Vials/FluidLab/LabClassicBoardView.swift \
   Scripts/validate_comparison.swift -o "$lab_output/validate-comparison"
 lab_library="$lab_output/DerivedData/Build/Products/Debug/VialsFluidLab.app/Contents/Resources/default.metallib"
@@ -20,6 +21,7 @@ lab_library="$lab_output/DerivedData/Build/Products/Debug/VialsFluidLab.app/Cont
 xcrun swiftc -O -parse-as-library Vials/FluidLab/LabGeometry.swift \
   Vials/FluidLab/LabRenderer.swift Vials/FluidLab/LabBoard.swift \
   Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardRenderer.swift \
+  Vials/FluidLab/LabBoardPreferences.swift \
   Scripts/validate_fluid_board.swift -o "$lab_output/validate-fluid-board"
 for lab_fixture in level shortest three partial last pear; do
   "$lab_output/validate-fluid-board" --library "$lab_library" --speed 1.6 \
