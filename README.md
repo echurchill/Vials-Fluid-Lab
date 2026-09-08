@@ -1,6 +1,8 @@
 # Vials Fluid Lab
 
-Independent investigation copy of Vials. No fluid simulation has been implemented yet.
+Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 01 now opens as the default screen; the original sorting game remains available through **Classic**.
+
+See [prototype review notes, measured results, and captures](Reports/Prototype/README.md).
 
 Open `Vials Fluid Lab.xcodeproj` and select the shared **Vials Fluid Lab** scheme.
 The target/product is `VialsFluidLab`; the installed display name is **Vials Fluid Lab**.
@@ -28,12 +30,19 @@ Measure rendering quality and performance before migrating the full game.
 
 `Reports/source-copy-manifest.json` records SHA-256 hashes of copied files before lab-specific project metadata changes.
 Source and asset directory names remain `Vials` to keep game code unchanged.
-This copy has its own Git repository and baseline commit, with no remote configured.
+This copy has its own Git history, originating at baseline commit `633d988`. Its GitHub repository is `echurchill/Vials-Fluid-Lab`, on branch `codex/fluid-lab`.
 No original Git history, Xcode user state, or build output was copied.
 
-## Baseline verification
+## Original baseline verification
 
 The shared scheme passed an unsigned Debug build for macOS with Xcode 27.0 (27A5237l).
 The built app bundle confirms the separate identifier and display name.
 Device signing, installation, and interactive gameplay have not been tested for this copy.
 All copied game source, scripts, and assets match the source snapshot.
+
+## Prototype verification
+
+Prototype 01 passes unsigned macOS and iOS builds and offscreen fluid/geometry checks.
+Run `bash Scripts/validate_fluid_lab.sh` to reproduce the automated checks.
+Live-window verification remains pending because the Mac was locked during that check.
+See the prototype report for capture losses, GPU timings, and remaining limitations.

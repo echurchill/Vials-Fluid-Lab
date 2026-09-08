@@ -4,7 +4,10 @@ import SwiftUI
 struct VialsApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            FluidLabView()
+                #if os(macOS)
+                .frame(minWidth:680,minHeight:720)
+                #endif
         }
     }
 }
