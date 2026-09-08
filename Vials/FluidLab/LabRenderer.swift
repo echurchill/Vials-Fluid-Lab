@@ -399,6 +399,7 @@ final class LabRenderer: NSObject, MTKViewDelegate {
         compose.setFragmentBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:0)
         compose.setFragmentTexture(pointMode ? depth : smoothB,index:0)
         compose.setFragmentTexture(thickness,index:1)
+        compose.setFragmentTexture(thickness,index:2) // unused identity texture in legacy mode
         compose.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3)
         compose.endEncoding()
         let final=command.makeRenderCommandEncoder(descriptor:pass(color:target,depth:glassDepth))!

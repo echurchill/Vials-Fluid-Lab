@@ -1,8 +1,8 @@
 # Vials Fluid Lab
 
-Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 03 opens a playable four-vial sorting board. **Other experiments** contains the earlier **Pour study** and the original **Classic game**.
+Independent native Swift + Metal investigation of 3D liquid pouring. Prototype 04 opens three matched puzzles with switchable **Classic / Fluid** presentation and **Relaxed / Quick** pacing. Both styles share progress, hints and undo. The teal pouring-vial icon distinguishes this Lab from the original game. **Other experiments** contains the earlier **Pour study** and the **Original game**.
 
-See [prototype review notes, measured results, and captures](Reports/Prototype03/Pacing/README.md).
+See [prototype review notes, measured results, and captures](Reports/Prototype04/README.md).
 
 Open `Vials Fluid Lab.xcodeproj` and select the shared **Vials Fluid Lab** scheme.
 The target/product is `VialsFluidLab`; the installed display name is **Vials Fluid Lab**.
@@ -42,6 +42,6 @@ All copied game source, scripts, and assets match the source snapshot.
 
 ## Prototype verification
 
-Prototype 03 passes unsigned macOS and iOS builds and 19 offscreen transfers covering full solutions, variable amounts, destination capacity, different shapes, colored layers, exact undo, pause, and reset. The updated pacing and invisible pour assist complete normal-speed turns in about 7–8 seconds, with at most 2.74% cleanup in the measured fixtures. Run `bash Scripts/validate_fluid_board.sh` to reproduce the checks.
+Prototype 04 passes macOS and signed iOS builds, 63 reported comparison/board transfers, shared progress and undo checks, and the retained pour-study regression. Quick Fluid fixture turns take 4.52–5.07 seconds with at most 2.27% cleanup; Relaxed takes 7.20–8.10 seconds with at most 2.89%. Run `bash Scripts/validate_comparison.sh` and `bash Scripts/validate_fluid_board.sh` to reproduce.
 
-The retained Prototype 02 pour study passes its shared-shader regression fixture; `bash Scripts/validate_fluid_lab.sh` runs its full suite. The user successfully tested the previous playable build on iPad; the faster build awaits a fresh iPad play check. See [pacing and pour-assist results](Reports/Prototype03/Pacing/README.md) and [Prototype 03 notes](Reports/Prototype03/README.md) for measurements, captures, and visual/physics limitations.
+Live Mac comparison and persistence checks passed. An initial iPad candidate completed 24 Quick Fluid turns at roughly 60 draw intervals/second before automatic lock suspended it. Final polish and unplugged battery comparison still need an unlocked iPad. See [current results and limitations](Reports/Prototype04/README.md), [tester instructions](Reports/Prototype04/Testing.md), and [icon artwork and prompt](Reports/Prototype04/Icon.md).

@@ -252,7 +252,7 @@ vertex ParticleOut labParticleVertex(uint id [[vertex_id]], uint instance [[inst
     return {u.viewProjection*float4(world,1),c,center,p[instance].velocity.w,p[instance].position.w,radius};
 }
 struct DepthOut { float depthColor [[color(0)]]; float depth [[depth(any)]]; };
-fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *vessels [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
+DepthOut particleDepth(ParticleOut in, constant Uniforms &u, constant Vessel *vessels, device const float *profiles) {
     float r2=dot(in.corner,in.corner);
     if(r2>1) discard_fragment();
     float3 right=float3(u.view[0][0],u.view[1][0],u.view[2][0]);
@@ -269,6 +269,15 @@ fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniform
     float depth=clip.z/clip.w;
     return {depth,depth};
 }
+fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
+    return particleDepth(in,u,v,profiles);
+}
+struct BoardDepthOut { float depthColor [[color(0)]]; float frontDye [[color(1)]]; float depth [[depth(any)]]; };
+fragment BoardDepthOut labBoardParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
+    DepthOut surface=particleDepth(in,u,v,profiles);
+    return {surface.depthColor,in.dye,surface.depth};
+}
+
 fragment float4 labParticleThickness(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]]) {
     float r2=dot(in.corner,in.corner);
     if(r2>1) discard_fragment();
@@ -292,6 +301,41 @@ kernel void labSmoothDepth(texture2d<float,access::read> source [[texture(0)]], 
     }
     target.write(float4(sum/max(weights,0.0001f)),id);
 }
+kernel void labBoardSmoothDepth(texture2d<float,access::read> source [[texture(0)]], texture2d<float,access::write> target [[texture(1)]],
+                           constant uint2 &direction [[buffer(0)]], uint2 id [[thread_position_in_grid]]) {
+    if(id.x>=target.get_width() || id.y>=target.get_height()) return;
+    float center=source.read(id).x;
+    if(center>=0.99999f) { target.write(float4(1),id); return; }
+    float sum=0, weights=0;
+    for(int k=-10;k<=10;k++) {
+        int2 xy=clamp(int2(id)+int2(direction)*k,int2(0),int2(target.get_width()-1,target.get_height()-1));
+        float value=source.read(uint2(xy)).x;
+        if(value>=0.99999f) continue;
+        float distance=(value-center)*700;
+        float w=exp(-float(k*k)/48.0f-distance*distance);
+        sum+=value*w; weights+=w;
+    }
+    target.write(float4(sum/max(weights,0.0001f)),id);
+}
+// Smooth particle-scale color speckles without averaging through separate
+// depth surfaces. A narrow transition keeps the two puzzle colors readable.
+kernel void labSmoothDye(texture2d<float,access::read> source [[texture(0)]], texture2d<float,access::write> target [[texture(1)]],
+                         texture2d<float,access::read> depth [[texture(2)]], constant uint2 &direction [[buffer(0)]], uint2 id [[thread_position_in_grid]]) {
+    if(id.x>=target.get_width() || id.y>=target.get_height()) return;
+    float center=source.read(id).x,d=depth.read(id).x;
+    if(center<0) { target.write(float4(-1),id);return; }
+    float sum=0,weights=0;
+    for(int k=-5;k<=5;k++) {
+        int2 xy=clamp(int2(id)+int2(direction)*k,int2(0),int2(target.get_width()-1,target.get_height()-1));
+        float color=source.read(uint2(xy)).x;
+        if(color<0) continue;
+        float distance=(depth.read(uint2(xy)).x-d)*800;
+        float weight=exp(-float(k*k)/14.0f-distance*distance);
+        sum+=color*weight;weights+=weight;
+    }
+    target.write(float4(sum/max(weights,0.0001f)),id);
+}
+
 float3 worldAt(float2 uv, float depth, constant Uniforms &u) {
     float4 p=u.inverseViewProjection*float4(uv*float2(2,-2)+float2(-1,1),depth,1);
     return p.xyz/p.w;
@@ -320,7 +364,7 @@ float3 background(float2 uv, constant Uniforms &u) {
     return color;
 }
 fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffer(0)]],
-                            texture2d<float> depth [[texture(0)]], texture2d<float> thickness [[texture(1)]]) {
+                            texture2d<float> depth [[texture(0)]], texture2d<float> thickness [[texture(1)]], texture2d<float> frontDye [[texture(2)]]) {
     constexpr sampler s(coord::normalized,address::clamp_to_edge,filter::linear);
     float2 uv=in.uv, pixel=1/u.viewport.xy;
     float d=depth.sample(s,uv).x;
@@ -336,6 +380,12 @@ fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffe
     if(dot(n,eye)<0) n=-n;
     float4 medium=thickness.sample(s,uv);
     float3 tint=medium.rgb/max(medium.a,0.0001f);
+    if (u.options.w&1u) {
+        // Shade the nearest fluid identity rather than optically averaging
+        // every particle behind it into a muddy third color.
+        float dye=frontDye.sample(s,uv).x;
+        if (dye>=0) tint=mix(float3(0.05,0.58,0.86),float3(0.96,0.34,0.07),smoothstep(0.15f,0.85f,dye));
+    }
     float opticalDepth=medium.a*0.55;
     float3 absorption=exp(-(1-tint)*opticalDepth*2.8);
     float3 refracted=background(uv+n.xy*0.016,u);

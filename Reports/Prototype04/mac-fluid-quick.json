@@ -1,0 +1,327 @@
+{
+  "animationFrameIntervalMs" : {
+    "maximum" : 41.132543236017227,
+    "median" : 19.998958334326744,
+    "p95" : 20.457709208130836,
+    "samples" : 4443
+  },
+  "date" : "2026-09-08T22:48:57Z",
+  "elapsedSeconds" : 90.030265333334683,
+  "end" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 90.030266625006334,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "environmentSamples" : [
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 0.00028391667001415044,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 4.6560335833346471,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 9.5250897916703252,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 14.416993500009994,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 19.486021291668294,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 24.156464500003494,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 29.108056791665149,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 34.037573958339635,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 39.222328333344194,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 43.967198791666306,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 48.879093291674508,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 53.766500416677445,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 58.876839125005063,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 63.637213833339047,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 68.508419791673077,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 73.398107708344469,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 78.566000999999233,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 83.237732041670824,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 88.169226166675799,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    }
+  ],
+  "fluidGPUFrameMs" : {
+    "maximum" : 16.959624990704469,
+    "median" : 9.3871666613267735,
+    "p95" : 10.8392916736193,
+    "samples" : 4443
+  },
+  "intervalsOver25ms" : 1,
+  "moves" : [
+    {
+      "cleanupPercent" : 0.78125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.6508435416617431
+    },
+    {
+      "cleanupPercent" : 2.65625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.8575193750002654
+    },
+    {
+      "cleanupPercent" : 0.52083333333333326,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.8569202083308483
+    },
+    {
+      "cleanupPercent" : 0.72916666666666663,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 5.0578846249991329
+    },
+    {
+      "cleanupPercent" : 0.3125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.6353359583299607
+    },
+    {
+      "cleanupPercent" : 1.484375,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.9132447083393345
+    },
+    {
+      "cleanupPercent" : 0.52083333333333326,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.8834259166615084
+    },
+    {
+      "cleanupPercent" : 0.67708333333333337,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 5.0976690416573547
+    },
+    {
+      "cleanupPercent" : 0.546875,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.6270147500035819
+    },
+    {
+      "cleanupPercent" : 2.5,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.8917285416682716
+    },
+    {
+      "cleanupPercent" : 0.46875,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.8789220833423315
+    },
+    {
+      "cleanupPercent" : 0.625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 5.0989469583291793
+    },
+    {
+      "cleanupPercent" : 0.625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.6490145833231509
+    },
+    {
+      "cleanupPercent" : 2.578125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.858978833333822
+    },
+    {
+      "cleanupPercent" : 0.46875,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.8778204583359184
+    },
+    {
+      "cleanupPercent" : 0.78125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 5.0986773749900749
+    },
+    {
+      "cleanupPercent" : 0.625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.6380137083324371
+    },
+    {
+      "cleanupPercent" : 2.421875,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.9108789166639326
+    }
+  ],
+  "notes" : "Intervals exclude idle boards, long suspensions, and the first resumed frame. Classic records animation updates; Fluid records MTKView draw intervals. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging\/full cannot measure drain; short unplugged samples are coarse and do not establish battery life.",
+  "os" : "Version 27.0 (Build 26A5425a)",
+  "pace" : "quick",
+  "presentation" : "fluid",
+  "reason" : "completed",
+  "schema" : 1,
+  "start" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 0.00028391667001415044,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "updateOrEncodeWallMs" : {
+    "maximum" : 15.03041667456273,
+    "median" : 6.4701249939389527,
+    "p95" : 7.0240833301795647,
+    "samples" : 4443
+  }
+}

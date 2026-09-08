@@ -1,0 +1,30 @@
+{
+  "aimOffset": 0,
+  "capturedFraction": 0.3333333333333333,
+  "cleanupParticles": 12,
+  "completedAtPourSeconds": 13.516546249389648,
+  "device": "Apple M4",
+  "elapsedSeconds": 5.836199998855591,
+  "errors": [],
+  "expectedRejection": false,
+  "fps": 60,
+  "frameMedianMs": 3.7310123443603516,
+  "frameP95Ms": 4.7789812088012695,
+  "frames": 1080,
+  "gpuMedianMs": 2.9546250007115304,
+  "gpuP95Ms": 4.03804166126065,
+  "material": "water",
+  "maximumGeometryPenetration": 0,
+  "meterLookahead": 0.3400000035762787,
+  "particles": 3183,
+  "physicalTransferredUnits": 1,
+  "playbackSpeed": 1,
+  "puzzleTransferCommitted": true,
+  "resolution": [
+    900,
+    650
+  ],
+  "spillBeforeCleanup": 0,
+  "spilledFraction": 0,
+  "unitsBeforeCleanup": 1.01131010055542
+}

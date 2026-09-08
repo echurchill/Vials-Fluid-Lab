@@ -1,0 +1,216 @@
+{
+  "device" : "Apple M4",
+  "errors" : [
+
+  ],
+  "moves" : [
+    {
+      "move" : 0,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "firstSort",
+      "seconds" : 7.5999999046325684,
+      "units" : 2
+    },
+    {
+      "move" : 1,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "firstSort",
+      "seconds" : 7.7833333015441895,
+      "units" : 2
+    },
+    {
+      "move" : 2,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "firstSort",
+      "seconds" : 7.5999999046325684,
+      "units" : 3
+    },
+    {
+      "move" : 3,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "firstSort",
+      "seconds" : 8,
+      "units" : 3
+    },
+    {
+      "move" : 0,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "firstSort",
+      "seconds" : 4.7666668891906738,
+      "units" : 2
+    },
+    {
+      "move" : 1,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "firstSort",
+      "seconds" : 4.8666667938232422,
+      "units" : 2
+    },
+    {
+      "move" : 2,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "firstSort",
+      "seconds" : 4.7666668891906738,
+      "units" : 3
+    },
+    {
+      "move" : 3,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "firstSort",
+      "seconds" : 5.0166668891906738,
+      "units" : 3
+    },
+    {
+      "move" : 0,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 1,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 6.7333331108093262,
+      "units" : 1
+    },
+    {
+      "move" : 2,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 3,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 7.7666668891906738,
+      "units" : 2
+    },
+    {
+      "move" : 4,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 7.5999999046325684,
+      "units" : 3
+    },
+    {
+      "move" : 5,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 8.0166664123535156,
+      "units" : 3
+    },
+    {
+      "move" : 0,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 1,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.2333331108093262,
+      "units" : 1
+    },
+    {
+      "move" : 2,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    },
+    {
+      "move" : 3,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.8666667938232422,
+      "units" : 2
+    },
+    {
+      "move" : 4,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "crossCurrents",
+      "seconds" : 4.7666668891906738,
+      "units" : 3
+    },
+    {
+      "move" : 5,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "crossCurrents",
+      "seconds" : 5.0333333015441895,
+      "units" : 3
+    },
+    {
+      "move" : 0,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "lastDrops",
+      "seconds" : 7.5999999046325684,
+      "units" : 3
+    },
+    {
+      "move" : 1,
+      "pace" : "relaxed",
+      "presentation" : "fluid",
+      "puzzle" : "lastDrops",
+      "seconds" : 8,
+      "units" : 3
+    },
+    {
+      "move" : 2,
+      "pace" : "relaxed",
+      "presentation" : "classic",
+      "puzzle" : "lastDrops",
+      "seconds" : 7.5999999046325684,
+      "units" : 1
+    },
+    {
+      "move" : 0,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "lastDrops",
+      "seconds" : 4.7666668891906738,
+      "units" : 3
+    },
+    {
+      "move" : 1,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "puzzle" : "lastDrops",
+      "seconds" : 5.0166668891906738,
+      "units" : 3
+    },
+    {
+      "move" : 2,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "puzzle" : "lastDrops",
+      "seconds" : 4.7666668891906738,
+      "units" : 1
+    }
+  ]
+}

@@ -42,6 +42,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     var orbit:Float=0.12
     var playbackSpeed:Float=1
     var viscosity:Float=0.10
+    var onFrame:((Double,Double,Double)->Void)?
     var onError:((String)->Void)?
     var onUpdate:((LabBoardMetrics,String,Float)->Void)?
     var resting:Bool { game.pending == nil }
@@ -66,6 +67,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var copyPipeline: MTLRenderPipelineState!
     private var depthState: MTLDepthStencilState!
     private var depth: MTLTexture!
+    private var frontDye: MTLTexture!
+    private var dyeA: MTLTexture!
+    private var dyeB: MTLTexture!
     private var smoothA: MTLTexture!
     private var smoothB: MTLTexture!
     private var depthTest: MTLTexture!
@@ -91,11 +95,11 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         self.queue = queue
         self.library = library
         super.init()
-        for name in ["labPredict","labClearHeads","labBuildGrid","labLambda","labDelta","labApply","labVelocity","labFinish","labSmoothDepth","labBoardConstrain"] {
+        for name in ["labPredict","labClearHeads","labBuildGrid","labLambda","labDelta","labApply","labVelocity","labFinish","labSmoothDepth","labBoardSmoothDepth","labSmoothDye","labBoardConstrain"] {
             guard let function = library.makeFunction(name: name) else { throw LabError.message("Missing shader: \(name)") }
             kernels[name] = try device.makeComputePipelineState(function: function)
         }
-        depthPipeline = try pipeline(vertex: "labParticleVertex", fragment: "labParticleDepth", format: .r32Float, depth: true)
+        depthPipeline = try pipeline(vertex: "labParticleVertex", fragment: "labBoardParticleDepth", format: .r32Float, depth: true)
         thicknessPipeline = try pipeline(vertex: "labParticleVertex", fragment: "labParticleThickness", format: .rgba16Float, additive: true)
         composePipeline = try pipeline(vertex: "labFullscreen", fragment: "labCompose", format: .rgba16Float)
         glassPipeline = try pipeline(vertex: "labGlassVertex", fragment: "labGlassFragment", format: .bgra8Unorm_srgb, depth: true)
@@ -119,6 +123,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         d.vertexFunction = library.makeFunction(name: vertex)
         d.fragmentFunction = library.makeFunction(name: fragment)
         d.colorAttachments[0].pixelFormat = format
+        if fragment == "labBoardParticleDepth" { d.colorAttachments[1].pixelFormat = .r16Float }
         if depth { d.depthAttachmentPixelFormat = .depth32Float }
         if additive {
             let a = d.colorAttachments[0]!
@@ -151,6 +156,16 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         deltas=device.makeBuffer(length:particleCount*16,options:.storageModePrivate)
         velocities=device.makeBuffer(length:particleCount*16,options:.storageModePrivate)
     }
+    /// Install the shared puzzle checkpoint when changing presentation or undoing.
+    /// Particle snapshots are retained within this session; classic-only moves
+    /// are reconstructed from exact unit volumes on the next Fluid presentation.
+    func install(game:LabBoardGame,samples:[LabParticle]? = nil) {
+        precondition(game.pending == nil)
+        reset(state:game.state)
+        self.game=game
+        if let samples, samples.count==particleCount { particles=makeBuffer(samples) }
+    }
+
     private func radical(_ index:Int,_ base:Int) -> Float {
         var n=index,f:Float=1,result:Float=0
         while n>0 { f/=Float(base);result+=f*Float(n%base);n/=base }
@@ -284,7 +299,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 while end<stack.count && state.colors[stack[end]] == state.colors[stack[start]] { end+=1 }
                 let ids=Set(stack[start..<end])
                 let indices=(0..<particleCount).filter { Int(p[$0].position.w)==owner && ids.contains(Int(p[$0].visual.y)) }.sorted { p[$0].position.y<p[$1].position.y }
-                for (n,i) in indices.enumerated() { p[i].visual.y=Float(stack[start+n/Self.particlesPerUnit]);p[i].visual.z=0 }
+                for (n,i) in indices.enumerated() { p[i].visual.y=Float(stack[start+n/Self.particlesPerUnit]);p[i].visual.z=0;p[i].visual.x=0 }
                 start=end
             }
         }
@@ -362,6 +377,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         lastCommand?.waitUntilCompleted()
         viewportSize = SIMD2(width,height)
         depth = texture(.r32Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
+        frontDye = texture(.r16Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
+        dyeA = texture(.r16Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
+        dyeB = texture(.r16Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
         smoothA = texture(.r32Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
         smoothB = texture(.r32Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
         depthTest = texture(.depth32Float,width:width,height:height,usage:.renderTarget)
@@ -424,12 +442,12 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         command.label = "Fluid Lab frame"
         let (vp,view,eye) = LabBoardLayout.camera(aspect:Float(target.width)/Float(target.height), azimuth:orbit)
         var u = LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
-            viewport:SIMD4(Float(target.width),Float(target.height),pointMode ? spacing*0.30 : spacing*0.88,simulationTime),
+            viewport:SIMD4(Float(target.width),Float(target.height),pointMode ? spacing*0.30 : spacing*1.02,simulationTime),
             physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,4,1 | (funnelEnabled ? 32:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
         if !paused && !resting {
-            accumulator += min(max(deltaTime,0),1.0/20)*playbackSpeed
+            accumulator = min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
             var steps = 0
-            while accumulator >= timeStep && steps < 6 {
+            while accumulator >= timeStep && steps < 12 {
                 simulationTime += timeStep
                 if pourTime != nil { pourTime! += timeStep }; advancePose()
                 var vessels = currentVessels
@@ -447,7 +465,12 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         u.viewport.w = simulationTime
         let vessels = currentVessels
-        let depthEncoder = command.makeRenderCommandEncoder(descriptor:pass(color:depth,clear:MTLClearColorMake(1,1,1,1),depth:depthTest))!
+        let surfacePass=pass(color:depth,clear:MTLClearColorMake(1,1,1,1),depth:depthTest)
+        surfacePass.colorAttachments[1].texture=frontDye
+        surfacePass.colorAttachments[1].loadAction = .clear
+        surfacePass.colorAttachments[1].storeAction = .store
+        surfacePass.colorAttachments[1].clearColor=MTLClearColorMake(-1,0,0,0)
+        let depthEncoder = command.makeRenderCommandEncoder(descriptor:surfacePass)!
         depthEncoder.label = "Particle surface depth"
         depthEncoder.setRenderPipelineState(depthPipeline); depthEncoder.setDepthStencilState(depthState)
         depthEncoder.setVertexBuffer(particles,offset:0,index:0)
@@ -468,7 +491,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         if !pointMode {
             for (input,output,direction) in [(depth!,smoothA!,SIMD2<UInt32>(1,0)),(smoothA!,smoothB!,SIMD2<UInt32>(0,1)),(smoothB!,smoothA!,SIMD2<UInt32>(1,0)),(smoothA!,smoothB!,SIMD2<UInt32>(0,1))] {
                 let e=command.makeComputeCommandEncoder()!
-                e.setComputePipelineState(kernels["labSmoothDepth"]!)
+                e.setComputePipelineState(kernels["labBoardSmoothDepth"]!)
                 e.setTexture(input,index:0); e.setTexture(output,index:1)
                 var direction=direction
                 e.setBytes(&direction,length:MemoryLayout<SIMD2<UInt32>>.stride,index:0)
@@ -476,12 +499,21 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 e.endEncoding()
             }
         }
+        for (input,output,direction) in [(frontDye!,dyeA!,SIMD2<UInt32>(1,0)),(dyeA!,dyeB!,SIMD2<UInt32>(0,1))] {
+            let e=command.makeComputeCommandEncoder()!
+            e.setComputePipelineState(kernels["labSmoothDye"]!)
+            e.setTexture(input,index:0);e.setTexture(output,index:1);e.setTexture(depth,index:2)
+            var direction=direction;e.setBytes(&direction,length:MemoryLayout<SIMD2<UInt32>>.stride,index:0)
+            e.dispatchThreads(MTLSize(width:target.width,height:target.height,depth:1),threadsPerThreadgroup:MTLSize(width:16,height:16,depth:1))
+            e.endEncoding()
+        }
         let compose=command.makeRenderCommandEncoder(descriptor:pass(color:scene))!
         compose.label = "Reconstruct and shade liquid"
         compose.setRenderPipelineState(composePipeline)
         compose.setFragmentBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:0)
         compose.setFragmentTexture(pointMode ? depth : smoothB,index:0)
         compose.setFragmentTexture(thickness,index:1)
+        compose.setFragmentTexture(dyeB,index:2)
         compose.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3)
         compose.endEncoding()
         let final=command.makeRenderCommandEncoder(descriptor:pass(color:target,depth:glassDepth))!
@@ -545,9 +577,11 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let delta=Float(lastWallTime.map { now-$0 } ?? 1.0/60)
             lastWallTime=now
             let semaphore=inFlight
+            let encodeStart=CACurrentMediaTime()
             encodeFrame(target:drawable.texture,deltaTime:delta,present:drawable) { _ in
                 semaphore.signal()
             }
+            if !resting && !paused { onFrame?(Double(delta),(CACurrentMediaTime()-encodeStart)*1000,lastMetrics.gpuMilliseconds) }
         }
     }
 }
