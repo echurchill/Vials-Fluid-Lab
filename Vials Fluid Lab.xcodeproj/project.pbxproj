@@ -46,7 +46,7 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		000000000000000100000000 /* Vials */ = {
+		000000000000000100000000 /* VialsFluidLab */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 000000000000000110000000 /* Build configuration list for PBXNativeTarget "VialsFluidLab" */;
 			buildPhases = (
@@ -93,7 +93,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				000000000000000100000000 /* Vials */,
+				000000000000000100000000 /* VialsFluidLab */,
 			);
 		};
 /* End PBXProject section */
