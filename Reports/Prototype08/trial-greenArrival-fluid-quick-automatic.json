@@ -1,0 +1,216 @@
+{
+  "animationFrameIntervalMs" : {
+    "maximum" : 21.4261244982481,
+    "median" : 19.998500123620033,
+    "p95" : 20.809708163142204,
+    "samples" : 2217
+  },
+  "configuration" : {
+    "colorCount" : 3,
+    "maximumRenderDimension" : 1000,
+    "particleCount" : 7680,
+    "puzzle" : "greenArrival",
+    "quality" : "automatic",
+    "vialCount" : 6
+  },
+  "date" : "2026-09-09T20:33:57Z",
+  "elapsedSeconds" : 45.079687916644616,
+  "end" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 45.079690499987919,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "environmentSamples" : [
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 5.4165138863027096e-07,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 3.9803189166705124,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 8.0106240416644141,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 12.410552083310904,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 17.110721958335489,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 21.571056208311347,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 25.902142416656716,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 30.491363666660618,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 35.260399458318716,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 40.130719666660298,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 44.130593458336079,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    }
+  ],
+  "fluidGPUFrameMs" : {
+    "maximum" : 21.201208350248635,
+    "median" : 11.389166669687256,
+    "p95" : 12.829749990487471,
+    "samples" : 2217
+  },
+  "intervalsOver25ms" : 0,
+  "keptAwakeForTrial" : false,
+  "moves" : [
+    {
+      "cleanupPercent" : 0.15625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 3.9705845833232161
+    },
+    {
+      "cleanupPercent" : 0.3125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 3.9746641250094399
+    },
+    {
+      "cleanupPercent" : 0.3125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.3058774166856892
+    },
+    {
+      "cleanupPercent" : 0.15625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.6082682500127703
+    },
+    {
+      "cleanupPercent" : 0.3125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.3750364999868907
+    },
+    {
+      "cleanupPercent" : 0.15625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.3093037499929778
+    },
+    {
+      "cleanupPercent" : 0.15625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.5683102916518692
+    },
+    {
+      "cleanupPercent" : 0.3125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.7115682916482911
+    },
+    {
+      "cleanupPercent" : 0.46875,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.8478012916748412
+    },
+    {
+      "cleanupPercent" : 0.15625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 3.9700235000054818
+    }
+  ],
+  "notes" : "Intervals are controller\/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Classic and 2D record animation updates; 3D records MTKView draw intervals. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging\/full cannot measure drain; short unplugged samples are coarse and do not establish battery life.",
+  "os" : "Version 27.0 (Build 26A5425a)",
+  "pace" : "quick",
+  "presentation" : "fluid",
+  "reason" : "completed",
+  "schema" : 2,
+  "start" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 5.4165138863027096e-07,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "updateOrEncodeWallMs" : {
+    "maximum" : 9.3082500097807497,
+    "median" : 1.0505000245757401,
+    "p95" : 1.6512083529960364,
+    "samples" : 2217
+  }
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "presentation": "classic",
+    "matchedMoves": 8,
+    "minimumTurnSeconds": 4.767048583336873,
+    "medianTurnSeconds": 4.777091500000097,
+    "maximumTurnSeconds": 4.790014458325459,
+    "controllerIntervalMedianMs": 17.21983402967453,
+    "controllerIntervalP95Ms": 17.297541722655296
+  },
+  {
+    "presentation": "fluid2D",
+    "matchedMoves": 8,
+    "minimumTurnSeconds": 3.3394328333379235,
+    "medianTurnSeconds": 3.6195155833265744,
+    "maximumTurnSeconds": 3.834331249992829,
+    "controllerIntervalMedianMs": 17.706915736198425,
+    "controllerIntervalP95Ms": 17.83662475645542
+  },
+  {
+    "presentation": "fluid",
+    "matchedMoves": 8,
+    "minimumTurnSeconds": 3.970584583323216,
+    "medianTurnSeconds": 4.342170124989934,
+    "maximumTurnSeconds": 4.711568291648291,
+    "controllerIntervalMedianMs": 19.998500123620033,
+    "controllerIntervalP95Ms": 20.809708163142204
+  }
+]

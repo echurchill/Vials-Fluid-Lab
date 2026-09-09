@@ -3,7 +3,7 @@ import simd
 
 /// Planar, equal-area particles. No depth coordinate or 3D neighbor search.
 /// Puzzle layers and the receiving-mouth guide are deliberate game assists.
-struct Lab2DProfile {
+nonisolated struct Lab2DProfile:Sendable {
     let source:LabVesselProfile
     let scale:Float
     let areas:[Float]
@@ -24,14 +24,14 @@ struct Lab2DProfile {
         return (Float(i)+fraction)*(height-0.20)/128
     }
 }
-struct Lab2DPose {
+nonisolated struct Lab2DPose:Sendable {
     var base:SIMD2<Float>
     var angle:Float=0
     func rotate(_ p:SIMD2<Float>)->SIMD2<Float> { SIMD2(cos(angle)*p.x+sin(angle)*p.y,-sin(angle)*p.x+cos(angle)*p.y) }
     func world(_ p:SIMD2<Float>)->SIMD2<Float> { base+rotate(p) }
     func local(_ p:SIMD2<Float>)->SIMD2<Float> { let d=p-base;return SIMD2(cos(angle)*d.x-sin(angle)*d.y,sin(angle)*d.x+cos(angle)*d.y) }
 }
-struct Lab2DParticle:Equatable {
+nonisolated struct Lab2DParticle:Equatable,Sendable {
     var position:SIMD2<Float>
     var velocity=SIMD2<Float>.zero
     var owner:Int
@@ -39,14 +39,14 @@ struct Lab2DParticle:Equatable {
     let parcel:Int
     let color:Int
 }
-struct Lab2DMotion {
+nonisolated struct Lab2DMotion:Sendable {
     let lift:Float,travel:Float,tiltRate:Float,upright:Float,returnTravel:Float,lower:Float,settle:Float,cleanup:Float
     static let relaxed=Self(lift:0.50,travel:0.45,tiltRate:0.78,upright:0.70,returnTravel:0.45,lower:0.45,settle:0.55,cleanup:0.35)
     static let quick=Self(lift:0.40,travel:0.35,tiltRate:1.0,upright:0.50,returnTravel:0.33,lower:0.33,settle:0.29,cleanup:0.20)
     var tiltStart:Float { lift+travel }
     var returned:Float { upright+returnTravel+lower }
 }
-final class LabFluid2D {
+nonisolated struct LabFluid2D:Sendable {
     static let particlesPerUnit=96
     static let step:Float=1/120
     var quickMotion=false
@@ -65,6 +65,7 @@ final class LabFluid2D {
     private(set) var lastOutcome=""
     private(set) var cpuMilliseconds:Double=0
     private var accumulator:Float=0
+    var pendingSimulationSeconds:Float { max(0,accumulator) }
     private var before:[Lab2DParticle]=[]
     private var targets:[Lab2DParticle]?
     private var targetStart:Float=0
@@ -120,7 +121,7 @@ final class LabFluid2D {
         }
         return Lab2DPose(base:base,angle:tilt)
     }
-    func install(_ game:LabBoardGame) {
+    mutating func install(_ game:LabBoardGame) {
         let preserve = !busy && self.game.state==game.state && !particles.isEmpty
         self.game=game;self.game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
         cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
@@ -146,19 +147,22 @@ final class LabFluid2D {
         }
         return result.sorted { $0.parcel == $1.parcel ? $0.position.y<$1.position.y:$0.parcel<$1.parcel }
     }
-    @discardableResult func begin(_ move:LabBoardMove)->Bool {
+    @discardableResult mutating func begin(_ move:LabBoardMove)->Bool {
         guard !busy,game.state.move(from:move.source,to:move.destination)==move,game.begin(from:move.source,to:move.destination)==move else { return false }
         before=particles;time=0;cutoff=nil;targets=nil;accumulator=0;arrived=0;departed=0;cleanupPercent=0
         selected=Set(move.parcels);return true
     }
-    func advance(deltaTime:Float,speed:Float=1) {
+    mutating func advance(deltaTime:Float,speed:Float=1) {
         guard busy else { return }
         let start=ProcessInfo.processInfo.systemUptime
-        accumulator+=min(0.05,max(0,deltaTime))*speed
-        while accumulator>=Self.step,busy { tick();accumulator-=Self.step }
+        guard deltaTime.isFinite,speed.isFinite else { return }
+        // Retain delayed frame time; bound worker batches without dropping debt.
+        accumulator+=max(0,deltaTime)*max(0,speed)
+        var steps=0
+        while accumulator>=Self.step,busy,steps<12 { tick();accumulator-=Self.step;steps+=1 }
         cpuMilliseconds=(ProcessInfo.processInfo.systemUptime-start)*1000
     }
-    private func tick() {
+    private mutating func tick() {
         guard let move=game.pending else { return }
         let oldPoses=profiles.indices.map { pose($0) };time+=Self.step
         // These clocks advance only with an actual turn; Canvas stays still at rest.
@@ -213,7 +217,7 @@ final class LabFluid2D {
         let x=min(159,max(0,Int((p.x+12)/0.16))),y=min(95,max(0,Int((p.y+2)/0.16)))
         return x+y*160
     }
-    private func solve(active:Set<Int>,dt:Float,poses:[Lab2DPose]) {
+    private mutating func solve(active:Set<Int>,dt:Float,poses:[Lab2DPose]) {
         bulkUnits=Array(repeating:0,count:profiles.count)
         for p in particles where p.owner>=0 && p.inBulk { bulkUnits[p.owner]+=1/Float(Self.particlesPerUnit) }
         let ids=particles.indices.filter { active.contains(particles[$0].owner) || particles[$0].owner<0 }
@@ -258,7 +262,7 @@ final class LabFluid2D {
             particles[i].velocity=simd_mix(particles[i].velocity,newVelocity,SIMD2(repeating:0.70))*0.985
         }
     }
-    private func constrain(_ i:Int,poses:[Lab2DPose]) {
+    private mutating func constrain(_ i:Int,poses:[Lab2DPose]) {
         var p=particles[i]
         if p.owner<0 {
             if let move=game.pending {
@@ -321,5 +325,16 @@ final class LabFluid2D {
         let r=max(radius,profile.radius(q.y)-radius)
         q.x=min(r,max(-r,q.x))
         p.position=pose.world(q);particles[i]=p
+    }
+}
+
+/// The worker owns a value copy; UI snapshots share no mutable solver state.
+actor Lab2DWorker {
+    private var engine:LabFluid2D
+    init(_ engine:LabFluid2D) { self.engine=engine }
+    func replace(_ engine:LabFluid2D) { self.engine=engine }
+    func advance(deltaTime:Float,speed:Float) -> LabFluid2D {
+        engine.advance(deltaTime:deltaTime,speed:speed)
+        return engine
     }
 }

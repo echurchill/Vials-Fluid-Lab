@@ -27,7 +27,7 @@ struct LabBoardLayout {
     static func homes(count:Int) -> [SIMD3<Float>] {
         (0..<count).map { SIMD3((Float($0)-Float(count-1)/2)*2.2,0.18,0) }
     }
-    static func profiles(count:Int = 4) -> [LabVesselProfile] {
+    nonisolated static func profiles(count:Int = 4) -> [LabVesselProfile] {
         let base=LabVesselProfile.pair()
         func shape(_ name:String,_ knots:[(Float,Float)]) -> LabVesselProfile {
             let raw=LabVesselProfile(name:name,height:2.35,knots:knots)

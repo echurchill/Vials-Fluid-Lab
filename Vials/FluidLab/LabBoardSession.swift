@@ -46,6 +46,7 @@ import Combine
     private var settledParticles:[LabParticle]?
     private var beforeParticles:[LabParticle]?
     private var classicTask:Task<Void,Never>?
+    private var clockRevision=0
     var state:LabBoardState { game.state }
     var moveCount:Int { game.moveCount }
     var busy:Bool { game.pending != nil }
@@ -164,8 +165,43 @@ import Combine
         paused=false;metrics=LabBoardMetrics();correction=0;captured=0;updatePause()
         performance.beginMove(presentation:presentation,pace:pace)
         if presentation == .classic { classicPour=LabClassicPour(move:move) }
-        if presentation != .fluid,automaticClock { startClassicClock() }
+        if automaticClock {
+            if presentation == .fluid2D { startPlanarClock() }
+            else if presentation == .classic { startClassicClock() }
+        }
         refresh();return true
+    }
+    private func startPlanarClock() {
+        classicTask?.cancel()
+        let worker=Lab2DWorker(fluid2D)
+        classicTask=Task { @MainActor [weak self] in
+            var last=ProcessInfo.processInfo.systemUptime
+            while !Task.isCancelled {
+                guard let self,self.busy,self.presentation == .fluid2D else { return }
+                if self.paused || self.suspended {
+                    try? await Task.sleep(for:.milliseconds(16))
+                    last=ProcessInfo.processInfo.systemUptime
+                    continue
+                }
+                let started=ProcessInfo.processInfo.systemUptime
+                let delta=Float(started-last),revision=self.clockRevision
+                last=started
+                let frame=await worker.advance(deltaTime:delta,speed:self.effectiveSpeed)
+                guard !Task.isCancelled else { return } // Reset invalidates an in-flight result.
+                if revision != self.clockRevision {
+                    // Pause/suspension may arrive while physics runs. Keep the
+                    // displayed state and restart the clock upon resuming.
+                    await worker.replace(self.fluid2D)
+                    last=ProcessInfo.processInfo.systemUptime
+                    continue
+                }
+                self.fluid2D=frame
+                self.finishPlanarFrame(deltaTime:delta)
+                let remaining=1.0/60-(ProcessInfo.processInfo.systemUptime-started)
+                if remaining>0 { try? await Task.sleep(for:.seconds(remaining)) }
+                else { await Task.yield() }
+            }
+        }
     }
     private func startClassicClock() {
         classicTask?.cancel()
@@ -173,16 +209,23 @@ import Combine
             var last=ProcessInfo.processInfo.systemUptime
             while !Task.isCancelled {
                 try? await Task.sleep(for:.milliseconds(16))
-                guard !Task.isCancelled,let self,self.busy,self.presentation != .fluid else { return }
+                guard !Task.isCancelled,let self,self.busy,self.presentation == .classic else { return }
                 let now=ProcessInfo.processInfo.systemUptime
-                if self.presentation == .fluid2D { self.advance2D(deltaTime:Float(now-last)) }
-                else { self.advanceClassic(deltaTime:Float(now-last)) };last=now
+                self.advanceClassic(deltaTime:Float(now-last));last=now
             }
         }
     }
     func advance2D(deltaTime:Float) {
         guard presentation == .fluid2D,busy,!paused,!suspended else { return }
-        fluid2D.advance(deltaTime:deltaTime,speed:effectiveSpeed);planarFrame+=1
+        fluid2D.advance(deltaTime:deltaTime,speed:effectiveSpeed)
+        finishPlanarFrame(deltaTime:deltaTime)
+    }
+    private func finishPlanarFrame(deltaTime:Float) {
+        if measurementActive {
+            let previous=performance.context["maximumSimulationBacklogSeconds"] as? Float ?? 0
+            performance.context["maximumSimulationBacklogSeconds"]=max(previous,fluid2D.pendingSimulationSeconds)
+        }
+        planarFrame+=1
         if !fluid2D.busy {
             let committed=fluid2D.game.moveCount==game.moveCount+1
             if committed {
@@ -235,7 +278,7 @@ import Combine
     }
     func setSuspended(_ value:Bool) { suspended=value;updatePause() }
     func togglePause() { paused.toggle();updatePause() }
-    private func updatePause() { renderer?.paused=paused || suspended || presentation != .fluid;updateFeedback() }
+    private func updatePause() { clockRevision+=1;renderer?.paused=paused || suspended || presentation != .fluid;updateFeedback() }
     private func updateFeedback() {
         let visibleStream:Bool
         if let pour=classicPour { visibleStream=pour.progress>0 && pour.progress<1 }
@@ -249,7 +292,8 @@ import Combine
             performance.context["quality"]="canvas-native"
             performance.context.removeValue(forKey:"maximumRenderDimension")
             performance.context["frameCounter"]="controller updates, not compositor presents"
-            performance.context["cpuCounter"]="2D solver only; excludes Canvas drawing"
+            performance.context["cpuCounter"]="2D worker solver only; excludes Canvas drawing"
+            performance.context["physicsExecution"]="isolated actor, immutable value snapshots"
         }
         performance.begin(presentation:presentation,pace:pace);measurementActive=true;reportURL=nil
     }

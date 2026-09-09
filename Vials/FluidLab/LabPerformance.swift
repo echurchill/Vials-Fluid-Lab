@@ -40,7 +40,7 @@ struct LabTrialConfiguration {
         first=environment();environments=[first]
     }
     func recordFrame(interval:Double,cpuMS:Double,gpuMS:Double?) {
-        guard active,interval>0,interval<0.25,frames.count<100_000 else { return }
+        guard active,interval.isFinite,interval>0,frames.count<100_000 else { return }
         frames.append([interval*1000,cpuMS,gpuMS ?? -1])
     }
     func beginMove(presentation:LabBoardPresentation,pace:LabBoardPace) {
@@ -81,9 +81,13 @@ struct LabTrialConfiguration {
             "os":ProcessInfo.processInfo.operatingSystemVersionString,"start":first,"end":last,"environmentSamples":environments,"moves":moves,
             "animationFrameIntervalMs":summary(frames.map{$0[0]}),"updateOrEncodeWallMs":summary(frames.map{$0[1]}),"fluidGPUFrameMs":summary(frames.map{$0[2]}.filter{$0>=0}),
             "intervalsOver25ms":frames.filter{$0[0]>25}.count,
-            "notes":"Intervals exclude idle boards, long suspensions, and the first resumed frame. Classic records animation updates; Fluid records MTKView draw intervals. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging/full cannot measure drain; short unplugged samples are coarse and do not establish battery life."
+            "notes":"Intervals are controller/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Classic and 2D record animation updates; 3D records MTKView draw intervals. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging/full cannot measure drain; short unplugged samples are coarse and do not establish battery life."
         ]
-        let directory=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("FluidLabReports",isDirectory:true)
+        let args=ProcessInfo.processInfo.arguments
+        let directory:URL
+        if LabTrialConfiguration.current != nil,let i=args.firstIndex(of:"--report-directory"),i+1<args.count {
+            directory=URL(fileURLWithPath:args[i+1],isDirectory:true)
+        } else { directory=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("FluidLabReports",isDirectory:true) }
         try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
         let name=filename ?? "comparison-\(Int(Date().timeIntervalSince1970))"
         let url=directory.appendingPathComponent(name+".json")

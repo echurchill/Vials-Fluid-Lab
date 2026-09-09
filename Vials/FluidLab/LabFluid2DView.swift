@@ -4,9 +4,9 @@ import SwiftUI
 struct LabFluid2DView:View {
     let engine:LabFluid2D
     var points=false
-    var frame:Int=0 // Explicitly invalidate Canvas as the reference-type solver advances.
+    var frame:Int=0 // Publish each completed value snapshot.
     var body:some View {
-        Canvas { context,size in
+        Canvas(rendersAsynchronously:true) { context,size in
             let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count)
             let scale=layout.scale,origin=CGPoint(x:size.width/2,y:layout.base(0).y)
             func screen(_ p:SIMD2<Float>)->CGPoint { CGPoint(x:origin.x+CGFloat(p.x)*scale,y:origin.y-CGFloat(p.y)*scale) }

@@ -1,0 +1,216 @@
+{
+  "animationFrameIntervalMs" : {
+    "maximum" : 29.532084241509438,
+    "median" : 17.706915736198425,
+    "p95" : 17.836624756455421,
+    "samples" : 2244
+  },
+  "configuration" : {
+    "colorCount" : 3,
+    "cpuCounter" : "2D worker solver only; excludes Canvas drawing",
+    "frameCounter" : "controller updates, not compositor presents",
+    "maximumSimulationBacklogSeconds" : 0.02331814169883728,
+    "particleCount" : 1152,
+    "physicsExecution" : "isolated actor, immutable value snapshots",
+    "puzzle" : "greenArrival",
+    "quality" : "canvas-native",
+    "vialCount" : 6
+  },
+  "date" : "2026-09-09T20:28:04Z",
+  "elapsedSeconds" : 40.034780333342496,
+  "end" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 40.034781166672474,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "environmentSamples" : [
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 1.041655195876956e-06,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 3.3711452083371114,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 6.8142204583273269,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 10.471512166666798,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 14.373812791658565,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 18.023885375005193,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 21.478314166655764,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 25.144048374990234,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 28.98921674999292,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 32.969192791671958,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 36.63926712499233,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    }
+  ],
+  "fluidGPUFrameMs" : {
+    "samples" : 0
+  },
+  "intervalsOver25ms" : 1,
+  "keptAwakeForTrial" : false,
+  "moves" : [
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.362812416657107
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3394328333379235
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.644369249988813
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.8114215833193157
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.5994881666556466
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.4170461666653864
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.6395429999975022
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.8343312499928288
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.965063708339585
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3527595000050496
+    }
+  ],
+  "notes" : "Intervals are controller\/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Classic and 2D record animation updates; 3D records MTKView draw intervals. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging\/full cannot measure drain; short unplugged samples are coarse and do not establish battery life.",
+  "os" : "Version 27.0 (Build 26A5425a)",
+  "pace" : "quick",
+  "presentation" : "fluid2D",
+  "reason" : "completed",
+  "schema" : 2,
+  "start" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 1.041655195876956e-06,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "updateOrEncodeWallMs" : {
+    "maximum" : 3.8062500243540853,
+    "median" : 2.0322499913163483,
+    "p95" : 3.1415833509527147,
+    "samples" : 2244
+  }
+}

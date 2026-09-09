@@ -3,7 +3,7 @@ import simd
 
 /// Dimensions are scene units; material constants are tuned for this visual experiment.
 /// All volume calculations use the interior profile, never the outside silhouette.
-struct LabVesselProfile {
+nonisolated struct LabVesselProfile:Sendable {
     static let sampleCount = 128
     let name: String
     let height: Float
@@ -124,7 +124,7 @@ func labRotation(_ angle: Float) -> simd_float4x4 {
     return simd_float4x4(SIMD4(c,s,0,0), SIMD4(-s,c,0,0), SIMD4(0,0,1,0), SIMD4(0,0,0,1))
 }
 
-func labSmooth(_ t: Float) -> Float {
+nonisolated func labSmooth(_ t: Float) -> Float {
     let t = min(max(t, 0), 1)
     return t*t*t*(t*(t*6-15)+10)
 }

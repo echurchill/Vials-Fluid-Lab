@@ -1,0 +1,183 @@
+{
+  "animationFrameIntervalMs" : {
+    "maximum" : 18.753292039036751,
+    "median" : 17.21983402967453,
+    "p95" : 17.297541722655296,
+    "samples" : 2301
+  },
+  "configuration" : {
+    "colorCount" : 3,
+    "maximumRenderDimension" : 1000,
+    "particleCount" : 0,
+    "puzzle" : "greenArrival",
+    "quality" : "automatic",
+    "vialCount" : 6
+  },
+  "date" : "2026-09-09T20:32:42Z",
+  "elapsedSeconds" : 40.06360204165685,
+  "end" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 40.063602583337342,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "environmentSamples" : [
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 1.0000076144933701e-06,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 4.7991038750042208,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 9.6060948333179113,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 14.469637333328137,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 19.283833124994999,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 24.133415333344601,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 28.978819833340822,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 33.806372124992777,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 38.676180166658014,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    }
+  ],
+  "fluidGPUFrameMs" : {
+    "samples" : 0
+  },
+  "intervalsOver25ms" : 0,
+  "keptAwakeForTrial" : false,
+  "moves" : [
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "seconds" : 4.7900144583254587
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "seconds" : 4.767048583336873
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "seconds" : 4.786813708342379
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "seconds" : 4.7742299583333079
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "seconds" : 4.7783995833306108
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "seconds" : 4.7757826249871869
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "seconds" : 4.7757834166695829
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "classic",
+      "seconds" : 4.7830355000041891
+    }
+  ],
+  "notes" : "Intervals are controller\/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Classic and 2D record animation updates; 3D records MTKView draw intervals. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging\/full cannot measure drain; short unplugged samples are coarse and do not establish battery life.",
+  "os" : "Version 27.0 (Build 26A5425a)",
+  "pace" : "quick",
+  "presentation" : "classic",
+  "reason" : "completed",
+  "schema" : 2,
+  "start" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 1.0000076144933701e-06,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "updateOrEncodeWallMs" : {
+    "maximum" : 0.36270832060836256,
+    "median" : 0.042875006329268217,
+    "p95" : 0.091708352556452155,
+    "samples" : 2301
+  }
+}

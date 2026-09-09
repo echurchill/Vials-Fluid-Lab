@@ -25,7 +25,7 @@ import simd
     static func main() throws {
         let args=CommandLine.arguments
         let puzzle=LabBoardPuzzle(rawValue:args.dropFirst().first ?? "greenArrival") ?? .greenArrival
-        let engine=LabFluid2D(game:LabBoardGame(state:puzzle.initial))
+        var engine=LabFluid2D(game:LabBoardGame(state:puzzle.initial))
         engine.quickMotion = !args.contains("--relaxed")
         let frameRate=args.contains("--30fps") ? 30.0:60.0
         let speed:Float=engine.quickMotion ? 1.6:1.0

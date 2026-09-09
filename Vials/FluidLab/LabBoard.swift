@@ -1,7 +1,7 @@
 import Foundation
 
 /// Unit IDs never change; color and exact volume survive simulation and undo.
-struct LabBoardMove: Equatable, Codable {
+nonisolated struct LabBoardMove: Sendable, Equatable, Codable {
     let source: Int
     let destination: Int
     let parcels: [Int]
@@ -9,7 +9,7 @@ struct LabBoardMove: Equatable, Codable {
     var amount: Int { parcels.count }
 }
 
-struct LabBoardState: Equatable, Codable {
+nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     let colors: [Int]
     var stacks: [[Int]] // bottom to top, containing stable unit IDs
     let capacity: Int
@@ -65,7 +65,7 @@ struct LabBoardState: Equatable, Codable {
     }
 }
 
-struct LabBoardGame: Codable {
+nonisolated struct LabBoardGame: Sendable, Codable {
     private(set) var state:LabBoardState
     private(set) var pending:LabBoardMove?
     private(set) var history:[LabBoardState]=[]
