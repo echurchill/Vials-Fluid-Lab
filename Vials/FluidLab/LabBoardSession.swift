@@ -11,6 +11,8 @@ import Combine
     @Published private(set) var puzzle:LabBoardPuzzle
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
+    lazy var fluid2D=LabFluid2D(game:LabBoardGame(state:LabBoardState(layers:[])))
+    @Published private(set) var planarFrame=0
     @Published var selected:Int?
     @Published var hintTarget:Int?
     @Published var phase="Choose a vial"
@@ -64,6 +66,7 @@ import Combine
         game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
         feedback.soundEnabled=soundEnabled;feedback.hapticsEnabled=hapticsEnabled
         if presentation == .fluid { prepareFluid() }
+        if presentation == .fluid2D { fluid2D.install(game);planarFrame+=1 }
         refresh()
     }
     deinit { classicTask?.cancel() }
@@ -95,6 +98,7 @@ import Combine
         presentation=value;error=nil
         if value == .fluid { prepareFluid() }
         else { renderer?.paused=true }
+        if value == .fluid2D { fluid2D.install(game);planarFrame+=1 }
         checkpoint();refresh()
     }
     func changePace(_ value:LabBoardPace) {
@@ -106,14 +110,15 @@ import Combine
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid { prepareFluid() }
-        notice="Same puzzle and rules in both views.";checkpoint();refresh()
+        if presentation == .fluid2D { fluid2D.install(game);planarFrame+=1 }
+        notice="Same puzzle and rules in all three views.";checkpoint();refresh()
     }
     func refresh() {
         updateFeedback()
         if state.solved { phase="Sorted beautifully";notice="Every color has a home. Undo to explore, or play again." }
         else if let pour=classicPour {
             phase=pour.time<0.95 ? "Moving into position":(pour.returning ? "Returning the vial":"Pouring \(pour.move.amount) \(pour.move.amount == 1 ? "unit":"units")")
-        } else if busy { phase=renderer?.phase ?? "Pouring" }
+        } else if busy { phase=presentation == .fluid2D ? fluid2D.phase:(renderer?.phase ?? "Pouring") }
         else { phase=moveCount>0 ? "Move complete":"Choose a vial" }
     }
     private func fluidUpdate() {
@@ -154,13 +159,12 @@ import Combine
             beforeParticles=renderer.particleSamples()
             guard renderer.begin(from:move.source,to:move.destination) else { return false }
         }
+        if presentation == .fluid2D { guard fluid2D.begin(move) else { return false } }
         guard game.begin(from:move.source,to:move.destination) != nil else { return false }
         paused=false;metrics=LabBoardMetrics();correction=0;captured=0;updatePause()
         performance.beginMove(presentation:presentation,pace:pace)
-        if presentation == .classic {
-            classicPour=LabClassicPour(move:move)
-            if automaticClock { startClassicClock() }
-        }
+        if presentation == .classic { classicPour=LabClassicPour(move:move) }
+        if presentation != .fluid,automaticClock { startClassicClock() }
         refresh();return true
     }
     private func startClassicClock() {
@@ -169,11 +173,27 @@ import Combine
             var last=ProcessInfo.processInfo.systemUptime
             while !Task.isCancelled {
                 try? await Task.sleep(for:.milliseconds(16))
-                guard !Task.isCancelled,let self,self.classicPour != nil else { return }
+                guard !Task.isCancelled,let self,self.busy,self.presentation != .fluid else { return }
                 let now=ProcessInfo.processInfo.systemUptime
-                self.advanceClassic(deltaTime:Float(now-last));last=now
+                if self.presentation == .fluid2D { self.advance2D(deltaTime:Float(now-last)) }
+                else { self.advanceClassic(deltaTime:Float(now-last)) };last=now
             }
         }
+    }
+    func advance2D(deltaTime:Float) {
+        guard presentation == .fluid2D,busy,!paused,!suspended else { return }
+        fluid2D.advance(deltaTime:deltaTime,speed:effectiveSpeed);planarFrame+=1
+        if !fluid2D.busy {
+            let committed=fluid2D.game.moveCount==game.moveCount+1
+            if committed {
+                game=fluid2D.game;undoParticles.append(beforeParticles);settledParticles=nil
+                feedback.completed(solved:state.solved)
+            } else { game.cancel();notice=fluid2D.lastOutcome;feedback.stop() }
+            performance.endMove(committed:committed,correctionPercent:Double(fluid2D.cleanupPercent))
+            beforeParticles=nil;classicTask?.cancel();classicTask=nil;checkpoint()
+        }
+        performance.recordFrame(interval:Double(deltaTime),cpuMS:fluid2D.cpuMilliseconds,gpuMS:nil)
+        refresh()
     }
     func advanceClassic(deltaTime:Float) {
         guard !paused,!suspended,var pour=classicPour else { return }
@@ -194,6 +214,7 @@ import Combine
         classicTask?.cancel();classicTask=nil;classicPour=nil
         game=LabBoardGame(state:puzzle.initial);undoParticles=[];settledParticles=nil;beforeParticles=nil
         renderer?.reset(state:puzzle.initial)
+        if presentation == .fluid2D { fluid2D.install(game);planarFrame+=1 }
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         notice="Tap a filled vial, then a matching color or an empty vial.";updatePause();checkpoint();refresh()
     }
@@ -201,6 +222,7 @@ import Combine
         guard !busy,game.undo() else { return }
         settledParticles=undoParticles.isEmpty ? nil:undoParticles.removeLast()
         if presentation == .fluid { prepareFluid() }
+        if presentation == .fluid2D { fluid2D.install(game);planarFrame+=1 }
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         notice="Move undone. Try a different route.";updatePause();checkpoint();refresh()
     }
@@ -217,11 +239,18 @@ import Combine
     private func updateFeedback() {
         let visibleStream:Bool
         if let pour=classicPour { visibleStream=pour.progress>0 && pour.progress<1 }
+        else if presentation == .fluid2D { visibleStream=busy && fluid2D.departed>0 && fluid2D.cutoff==nil }
         else { visibleStream=busy && (renderer?.lastMetrics.departed ?? 0)>20 && renderer?.cutoffTime == nil }
         feedback.setPouring(visibleStream && !paused && !suspended)
     }
     private func beginMeasurement() {
-        performance.context=["puzzle":puzzle.rawValue,"vialCount":state.stacks.count,"colorCount":Set(state.colors).count,"quality":quality.rawValue,"maximumRenderDimension":quality.maximumDimension,"particleCount":presentation == .fluid ? (renderer?.particleCount ?? 0):0]
+        performance.context=["puzzle":puzzle.rawValue,"vialCount":state.stacks.count,"colorCount":Set(state.colors).count,"quality":quality.rawValue,"maximumRenderDimension":quality.maximumDimension,"particleCount":presentation == .fluid ? (renderer?.particleCount ?? 0):(presentation == .fluid2D ? fluid2D.particles.count:0)]
+        if presentation == .fluid2D {
+            performance.context["quality"]="canvas-native"
+            performance.context.removeValue(forKey:"maximumRenderDimension")
+            performance.context["frameCounter"]="controller updates, not compositor presents"
+            performance.context["cpuCounter"]="2D solver only; excludes Canvas drawing"
+        }
         performance.begin(presentation:presentation,pace:pace);measurementActive=true;reportURL=nil
     }
     private func updateSpeed() { renderer?.playbackSpeed=effectiveSpeed }

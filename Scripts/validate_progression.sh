@@ -18,7 +18,7 @@ for lab_fixture in greenArrival tidalPool glassGarden switchback estuary crossin
   "$lab_output/validate-board" --library "$lab_library" --fixture "$lab_fixture" --speed 1.6 --output "$lab_output/$lab_fixture"
 done
 xcrun swiftc -O -parse-as-library "${lab_sources[@]}" Vials/FluidLab/LabBoardFeedback.swift \
-  Vials/FluidLab/LabBoardSession.swift Vials/FluidLab/LabPerformance.swift \
+  Vials/FluidLab/LabBoardSession.swift Vials/FluidLab/LabFluid2D.swift Vials/FluidLab/LabPerformance.swift \
   Vials/FluidLab/LabClassicBoardView.swift Scripts/validate_comparison.swift -o "$lab_output/validate-comparison"
 "$lab_output/validate-comparison" --library "$lab_library" --output "$lab_output/comparison"
 for lab_fixture in level last; do

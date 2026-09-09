@@ -1,8 +1,8 @@
 import Foundation
 
 enum LabBoardPresentation:String,CaseIterable,Codable {
-    case classic,fluid
-    var title:String { self == .classic ? "Classic":"Fluid" }
+    case classic,fluid2D,fluid
+    var title:String { switch self { case .classic:"Classic";case .fluid2D:"2D Fluid";case .fluid:"3D Fluid" } }
 }
 enum LabBoardPace:String,CaseIterable,Codable {
     case relaxed,quick

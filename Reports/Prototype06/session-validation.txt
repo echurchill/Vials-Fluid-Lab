@@ -1,0 +1,1 @@
+PASS: 2D commit, pause, background suspension, busy guards, reset, saved-state reload, three-way presentation switching, cross-presentation undo, no-Metal fallback and landscape/portrait captures

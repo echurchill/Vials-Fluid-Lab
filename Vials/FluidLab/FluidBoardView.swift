@@ -28,7 +28,7 @@ struct FluidBoardView:View {
                         #if os(iOS)
                         Toggle("Haptics",isOn:$session.hapticsEnabled)
                         #endif
-                        Picker("Fluid detail",selection:$session.quality) { ForEach(LabRenderQuality.allCases,id:\.self) { Text($0.title).tag($0) } }.disabled(session.busy)
+                        Picker("Fluid detail",selection:$session.quality) { ForEach(LabRenderQuality.allCases,id:\.self) { Text($0.title).tag($0) } }.disabled(session.busy || session.presentation != .fluid)
                         Divider()
                         Button("Pour study") { sheet = .study }
                         Button("Original game") { sheet = .classic }
@@ -37,7 +37,7 @@ struct FluidBoardView:View {
                 HStack(spacing:12) {
                     Picker("Presentation",selection:Binding(get:{session.presentation},set:session.changePresentation)) {
                         ForEach(LabBoardPresentation.allCases,id:\.self) { Text($0.title).tag($0) }
-                    }.pickerStyle(.segmented).frame(maxWidth:240)
+                    }.pickerStyle(.segmented).frame(maxWidth:330)
                     Picker("Pace",selection:Binding(get:{session.pace},set:session.changePace)) {
                         ForEach(LabBoardPace.allCases,id:\.self) { Text($0.title).tag($0) }
                     }.pickerStyle(.segmented).frame(maxWidth:220)
@@ -55,6 +55,7 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     ZStack {
                         if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour) }
+                        else if session.presentation == .fluid2D { LabFluid2DView(engine:session.fluid2D,points:session.points,frame:session.planarFrame) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
                         ForEach(session.state.stacks.indices,id:\.self) { index in
@@ -122,12 +123,17 @@ struct FluidBoardView:View {
     }
     private var diagnostics:some View {
         VStack(alignment:.leading,spacing:7) {
-            Text(session.presentation == .fluid ? "FLUID STUDY":"CLASSIC STUDY").font(.system(size:9,weight:.bold,design:.monospaced)).tracking(2)
+            Text(session.presentation.title.uppercased()+" STUDY").font(.system(size:9,weight:.bold,design:.monospaced)).tracking(2)
             if session.presentation == .fluid {
             Text("\(session.renderer?.particleCount ?? 0) particles · \(session.metrics.gpuMilliseconds,specifier:"%.1f") ms GPU")
             Text("Outside: \(session.metrics.outside) · Wrong layer: \(session.metrics.wrongParcel)")
             Text("Pour assist: \(session.metrics.guided) particles")
             if session.captured>0 { Text("Captured: \(session.captured*100,specifier:"%.1f")% · Cleanup: \(session.correction)") }
+            }
+            if session.presentation == .fluid2D {
+                Text("\(session.fluid2D.particles.count) particles · \(session.fluid2D.cpuMilliseconds,specifier:"%.1f") ms solver CPU")
+                Text("Arrived: \(session.fluid2D.arrived) · Cleanup: \(session.fluid2D.cleanupPercent,specifier:"%.1f")%")
+                Toggle("Show particles",isOn:$session.points).toggleStyle(.switch).controlSize(.mini)
             }
             Toggle("Slow motion",isOn:$session.slow).toggleStyle(.switch).controlSize(.mini)
             if session.presentation == .fluid {
@@ -140,6 +146,11 @@ struct FluidBoardView:View {
     }
     private func hitRect(_ index:Int,size:CGSize) -> CGRect {
         let profiles=LabBoardLayout.profiles(count:session.state.stacks.count)
+        if session.presentation == .fluid2D {
+            let layout=LabClassicLayout(size:size,vesselCount:profiles.count),profile=session.fluid2D.profiles[index]
+            let base=layout.base(index),radius=CGFloat((profile.source.radii.max() ?? 0.6)*profile.scale)*layout.scale
+            return CGRect(x:base.x-radius-8,y:base.y-CGFloat(profile.height)*layout.scale-8,width:radius*2+16,height:CGFloat(profile.height)*layout.scale+16)
+        }
         if session.presentation == .classic { return LabClassicLayout(size:size,vesselCount:session.state.stacks.count).hitRect(index,profile:profiles[index]) }
         let matrix=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:Float(session.orbit),vesselCount:session.state.stacks.count).0
         let home=LabBoardLayout.homes(count:session.state.stacks.count)[index],r=(profiles[index].radii.max() ?? 0.6)+0.05
