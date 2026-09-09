@@ -26,18 +26,25 @@ import simd
         let args=CommandLine.arguments
         let puzzle=LabBoardPuzzle(rawValue:args.dropFirst().first ?? "greenArrival") ?? .greenArrival
         let engine=LabFluid2D(game:LabBoardGame(state:puzzle.initial))
+        engine.quickMotion = !args.contains("--relaxed")
+        let frameRate=args.contains("--30fps") ? 30.0:60.0
+        let speed:Float=engine.quickMotion ? 1.6:1.0
         var rows:[[String:Any]]=[]
         guard let route=puzzle.initial.solution() else { fatalError("No route") }
         for (index,move) in route.enumerated() {
-            let original=engine.particles
+            let original=engine.particles,originalClocks=engine.materialTimes
             let initialLevel=surface(engine,move.destination)
             var activationShift:Float=0,preCleanupLevel:Float?,preCleanupParticles:[Lab2DParticle]?
             var prematureMotion=false
             let expected=engine.game.state.applying(move)!
             guard engine.begin(move) else { fatalError("Begin failed") }
             var steps=0,times:[Double]=[],intersections=0
+            var firstDeparture:Float?,lastDeparture:Float?,maxDepartureBatch=0,previousDeparted=0
             while engine.busy,steps<2000 {
-                engine.advance(deltaTime:1/60,speed:1.6);steps+=1;times.append(engine.cpuMilliseconds)
+                engine.advance(deltaTime:Float(1/frameRate),speed:speed);steps+=1;times.append(engine.cpuMilliseconds)
+                let batch=engine.departed-previousDeparted
+                if batch>0 { if firstDeparture==nil { firstDeparture=engine.time };lastDeparture=engine.time }
+                maxDepartureBatch=max(maxDepartureBatch,batch);previousDeparted=engine.departed
                 if engine.time<0.4 {
                     activationShift=max(activationShift,abs(surface(engine,move.destination)-initialLevel))
                     if original.indices.contains(where:{ original[$0].owner==move.destination && original[$0] != engine.particles[$0] }) { prematureMotion=true }
@@ -48,6 +55,10 @@ import simd
             }
             let unaffected=original.indices.filter { original[$0].owner != move.source && original[$0].owner != move.destination }
             let stationary=unaffected.allSatisfy { original[$0] == engine.particles[$0] }
+            let inactiveMaterials=originalClocks.indices.filter { $0 != move.source && $0 != move.destination }.allSatisfy { originalClocks[$0]==engine.materialTimes[$0] }
+            let settledClocks=engine.materialTimes,settledParticles=engine.particles
+            engine.advance(deltaTime:0.1,speed:speed)
+            let idleFrozen=engine.materialTimes==settledClocks && engine.particles==settledParticles
             let finalLevel=surface(engine,move.destination)
             let cleanupShift=abs(finalLevel-(preCleanupLevel ?? finalLevel))
             let desiredLevel=engine.profiles[move.destination].level(Float(expected.stacks[move.destination].count))
@@ -57,15 +68,15 @@ import simd
                     pre[i].owner != move.destination || pre[i].position==engine.particles[i].position
                 }
             } ?? false
-            let passed=engine.game.state==expected && stationary && engine.cleanupPercent<=5 && intersections==0 && !prematureMotion && activationShift<0.001 && cleanupShift<0.02 && fillError<0.05 && preserved
+            let passed=engine.game.state==expected && stationary && engine.cleanupPercent<=5 && intersections==0 && !prematureMotion && activationShift<0.001 && cleanupShift<0.02 && fillError<0.05 && preserved && inactiveMaterials && idleFrozen
             times.sort()
-            let row:[String:Any]=["move":index+1,"source":move.source,"destination":move.destination,"units":move.amount,"seconds":Double(steps)/60,"cleanupPercent":engine.cleanupPercent,"arrived":engine.arrived,"departed":engine.departed,"cpuMedianMS":times[times.count/2],"cpuP95MS":times[min(times.count-1,Int(Double(times.count)*0.95))],"passed":passed,"stationary":stationary,"vialIntersectionFrames":intersections,"activationLevelShift":activationShift,"cleanupLevelShift":cleanupShift,"fillHeightErrorPercent":fillError*100,"settledArrivalsPreserved":preserved,"outcome":engine.lastOutcome]
+            let row:[String:Any]=["move":index+1,"source":move.source,"destination":move.destination,"units":move.amount,"seconds":Double(steps)/frameRate,"departureSpanSimSeconds":(lastDeparture ?? 0)-(firstDeparture ?? 0),"maxDepartureBatch":maxDepartureBatch,"inactiveMaterialsFrozen":inactiveMaterials,"idleFrozen":idleFrozen,"cleanupPercent":engine.cleanupPercent,"arrived":engine.arrived,"departed":engine.departed,"cpuMedianMS":times[times.count/2],"cpuP95MS":times[min(times.count-1,Int(Double(times.count)*0.95))],"passed":passed,"stationary":stationary,"vialIntersectionFrames":intersections,"activationLevelShift":activationShift,"cleanupLevelShift":cleanupShift,"fillHeightErrorPercent":fillError*100,"settledArrivalsPreserved":preserved,"outcome":engine.lastOutcome]
             rows.append(row)
             print(String(data:try JSONSerialization.data(withJSONObject:row,options:.sortedKeys),encoding:.utf8)!)
             fflush(stdout)
             if !passed { break }
         }
-        let report:[String:Any]=["puzzle":puzzle.rawValue,"particleCount":engine.particles.count,"solved":engine.game.state.solved,"moves":rows]
+        let report:[String:Any]=["pace":engine.quickMotion ? "quick":"relaxed","frameRate":frameRate,"puzzle":puzzle.rawValue,"particleCount":engine.particles.count,"solved":engine.game.state.solved,"moves":rows]
         try JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]).write(to:URL(fileURLWithPath:args.count>2 ? args[2]:"/private/tmp/vials-2d-\(puzzle.rawValue).json"))
         if !engine.game.state.solved { exit(1) }
     }

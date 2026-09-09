@@ -66,7 +66,7 @@ import Combine
         game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
         feedback.soundEnabled=soundEnabled;feedback.hapticsEnabled=hapticsEnabled
         if presentation == .fluid { prepareFluid() }
-        if presentation == .fluid2D { fluid2D.install(game);planarFrame+=1 }
+        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
         refresh()
     }
     deinit { classicTask?.cancel() }
@@ -98,7 +98,7 @@ import Combine
         presentation=value;error=nil
         if value == .fluid { prepareFluid() }
         else { renderer?.paused=true }
-        if value == .fluid2D { fluid2D.install(game);planarFrame+=1 }
+        if value == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
         checkpoint();refresh()
     }
     func changePace(_ value:LabBoardPace) {
@@ -110,7 +110,7 @@ import Combine
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid { prepareFluid() }
-        if presentation == .fluid2D { fluid2D.install(game);planarFrame+=1 }
+        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
         notice="Same puzzle and rules in all three views.";checkpoint();refresh()
     }
     func refresh() {
@@ -214,7 +214,7 @@ import Combine
         classicTask?.cancel();classicTask=nil;classicPour=nil
         game=LabBoardGame(state:puzzle.initial);undoParticles=[];settledParticles=nil;beforeParticles=nil
         renderer?.reset(state:puzzle.initial)
-        if presentation == .fluid2D { fluid2D.install(game);planarFrame+=1 }
+        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         notice="Tap a filled vial, then a matching color or an empty vial.";updatePause();checkpoint();refresh()
     }
@@ -222,7 +222,7 @@ import Combine
         guard !busy,game.undo() else { return }
         settledParticles=undoParticles.isEmpty ? nil:undoParticles.removeLast()
         if presentation == .fluid { prepareFluid() }
-        if presentation == .fluid2D { fluid2D.install(game);planarFrame+=1 }
+        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         notice="Move undone. Try a different route.";updatePause();checkpoint();refresh()
     }
@@ -253,7 +253,7 @@ import Combine
         }
         performance.begin(presentation:presentation,pace:pace);measurementActive=true;reportURL=nil
     }
-    private func updateSpeed() { renderer?.playbackSpeed=effectiveSpeed }
+    private func updateSpeed() { renderer?.playbackSpeed=effectiveSpeed;if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick } }
     func toggleMeasurement() {
         if measurementActive { finishMeasurement() }
         else { beginMeasurement() }

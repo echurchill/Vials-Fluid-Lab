@@ -15,11 +15,11 @@ import AppKit
         func require(_ result:Bool,_ message:String) { if !result { fatalError(message) } }
         require(session.begin(move,automaticClock:false),"2D begin")
         session.advance2D(deltaTime:1/60)
-        let time=session.fluid2D.time,samples=session.fluid2D.particles
+        let time=session.fluid2D.time,samples=session.fluid2D.particles,clocks=session.fluid2D.materialTimes
         session.togglePause();session.advance2D(deltaTime:0.05)
-        require(session.fluid2D.time==time && session.fluid2D.particles==samples,"Pause changed particles")
+        require(session.fluid2D.time==time && session.fluid2D.particles==samples && session.fluid2D.materialTimes==clocks,"Pause changed particles or materials")
         session.togglePause();session.setSuspended(true);session.advance2D(deltaTime:0.05)
-        require(session.fluid2D.time==time,"Background advanced 2D")
+        require(session.fluid2D.time==time && session.fluid2D.materialTimes==clocks,"Background advanced 2D")
         session.setSuspended(false)
         session.changePresentation(.classic);session.changePuzzle(.firstSort);session.undo()
         require(session.presentation == .fluid2D && session.puzzle == .greenArrival && session.busy,"Busy guards")

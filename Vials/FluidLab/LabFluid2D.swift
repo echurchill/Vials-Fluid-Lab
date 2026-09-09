@@ -39,9 +39,19 @@ struct Lab2DParticle:Equatable {
     let parcel:Int
     let color:Int
 }
+struct Lab2DMotion {
+    let lift:Float,travel:Float,tiltRate:Float,upright:Float,returnTravel:Float,lower:Float,settle:Float,cleanup:Float
+    static let relaxed=Self(lift:0.50,travel:0.45,tiltRate:0.78,upright:0.70,returnTravel:0.45,lower:0.45,settle:0.55,cleanup:0.35)
+    static let quick=Self(lift:0.40,travel:0.35,tiltRate:1.0,upright:0.50,returnTravel:0.33,lower:0.33,settle:0.29,cleanup:0.20)
+    var tiltStart:Float { lift+travel }
+    var returned:Float { upright+returnTravel+lower }
+}
 final class LabFluid2D {
     static let particlesPerUnit=96
     static let step:Float=1/120
+    var quickMotion=false
+    var motion:Lab2DMotion { quickMotion ? .quick:.relaxed }
+    private(set) var materialTimes:[Float]=[]
     let radius:Float=0.037
     let separation:Float=0.084
     private(set) var profiles:[Lab2DProfile]=[]
@@ -67,8 +77,8 @@ final class LabFluid2D {
     var phase:String {
         if targets != nil { return "Final settling" }
         if cutoff != nil { return "Returning the vial" }
-        if time<0.5 { return "Lifting the vial" }
-        if time<0.95 { return "Moving into position" }
+        if time<motion.lift { return "Lifting the vial" }
+        if time<motion.tiltStart { return "Moving into position" }
         return "Pouring"
     }
     init(game:LabBoardGame=LabBoardGame()) { install(game) }
@@ -79,28 +89,28 @@ final class LabFluid2D {
         let destination=self.home(move.destination),h=profiles[i].height
         let direction:Float=destination.x>home.x ? 1:-1
         let tilt:Float
-        if let cutoff { tilt=stopAngle*(1-labSmooth((time-cutoff)/0.7)) }
-        else { tilt=min(2.25,max(0,time-0.95)*0.78)*direction }
+        if let cutoff { tilt=stopAngle*(1-labSmooth((time-cutoff)/motion.upright)) }
+        else { tilt=min(2.25,max(0,time-motion.tiltStart)*motion.tiltRate)*direction }
         let lowLip=destination+SIMD2(-direction*0.10,profiles[move.destination].height+1.10)
         let highLip=SIMD2(lowLip.x,2.65+h)
         let lip:SIMD2<Float>
         if let cutoff {
             let stoppedLip=simd_mix(highLip,lowLip,SIMD2(repeating:labSmooth((abs(stopAngle)-0.55)/0.95)))
-            lip=simd_mix(stoppedLip,highLip,SIMD2(repeating:labSmooth((time-cutoff)/0.7)))
+            lip=simd_mix(stoppedLip,highLip,SIMD2(repeating:labSmooth((time-cutoff)/motion.upright)))
         } else { lip=simd_mix(highLip,lowLip,SIMD2(repeating:labSmooth((abs(tilt)-0.55)/0.95))) }
         let raised=home+SIMD2(0,2.65)
         let rotation=Lab2DPose(base:.zero,angle:tilt)
         let positioned=lip-rotation.rotate(SIMD2(0,h))
-        var base=simd_mix(home,raised,SIMD2(repeating:labSmooth(time/0.5)))
-        if time>=0.5 { base=simd_mix(raised,positioned,SIMD2(repeating:labSmooth((time-0.5)/0.45))) }
-        if let cutoff,time-cutoff>=0.7 {
-            let start=highLip-SIMD2(0,h),t=time-cutoff-0.7
-            base=simd_mix(start,raised,SIMD2(repeating:labSmooth(t/0.45)))
-            if t>=0.45 { base=simd_mix(raised,home,SIMD2(repeating:labSmooth((t-0.45)/0.45))) }
+        var base=simd_mix(home,raised,SIMD2(repeating:labSmooth(time/motion.lift)))
+        if time>=motion.lift { base=simd_mix(raised,positioned,SIMD2(repeating:labSmooth((time-motion.lift)/motion.travel))) }
+        if let cutoff,time-cutoff>=motion.upright {
+            let start=highLip-SIMD2(0,h),t=time-cutoff-motion.upright
+            base=simd_mix(start,raised,SIMD2(repeating:labSmooth(t/motion.returnTravel)))
+            if t>=motion.returnTravel { base=simd_mix(raised,home,SIMD2(repeating:labSmooth((t-motion.returnTravel)/motion.lower))) }
         }
         // Keep the entire silhouette above the board while crossing other vials.
         // The final descent happens only after the source is back over its own home.
-        if time>=0.5 && (cutoff == nil || time-cutoff!<1.15) {
+        if time>=motion.lift && (cutoff == nil || time-cutoff!<motion.upright+motion.returnTravel) {
             var bottom:Float=0
             for k in 0...32 {
                 let y=Float(k)/32*h
@@ -116,6 +126,7 @@ final class LabFluid2D {
         cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
         if preserve { return }
         profiles=LabBoardLayout.profiles(count:game.state.stacks.count).map { Lab2DProfile($0,area:2.12) }
+        materialTimes=Array(repeating:0,count:profiles.count)
         particles=seed(game.state);links=Array(repeating:-1,count:particles.count)
         // Relax the deterministic area-stratified seed without advancing a game move.
         for _ in 0..<240 { solve(active:Set(game.state.stacks.indices),dt:Self.step,poses:profiles.indices.map { pose($0) }) }
@@ -150,9 +161,12 @@ final class LabFluid2D {
     private func tick() {
         guard let move=game.pending else { return }
         let oldPoses=profiles.indices.map { pose($0) };time+=Self.step
+        // These clocks advance only with an actual turn; Canvas stays still at rest.
+        materialTimes[move.source]+=Self.step
+        if arrived>0 { materialTimes[move.destination]+=Self.step }
         let poses=profiles.indices.map { pose($0) }
         if let targets {
-            let f=labSmooth((time-targetStart)/0.35)
+            let f=labSmooth((time-targetStart)/motion.cleanup)
             for i in particles.indices { particles[i].position=simd_mix(before[i].position,targets[i].position,SIMD2(repeating:f)) }
             if f>=1 {
                 particles=targets;_ = game.commit(move);self.targets=nil;cutoff=nil;lastOutcome="Move complete"
@@ -178,7 +192,7 @@ final class LabFluid2D {
         if cutoff==nil,time>12 {
             particles=before;game.cancel();lastOutcome="Pour did not reach 95%; move restored.";return
         }
-        if let cutoff,time-cutoff>2.15 {
+        if let cutoff,time-cutoff>motion.returned+motion.settle {
             guard let next=game.state.applying(move) else { return }
             cleanupPercent=100*Float(count-arrived)/Float(count)
             // Preserve the solved particle surface. Only missing transfer particles
@@ -226,7 +240,10 @@ final class LabFluid2D {
                                 let l=sqrt(l2),n=d/l
                                 var correction:Float=0
                                 if l<separation { correction=(separation-l)*0.48 }
-                                else if particles[i].color==particles[j].color { correction = -0.0015*(1-l/0.15) }
+                                else if particles[i].color==particles[j].color {
+                                    let releasing = !particles[i].inBulk || !particles[j].inBulk || (game.pending?.source==particles[i].owner && (selected.contains(particles[i].parcel) || selected.contains(particles[j].parcel)))
+                                    correction = -(releasing ? 0.00005:0.0015)*(1-l/0.15)
+                                }
                                 particles[i].position+=n*correction;particles[j].position-=n*correction
                             }
                         }
@@ -260,7 +277,7 @@ final class LabFluid2D {
         }
         let owner=p.owner,profile=profiles[owner],pose=poses[owner]
         var q=pose.local(p.position)
-        let outgoing=game.pending?.source==owner && selected.contains(p.parcel) && cutoff==nil && time>0.95
+        let outgoing=game.pending?.source==owner && selected.contains(p.parcel) && cutoff==nil && time>motion.tiltStart
         if outgoing,q.y>profile.height,abs(q.x)<=profile.radius(profile.height)+radius {
             p.owner = -1;p.inBulk=false;bulkUnits[owner]-=1/Float(Self.particlesPerUnit);particles[i]=p;return
         }
