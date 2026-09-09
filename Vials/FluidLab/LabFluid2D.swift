@@ -35,6 +35,7 @@ struct Lab2DParticle:Equatable {
     var position:SIMD2<Float>
     var velocity=SIMD2<Float>.zero
     var owner:Int
+    var inBulk=true // False while falling through air or the empty part of a receiver.
     let parcel:Int
     let color:Int
 }
@@ -42,7 +43,7 @@ final class LabFluid2D {
     static let particlesPerUnit=96
     static let step:Float=1/120
     let radius:Float=0.037
-    let separation:Float=0.074
+    let separation:Float=0.084
     private(set) var profiles:[Lab2DProfile]=[]
     private(set) var particles:[Lab2DParticle]=[]
     private(set) var game=LabBoardGame()
@@ -61,6 +62,7 @@ final class LabFluid2D {
     private var heads=[Int](repeating:-1,count:160*96)
     private var links:[Int]=[]
     private var selected:Set<Int>=[]
+    private var bulkUnits:[Float]=[]
     var busy:Bool { game.pending != nil }
     var phase:String {
         if targets != nil { return "Final settling" }
@@ -109,12 +111,14 @@ final class LabFluid2D {
         return Lab2DPose(base:base,angle:tilt)
     }
     func install(_ game:LabBoardGame) {
+        let preserve = !busy && self.game.state==game.state && !particles.isEmpty
         self.game=game;self.game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
         cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
+        if preserve { return }
         profiles=LabBoardLayout.profiles(count:game.state.stacks.count).map { Lab2DProfile($0,area:2.12) }
         particles=seed(game.state);links=Array(repeating:-1,count:particles.count)
         // Relax the deterministic area-stratified seed without advancing a game move.
-        for _ in 0..<45 { solve(active:Set(game.state.stacks.indices),dt:Self.step,poses:profiles.indices.map { pose($0) }) }
+        for _ in 0..<240 { solve(active:Set(game.state.stacks.indices),dt:Self.step,poses:profiles.indices.map { pose($0) }) }
         for i in particles.indices { particles[i].velocity = .zero }
     }
     private func seed(_ state:LabBoardState)->[Lab2DParticle] {
@@ -125,7 +129,7 @@ final class LabFluid2D {
                     let unit=Float(layer)+(Float(k)+0.5)/Float(Self.particlesPerUnit)
                     let y=profiles[owner].level(unit)
                     let x=(Float(k)*0.61803398875).truncatingRemainder(dividingBy:1)*2-1
-                    result.append(Lab2DParticle(position:home(owner)+SIMD2(x*max(0.02,profiles[owner].radius(y)-radius),y+radius),owner:owner,parcel:parcel,color:state.colors[parcel]))
+                    result.append(Lab2DParticle(position:home(owner)+SIMD2(x*max(0.02,profiles[owner].radius(y)-radius),y),owner:owner,parcel:parcel,color:state.colors[parcel]))
                 }
             }
         }
@@ -161,7 +165,8 @@ final class LabFluid2D {
             let p=oldPoses[move.source].local(particles[i].position)
             particles[i].position=poses[move.source].world(p)
         }
-        solve(active:[move.source,move.destination],dt:Self.step,poses:poses)
+        let received=particles.contains { $0.owner==move.destination && selected.contains($0.parcel) }
+        solve(active:received ? [move.source,move.destination]:[move.source],dt:Self.step,poses:poses)
         let flowing=particles.filter { selected.contains($0.parcel) }
         arrived=flowing.filter { $0.owner==move.destination }.count
         departed=flowing.filter { $0.owner != move.source }.count
@@ -176,15 +181,16 @@ final class LabFluid2D {
         if let cutoff,time-cutoff>2.15 {
             guard let next=game.state.applying(move) else { return }
             cleanupPercent=100*Float(count-arrived)/Float(count)
-            // Repack active vessels only. This is layer settling, distinct from the
-            // measured missing-particle correction at the receiver.
+            // Preserve the solved particle surface. Only missing transfer particles
+            // are eligible for correction; successful arrivals never get repacked.
             let packed=seed(next)
             var byParcel:[Int:[Lab2DParticle]]=[:]
             for p in packed { byParcel[p.parcel,default:[]].append(p) }
             var offsets:[Int:Int]=[:],final=particles
             for i in particles.indices {
                 let p=particles[i],offset=offsets[p.parcel,default:0];offsets[p.parcel]=offset+1
-                if p.owner==move.source || p.owner==move.destination || selected.contains(p.parcel) { final[i]=byParcel[p.parcel]![offset] }
+                if selected.contains(p.parcel),p.owner != move.destination { final[i]=byParcel[p.parcel]![offset] }
+                final[i].velocity = .zero
             }
             before=particles;targets=final;targetStart=time
         }
@@ -194,6 +200,8 @@ final class LabFluid2D {
         return x+y*160
     }
     private func solve(active:Set<Int>,dt:Float,poses:[Lab2DPose]) {
+        bulkUnits=Array(repeating:0,count:profiles.count)
+        for p in particles where p.owner>=0 && p.inBulk { bulkUnits[p.owner]+=1/Float(Self.particlesPerUnit) }
         let ids=particles.indices.filter { active.contains(particles[$0].owner) || particles[$0].owner<0 }
         let previous=particles.map(\.position)
         for i in ids {
@@ -203,7 +211,7 @@ final class LabFluid2D {
             if v>5 { particles[i].velocity*=5/v }
             particles[i].position+=particles[i].velocity*dt
         }
-        for _ in 0..<3 {
+        for _ in 0..<5 {
             heads.withUnsafeMutableBufferPointer { $0.initialize(repeating:-1) }
             for i in ids { let c=cell(particles[i].position);links[i]=heads[c];heads[c]=i }
             for i in ids {
@@ -254,22 +262,42 @@ final class LabFluid2D {
         var q=pose.local(p.position)
         let outgoing=game.pending?.source==owner && selected.contains(p.parcel) && cutoff==nil && time>0.95
         if outgoing,q.y>profile.height,abs(q.x)<=profile.radius(profile.height)+radius {
-            p.owner = -1;particles[i]=p;return
+            p.owner = -1;p.inBulk=false;bulkUnits[owner]-=1/Float(Self.particlesPerUnit);particles[i]=p;return
+        }
+        // Incoming droplets fall freely until they touch the liquid body. Only
+        // joined particles contribute to its fill height; mouth entry is not a
+        // teleport to the surface. The bound uses the same equal-area units as rest.
+        if !p.inBulk {
+            if q.y<=profile.level(bulkUnits[owner])+radius*1.4 {
+                p.inBulk=true;bulkUnits[owner]+=1/Float(Self.particlesPerUnit)
+            } else {
+                q.y=max(radius,q.y)
+                let r=max(radius,profile.radius(q.y)-radius)
+                q.x=min(r,max(-r,q.x));p.position=pose.world(q);particles[i]=p;return
+            }
         }
         var lower:Float=radius,upper=profile.height-radius
-        if let layer=game.state.stacks[owner].firstIndex(of:p.parcel) {
+        var stack=game.state.stacks[owner]
+        if let move=game.pending {
+            if owner==move.destination { stack += move.parcels }
+            if owner==move.source,!selected.contains(p.parcel) { stack.removeAll { selected.contains($0) } }
+        }
+        if let layer=stack.firstIndex(of:p.parcel) {
             // Same-color units share a band. Unlike dyes remain readable puzzle layers.
-            let stack=game.state.stacks[owner]
             var lo=layer,hi=layer+1
             while lo>0,game.state.colors[stack[lo-1]]==p.color { lo-=1 }
             while hi<stack.count,game.state.colors[stack[hi]]==p.color { hi+=1 }
-            lower=max(radius,profile.level(Float(lo))+radius*0.4)
-            if !outgoing { upper=min(upper,profile.level(Float(hi))+radius) }
+            lower=max(radius,profile.level(Float(lo))+radius*0.75)
+            if !outgoing {
+                var units=Float(hi)
+                if game.pending?.source != owner { units=min(units,bulkUnits[owner]) }
+                upper=max(lower,min(upper,profile.level(units)-radius))
+            }
         } else if let move=game.pending,owner==move.destination {
             let stack=game.state.stacks[owner]
             var lo=stack.count
             while lo>0,game.state.colors[stack[lo-1]]==p.color { lo-=1 }
-            lower=max(radius,profile.level(Float(lo))+radius*0.4)
+            lower=max(radius,profile.level(Float(lo))+radius*0.75)
         }
         q.y=max(lower,q.y)
         if !outgoing { q.y=min(upper,q.y) }

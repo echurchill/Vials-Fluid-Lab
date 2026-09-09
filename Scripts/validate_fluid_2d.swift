@@ -18,6 +18,10 @@ import simd
         }
         return 0
     }
+    static func surface(_ engine:LabFluid2D,_ owner:Int)->Float {
+        guard let top=engine.particles.filter({ $0.owner==owner && $0.inBulk }).map({ $0.position.y-engine.home(owner).y }).max() else { return 0 }
+        return top+engine.radius
+    }
     static func main() throws {
         let args=CommandLine.arguments
         let puzzle=LabBoardPuzzle(rawValue:args.dropFirst().first ?? "greenArrival") ?? .greenArrival
@@ -26,19 +30,36 @@ import simd
         guard let route=puzzle.initial.solution() else { fatalError("No route") }
         for (index,move) in route.enumerated() {
             let original=engine.particles
+            let initialLevel=surface(engine,move.destination)
+            var activationShift:Float=0,preCleanupLevel:Float?,preCleanupParticles:[Lab2DParticle]?
+            var prematureMotion=false
             let expected=engine.game.state.applying(move)!
             guard engine.begin(move) else { fatalError("Begin failed") }
             var steps=0,times:[Double]=[],intersections=0
             while engine.busy,steps<2000 {
                 engine.advance(deltaTime:1/60,speed:1.6);steps+=1;times.append(engine.cpuMilliseconds)
+                if engine.time<0.4 {
+                    activationShift=max(activationShift,abs(surface(engine,move.destination)-initialLevel))
+                    if original.indices.contains(where:{ original[$0].owner==move.destination && original[$0] != engine.particles[$0] }) { prematureMotion=true }
+                }
+                if preCleanupLevel==nil,engine.phase=="Final settling" { preCleanupLevel=surface(engine,move.destination);preCleanupParticles=engine.particles }
                 if engine.busy { let hit=overlaps(engine,source:move.source);if hit>0 && intersections==0 { print("Intersection at sim time \(engine.time), source pose \(engine.pose(move.source))") };intersections+=hit }
                 guard engine.particles.allSatisfy({ $0.position.x.isFinite && $0.position.y.isFinite }) else { fatalError("Nonfinite") }
             }
             let unaffected=original.indices.filter { original[$0].owner != move.source && original[$0].owner != move.destination }
             let stationary=unaffected.allSatisfy { original[$0] == engine.particles[$0] }
-            let passed=engine.game.state==expected && stationary && engine.cleanupPercent<=5 && intersections==0
+            let finalLevel=surface(engine,move.destination)
+            let cleanupShift=abs(finalLevel-(preCleanupLevel ?? finalLevel))
+            let desiredLevel=engine.profiles[move.destination].level(Float(expected.stacks[move.destination].count))
+            let fillError=abs(finalLevel-desiredLevel)/engine.profiles[move.destination].height
+            let preserved=preCleanupParticles.map { pre in
+                pre.indices.allSatisfy { i in
+                    pre[i].owner != move.destination || pre[i].position==engine.particles[i].position
+                }
+            } ?? false
+            let passed=engine.game.state==expected && stationary && engine.cleanupPercent<=5 && intersections==0 && !prematureMotion && activationShift<0.001 && cleanupShift<0.02 && fillError<0.05 && preserved
             times.sort()
-            let row:[String:Any]=["move":index+1,"source":move.source,"destination":move.destination,"units":move.amount,"seconds":Double(steps)/60,"cleanupPercent":engine.cleanupPercent,"arrived":engine.arrived,"departed":engine.departed,"cpuMedianMS":times[times.count/2],"cpuP95MS":times[min(times.count-1,Int(Double(times.count)*0.95))],"passed":passed,"stationary":stationary,"vialIntersectionFrames":intersections,"outcome":engine.lastOutcome]
+            let row:[String:Any]=["move":index+1,"source":move.source,"destination":move.destination,"units":move.amount,"seconds":Double(steps)/60,"cleanupPercent":engine.cleanupPercent,"arrived":engine.arrived,"departed":engine.departed,"cpuMedianMS":times[times.count/2],"cpuP95MS":times[min(times.count-1,Int(Double(times.count)*0.95))],"passed":passed,"stationary":stationary,"vialIntersectionFrames":intersections,"activationLevelShift":activationShift,"cleanupLevelShift":cleanupShift,"fillHeightErrorPercent":fillError*100,"settledArrivalsPreserved":preserved,"outcome":engine.lastOutcome]
             rows.append(row)
             print(String(data:try JSONSerialization.data(withJSONObject:row,options:.sortedKeys),encoding:.utf8)!)
             fflush(stdout)

@@ -28,6 +28,9 @@ import AppKit
         let data=try session.checkpointData(),save=try JSONDecoder().decode(LabComparisonSave.self,from:data)
         let reloaded=FluidBoardSession(defaults:nil,device:device,library:lib,restoredSave:save)
         require(reloaded.presentation == .fluid2D && reloaded.state==session.state,"2D reload")
+        let settled=session.fluid2D.particles
+        session.changePresentation(.classic);session.changePresentation(.fluid2D)
+        require(session.fluid2D.particles==settled,"Switch rebuilt settled 2D particles")
         for mode in LabBoardPresentation.allCases { session.changePresentation(mode);require(session.state==reloaded.state,"Switch changed state") }
         session.undo();require(session.state==start,"Undo after 3D switch")
         session.changePresentation(.fluid2D)
@@ -63,6 +66,22 @@ import AppKit
             if [90,140,180,210,260,340,430].contains(frame) { try capture("pour-\(frame)") }
         }
         try capture("end")
+        let remaining=engine.game.state.solution()!
+        for (index,nextMove) in remaining.enumerated() {
+            let last=index==remaining.count-1
+            if last { try capture("nearly-full-before") }
+            _=engine.begin(nextMove)
+            var captured=false,frame=0
+            while engine.busy && frame<1000 {
+                engine.advance(deltaTime:1/60);frame+=1
+                if last && frame==20 { try capture("nearly-full-selected") }
+                if last && !captured && engine.phase=="Final settling" {
+                    try capture("full-before-cleanup");captured=true
+                }
+            }
+            require(!engine.busy,"Capture route timed out")
+            if last { try capture("full-after-cleanup") }
+        }
         print("PASS: 2D commit, pause, background suspension, busy guards, reset, saved-state reload, three-way presentation switching, cross-presentation undo, no-Metal fallback and landscape/portrait captures")
     }
 }

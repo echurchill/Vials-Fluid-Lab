@@ -2,6 +2,8 @@
 
 September 9, 2026. A separate planar particle simulation in the existing native app; no Unity or new engine dependency.
 
+**Current build includes the [fill-level stability fix](LevelStability/README.md).** The implementation and measurements below describe the initial experiment; the linked report supersedes its whole-vial repacking behavior, performance numbers and pending device-check status. Correctly arrived particles now retain their positions through cleanup.
+
 ## Try it
 
 Choose **Green arrival → 2D Fluid → Quick**. Pour A into B, then try the same move in Classic or 3D Fluid using Undo. Presentations share the exact puzzle state, unit identities, saved progress, hints and undo history. All 12 existing puzzles work in 2D. Board diagnostics offers Show particles, Slow motion and session recording. The previous sound stays unchanged.
