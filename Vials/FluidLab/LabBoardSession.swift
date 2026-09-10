@@ -2,6 +2,14 @@ import SwiftUI
 import MetalKit
 import Combine
 
+/// Only liquid drawing and its optional diagnostics observe these snapshots.
+/// Keeping this publisher separate prevents particle frames from rebuilding controls.
+@MainActor final class LabPlanarDisplay:ObservableObject {
+    @Published private(set) var snapshot=LabFluid2D(game:LabBoardGame(state:LabBoardState(layers:[])))
+    private(set) var frame=0
+    fileprivate func publish(_ value:LabFluid2D) { frame+=1;snapshot=value }
+}
+
 /// The puzzle and its undo history belong to this controller, not to a view.
 /// Fluid rendering has a transactional copy while a pour is in flight.
 @MainActor final class FluidBoardSession:ObservableObject {
@@ -12,7 +20,7 @@ import Combine
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
     lazy var fluid2D=LabFluid2D(game:LabBoardGame(state:LabBoardState(layers:[])))
-    @Published private(set) var planarFrame=0
+    let planarDisplay=LabPlanarDisplay()
     @Published private(set) var rejectedVial:Int?
     @Published private(set) var lastPour:LabPourExample?
     private var pendingExample:LabPourExample?
@@ -113,7 +121,7 @@ import Combine
         game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
         feedback.soundEnabled=soundEnabled;feedback.hapticsEnabled=hapticsEnabled
         if presentation == .fluid { prepareFluid() }
-        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
+        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         refresh()
     }
     deinit { classicTask?.cancel();rejectionTask?.cancel() }
@@ -133,6 +141,7 @@ import Combine
         } catch { self.error=error.localizedDescription;presentation = .classic }
     }
     private func checkpoint() {
+        performance.traceBegin("Checkpoint");defer { performance.traceEnd("Checkpoint") }
         var stable=game;stable.cancel()
         saved.games[puzzle.rawValue]=stable;saved.presentation=presentation;saved.pace=pace;saved.puzzle=puzzle
         if let data=try? JSONEncoder().encode(saved) { defaults?.set(data,forKey:"lab.comparison.v1") }
@@ -145,7 +154,7 @@ import Combine
         presentation=value;error=nil
         if value == .fluid { prepareFluid() }
         else { renderer?.paused=true }
-        if value == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
+        if value == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         checkpoint();refresh()
     }
     func changePace(_ value:LabBoardPace) {
@@ -158,16 +167,21 @@ import Combine
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid { prepareFluid() }
-        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
+        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         notice="Same puzzle and rules in all three views.";checkpoint();refresh()
     }
     func refresh() {
         updateFeedback()
-        if state.solved { phase="Sorted beautifully";notice="Every color has a home. Undo to explore, or play again." }
-        else if let pour=classicPour {
-            phase=pour.time<0.95 ? "Moving into position":(pour.returning ? "Returning the vial":"Pouring \(pour.move.amount) \(pour.move.amount == 1 ? "unit":"units")")
-        } else if busy { phase=presentation == .fluid2D ? fluid2D.phase:(renderer?.phase ?? "Pouring") }
-        else { phase=moveCount>0 ? "Move complete":"Choose a vial" }
+        let nextPhase:String
+        if state.solved {
+            nextPhase="Sorted beautifully"
+            let solvedNotice="Every color has a home. Undo to explore, or play again."
+            if notice != solvedNotice { notice=solvedNotice }
+        } else if let pour=classicPour {
+            nextPhase=pour.time<0.95 ? "Moving into position":(pour.returning ? "Returning the vial":"Pouring \(pour.move.amount) \(pour.move.amount == 1 ? "unit":"units")")
+        } else if busy { nextPhase=presentation == .fluid2D ? fluid2D.phase:(renderer?.phase ?? "Pouring") }
+        else { nextPhase=moveCount>0 ? "Move complete":"Choose a vial" }
+        if phase != nextPhase { phase=nextPhase;performance.tracePhase(nextPhase) }
     }
     private func fluidUpdate() {
         guard presentation == .fluid,let renderer else { return }
@@ -203,6 +217,7 @@ import Combine
     }
     @discardableResult func begin(_ move:LabBoardMove,automaticClock:Bool = true) -> Bool {
         guard !busy,!state.solved,game.state.move(from:move.source,to:move.destination)==move else { return false }
+        performance.traceBegin("Begin pour");defer { performance.traceEnd("Begin pour") }
         beforeParticles=settledParticles
         if presentation == .fluid {
             guard let renderer else { return false }
@@ -275,7 +290,7 @@ import Combine
             let previous=performance.context["maximumSimulationBacklogSeconds"] as? Float ?? 0
             performance.context["maximumSimulationBacklogSeconds"]=max(previous,fluid2D.pendingSimulationSeconds)
         }
-        planarFrame+=1
+        planarDisplay.publish(fluid2D)
         if !fluid2D.busy {
             let committed=fluid2D.game.moveCount==game.moveCount+1
             if committed {
@@ -310,7 +325,7 @@ import Combine
         classicTask?.cancel();classicTask=nil;classicPour=nil
         game=LabBoardGame(state:puzzle.initial);undoParticles=[];settledParticles=nil;beforeParticles=nil
         renderer?.reset(state:puzzle.initial)
-        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
+        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         notice="Tap a filled vial, then a matching color or an empty vial.";updatePause();checkpoint();refresh()
     }
@@ -319,7 +334,7 @@ import Combine
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         settledParticles=undoParticles.isEmpty ? nil:undoParticles.removeLast()
         if presentation == .fluid { prepareFluid() }
-        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
+        if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         notice="Move undone. Try a different route.";updatePause();checkpoint();refresh()
     }

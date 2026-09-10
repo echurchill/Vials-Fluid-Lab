@@ -57,7 +57,7 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     ZStack {
                         if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour) }
-                        else if session.presentation == .fluid2D { LabFluid2DView(engine:session.fluid2D,points:session.points,frame:session.planarFrame,selected:session.selected,destinations:session.validDestinations,completed:Set(session.state.stacks.indices.filter { session.vialComplete($0) }),rejected:session.rejectedVial) }
+                        else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,points:session.points,selected:session.selected,destinations:session.validDestinations,completed:Set(session.state.stacks.indices.filter { session.vialComplete($0) }),rejected:session.rejectedVial) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
                         ForEach(session.state.stacks.indices,id:\.self) { index in
@@ -165,8 +165,7 @@ struct FluidBoardView:View {
             if session.captured>0 { Text("Captured: \(session.captured*100,specifier:"%.1f")% · Cleanup: \(session.correction)") }
             }
             if session.presentation == .fluid2D {
-                Text("\(session.fluid2D.particles.count) particles · \(session.fluid2D.cpuMilliseconds,specifier:"%.1f") ms solver CPU")
-                Text("Arrived: \(session.fluid2D.arrived) · Cleanup: \(session.fluid2D.cleanupPercent,specifier:"%.1f")%")
+                LabPlanarDiagnostics(display:session.planarDisplay)
                 Toggle("Show particles",isOn:$session.points).toggleStyle(.switch).controlSize(.mini)
             }
             Toggle("Slow motion",isOn:$session.slow).toggleStyle(.switch).controlSize(.mini)

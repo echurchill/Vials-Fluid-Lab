@@ -1,0 +1,96 @@
+{
+  "before": {
+    "cpuWindowSeconds": 14.635002667000002,
+    "phases": {
+      "Lifting the vial": {
+        "seconds": 1.1011673760000065,
+        "allThreadsMs": 457.0,
+        "mainThreadMs": 295.0,
+        "allThreadSampleMsPerSecond": 415.0141113515856,
+        "mainThreadSampleMsPerSecond": 267.89751170397756
+      },
+      "Moving into position": {
+        "seconds": 0.8468515839999995,
+        "allThreadsMs": 295.0,
+        "mainThreadMs": 145.0,
+        "allThreadSampleMsPerSecond": 348.34911520930706,
+        "mainThreadSampleMsPerSecond": 171.22244645881196
+      },
+      "Pouring": {
+        "seconds": 8.775049498999994,
+        "allThreadsMs": 3092.0,
+        "mainThreadMs": 1480.0,
+        "allThreadSampleMsPerSecond": 352.36268471788844,
+        "mainThreadSampleMsPerSecond": 168.66001726470728
+      },
+      "Returning the vial": {
+        "seconds": 3.201818876000008,
+        "allThreadsMs": 1108.0,
+        "mainThreadMs": 526.0,
+        "allThreadSampleMsPerSecond": 346.05330373472293,
+        "mainThreadSampleMsPerSecond": 164.28162253110494
+      },
+      "Final settling": {
+        "seconds": 0.49151624999999655,
+        "allThreadsMs": 122.0,
+        "mainThreadMs": 87.0,
+        "allThreadSampleMsPerSecond": 248.2115291203513,
+        "mainThreadSampleMsPerSecond": 177.0033035530374
+      },
+      "Move complete": {
+        "seconds": 0.21859908199999722,
+        "allThreadsMs": 41.0,
+        "mainThreadMs": 34.0,
+        "allThreadSampleMsPerSecond": 187.5579697082192,
+        "mainThreadSampleMsPerSecond": 155.53587731901104
+      }
+    }
+  },
+  "after": {
+    "cpuWindowSeconds": 11.275000499999997,
+    "phases": {
+      "Lifting the vial": {
+        "seconds": 0.8089981259999952,
+        "allThreadsMs": 268.0,
+        "mainThreadMs": 165.0,
+        "allThreadSampleMsPerSecond": 331.27394413766734,
+        "mainThreadSampleMsPerSecond": 203.9559730698325
+      },
+      "Moving into position": {
+        "seconds": 0.6342603330000038,
+        "allThreadsMs": 194.0,
+        "mainThreadMs": 66.0,
+        "allThreadSampleMsPerSecond": 305.86809533302284,
+        "mainThreadSampleMsPerSecond": 104.05821799989438
+      },
+      "Pouring": {
+        "seconds": 6.898677417000002,
+        "allThreadsMs": 2262.0,
+        "mainThreadMs": 753.0,
+        "allThreadSampleMsPerSecond": 327.8889362801466,
+        "mainThreadSampleMsPerSecond": 109.15135677230344
+      },
+      "Returning the vial": {
+        "seconds": 2.380318414999998,
+        "allThreadsMs": 787.0,
+        "mainThreadMs": 218.0,
+        "allThreadSampleMsPerSecond": 330.6280349051539,
+        "mainThreadSampleMsPerSecond": 91.58438578058902
+      },
+      "Final settling": {
+        "seconds": 0.38149199999999794,
+        "allThreadsMs": 80.0,
+        "mainThreadMs": 40.0,
+        "allThreadSampleMsPerSecond": 209.7029557631626,
+        "mainThreadSampleMsPerSecond": 104.8514778815813
+      },
+      "Move complete": {
+        "seconds": 0.17125420900000066,
+        "allThreadsMs": 36.0,
+        "mainThreadMs": 33.0,
+        "allThreadSampleMsPerSecond": 210.21381144564955,
+        "mainThreadSampleMsPerSecond": 192.69599382517876
+      }
+    }
+  }
+}

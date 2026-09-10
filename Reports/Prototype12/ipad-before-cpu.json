@@ -1,0 +1,135 @@
+{
+  "scope": "iPad running CPU samples from the isolated 2D app; categories are heuristic, disjoint stack classifications, not GPU times or energy measurements",
+  "sampleWeightMs": 5115.0,
+  "firstSampleSeconds": 21.180859083,
+  "lastSampleSeconds": 35.81586175,
+  "threadsMs": {
+    "background": 2548.0,
+    "main": 2567.0
+  },
+  "mainThreadPhysicsSampleWeightMs": 0,
+  "categories": [
+    {
+      "name": "physics simulation/worker",
+      "weightMs": 1577.0,
+      "sharePercent": 30.830889540566957
+    },
+    {
+      "name": "other framework/runtime work",
+      "weightMs": 1384.0,
+      "sharePercent": 27.057673509286413
+    },
+    {
+      "name": "other UI framework work",
+      "weightMs": 1249.0,
+      "sharePercent": 24.418377321603128
+    },
+    {
+      "name": "other 2D drawing",
+      "weightMs": 414.0,
+      "sharePercent": 8.093841642228739
+    },
+    {
+      "name": "board controls and layout",
+      "weightMs": 272.0,
+      "sharePercent": 5.317693059628543
+    },
+    {
+      "name": "glass drawing",
+      "weightMs": 219.0,
+      "sharePercent": 4.281524926686217
+    }
+  ],
+  "inclusiveAppFunctions": [
+    {
+      "name": "closure #1 in FluidBoardSession.startPlanarClock()",
+      "weightMs": 1598.0,
+      "sharePercent": 31.241446725317694
+    },
+    {
+      "name": "LabFluid2D.advance(deltaTime:speed:)",
+      "weightMs": 1577.0,
+      "sharePercent": 30.830889540566957
+    },
+    {
+      "name": "LabFluid2D.tick()",
+      "weightMs": 1573.0,
+      "sharePercent": 30.752688172043012
+    },
+    {
+      "name": "LabFluid2D.solve(active:dt:poses:)",
+      "weightMs": 1475.0,
+      "sharePercent": 28.83675464320626
+    },
+    {
+      "name": "closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 632.0,
+      "sharePercent": 12.35581622678397
+    },
+    {
+      "name": "LabFluid2D.constrain(_:poses:)",
+      "weightMs": 345.0,
+      "sharePercent": 6.744868035190615
+    },
+    {
+      "name": "LabFluid2DView.drawGlass(_:context:scale:base:cue:)",
+      "weightMs": 219.0,
+      "sharePercent": 4.281524926686217
+    },
+    {
+      "name": "closure #2 in closure #1 in closure #5 in closure #1 in closure #1 in FluidBoardView.body.getter",
+      "weightMs": 110.0,
+      "sharePercent": 2.1505376344086025
+    },
+    {
+      "name": "closure #1 in contour #1 (_:) in LabFluid2DView.drawGlass(_:context:scale:base:cue:)",
+      "weightMs": 83.0,
+      "sharePercent": 1.6226783968719454
+    },
+    {
+      "name": "mask #1 (_:_:) in closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 73.0,
+      "sharePercent": 1.4271749755620724
+    },
+    {
+      "name": "closure #1 in closure #1 in closure #6 in closure #1 in closure #1 in FluidBoardView.body.getter",
+      "weightMs": 72.0,
+      "sharePercent": 1.4076246334310851
+    },
+    {
+      "name": "partial apply for closure #7 in closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 70.0,
+      "sharePercent": 1.3685239491691104
+    },
+    {
+      "name": "closure #1 in FluidBoardView.body.getter",
+      "weightMs": 60.0,
+      "sharePercent": 1.1730205278592376
+    },
+    {
+      "name": "closure #1 in closure #1 in FluidBoardView.body.getter",
+      "weightMs": 59.0,
+      "sharePercent": 1.1534701857282503
+    },
+    {
+      "name": "FluidBoardView.hitRect(_:size:)",
+      "weightMs": 50.0,
+      "sharePercent": 0.9775171065493646
+    },
+    {
+      "name": "closure #6 in closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 48.0,
+      "sharePercent": 0.9384164222873901
+    },
+    {
+      "name": "partial apply for closure #6 in closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 48.0,
+      "sharePercent": 0.9384164222873901
+    },
+    {
+      "name": "closure #1 in cavity #1 (_:) in closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 44.0,
+      "sharePercent": 0.8602150537634409
+    }
+  ]
+}

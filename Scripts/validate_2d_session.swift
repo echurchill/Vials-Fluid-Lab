@@ -1,6 +1,7 @@
 import SwiftUI
 import MetalKit
 import AppKit
+import Combine
 @main struct PlanarSessionValidation {
     @MainActor static func main() async throws {
         let args=CommandLine.arguments
@@ -119,6 +120,31 @@ import AppKit
         require(session.begin(move),"New worker after reset")
         for _ in 0..<600 where session.busy { try await Task.sleep(for:.milliseconds(16)) }
         require(session.state==start.applying(move) && session.moveCount==1,"Automatic worker commit")
+        // A complete animated transfer updates the liquid every step without
+        // publishing the same state to all board and comparison controls.
+        let isolated=FluidBoardSession(defaults:nil,device:nil)
+        isolated.changePuzzle(.greenArrival);isolated.changePresentation(.fluid2D);isolated.changePace(.quick)
+        let isolatedStart=isolated.state,isolatedMove=isolatedStart.solution()!.first!
+        require(isolated.begin(isolatedMove,automaticClock:false),"Isolated display begin")
+        var boardUpdates=0,liquidUpdates=0
+        let boardSubscription=isolated.objectWillChange.sink { boardUpdates+=1 }
+        let liquidSubscription=isolated.planarDisplay.objectWillChange.sink { liquidUpdates+=1 }
+        for _ in 0..<900 where isolated.busy {
+            isolated.advance2D(deltaTime:1/60)
+            require(isolated.planarDisplay.snapshot.time==isolated.fluid2D.time && isolated.planarDisplay.snapshot.particles==isolated.fluid2D.particles,"Displayed snapshot lags completed worker frame")
+        }
+        require(isolated.state==isolatedStart.applying(isolatedMove),"Isolated display commit")
+        require(liquidUpdates>100 && boardUpdates<25,"Particle updates still invalidate board controls")
+        let completedUpdates=boardUpdates,completedLiquidUpdates=liquidUpdates
+        isolated.refresh();isolated.refresh()
+        require(boardUpdates==completedUpdates,"Unchanged phase still publishes")
+        isolated.undo()
+        require(isolated.planarDisplay.snapshot.game.state==isolatedStart,"Undo did not update the display")
+        isolated.reset()
+        require(isolated.planarDisplay.snapshot.time==0 && !isolated.planarDisplay.snapshot.busy,"Reset left a stale display")
+        boardSubscription.cancel();liquidSubscription.cancel()
+        try JSONSerialization.data(withJSONObject:["liquidUpdates":completedLiquidUpdates,"boardUpdatesDuringPour":completedUpdates],options:[.prettyPrinted,.sortedKeys]).write(to:output.appendingPathComponent("publication-counts.json"))
+        print("PASS: \(completedLiquidUpdates) liquid updates, \(completedUpdates) board updates, synchronized snapshots, quiet unchanged phase, undo/reset display")
         print("PASS: retained delayed-frame time, bounded worker batches, immutable snapshots, automatic pause/suspend/reset and commit")
         print("PASS: 2D commit, pause, background suspension, busy guards, reset, saved-state reload, three-way presentation switching, cross-presentation undo, no-Metal fallback and landscape/portrait captures")
     }

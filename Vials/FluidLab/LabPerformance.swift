@@ -1,4 +1,5 @@
 import Foundation
+import os
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -21,6 +22,22 @@ struct LabTrialConfiguration {
 
 /// Local measurements only. Battery values are observations, not power estimates.
 @MainActor final class LabPerformanceRecorder {
+    // Opt-in markers correlate controller transitions with actual display traces.
+    private static let tracing=ProcessInfo.processInfo.arguments.contains("--trace-pours")
+    private static let traceLog=OSLog(subsystem:"dev.vials.fluidlab",category:.pointsOfInterest)
+    private lazy var traceID=OSSignpostID(log:Self.traceLog)
+    func traceBegin(_ name:StaticString) {
+        guard Self.tracing else { return }
+        os_signpost(.begin,log:Self.traceLog,name:name,signpostID:traceID)
+    }
+    func traceEnd(_ name:StaticString) {
+        guard Self.tracing else { return }
+        os_signpost(.end,log:Self.traceLog,name:name,signpostID:traceID)
+    }
+    func tracePhase(_ phase:String) {
+        guard Self.tracing else { return }
+        os_signpost(.event,log:Self.traceLog,name:"Pour phase",signpostID:traceID,"%{public}@",phase)
+    }
     var context:[String:Any]=[:]
     private(set) var active=false
     private var started:Double=0

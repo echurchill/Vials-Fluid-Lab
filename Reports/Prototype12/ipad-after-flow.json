@@ -1,0 +1,546 @@
+{
+  "scope": "App-attributed display frame changes correlated with opt-in phase markers. An intervening unattributed surface update makes a gap ambiguous, not a confirmed missed presentation. Turn-boundary markers may lead actual pixels slightly. These are not Instruments animation-hitch ratios. Checkpoint samples use the disposable app and do not include normal UserDefaults persistence.",
+  "phaseEvents": [
+    {
+      "seconds": 3.639477583,
+      "phase": "Lifting the vial"
+    },
+    {
+      "seconds": 3.914994791,
+      "phase": "Moving into position"
+    },
+    {
+      "seconds": 4.127850458,
+      "phase": "Pouring"
+    },
+    {
+      "seconds": 5.954230375,
+      "phase": "Returning the vial"
+    },
+    {
+      "seconds": 6.859812958,
+      "phase": "Final settling"
+    },
+    {
+      "seconds": 6.981738625,
+      "phase": "Move complete"
+    },
+    {
+      "seconds": 7.052199583,
+      "phase": "Lifting the vial"
+    },
+    {
+      "seconds": 7.328172041,
+      "phase": "Moving into position"
+    },
+    {
+      "seconds": 7.541945458,
+      "phase": "Pouring"
+    },
+    {
+      "seconds": 9.367191958,
+      "phase": "Returning the vial"
+    },
+    {
+      "seconds": 10.271672833,
+      "phase": "Final settling"
+    },
+    {
+      "seconds": 10.393782541,
+      "phase": "Move complete"
+    },
+    {
+      "seconds": 10.450428291,
+      "phase": "Lifting the vial"
+    },
+    {
+      "seconds": 10.719446666,
+      "phase": "Moving into position"
+    },
+    {
+      "seconds": 10.931548166,
+      "phase": "Pouring"
+    },
+    {
+      "seconds": 13.059631,
+      "phase": "Returning the vial"
+    },
+    {
+      "seconds": 13.962319791,
+      "phase": "Final settling"
+    },
+    {
+      "seconds": 14.085577375,
+      "phase": "Move complete"
+    },
+    {
+      "seconds": 14.153761708,
+      "phase": "Lifting the vial"
+    },
+    {
+      "seconds": 14.4196845,
+      "phase": "Moving into position"
+    },
+    {
+      "seconds": 14.633209083,
+      "phase": "Pouring"
+    },
+    {
+      "seconds": 16.920127666,
+      "phase": "Returning the vial"
+    },
+    {
+      "seconds": 17.824118333,
+      "phase": "Final settling"
+    },
+    {
+      "seconds": 17.946912125,
+      "phase": "Move complete"
+    },
+    {
+      "seconds": 17.957110833,
+      "phase": "Lifting the vial"
+    },
+    {
+      "seconds": 18.22705175,
+      "phase": "Moving into position"
+    },
+    {
+      "seconds": 18.438983125,
+      "phase": "Pouring"
+    },
+    {
+      "seconds": 20.51528,
+      "phase": "Returning the vial"
+    },
+    {
+      "seconds": 21.43345925,
+      "phase": "Final settling"
+    },
+    {
+      "seconds": 21.555050875,
+      "phase": "Move complete"
+    },
+    {
+      "seconds": 21.641044333,
+      "phase": "Lifting the vial"
+    },
+    {
+      "seconds": 21.920392208,
+      "phase": "Moving into position"
+    },
+    {
+      "seconds": 22.134132458,
+      "phase": "Pouring"
+    },
+    {
+      "seconds": 24.030983583,
+      "phase": "Returning the vial"
+    },
+    {
+      "seconds": 24.943370041,
+      "phase": "Final settling"
+    },
+    {
+      "seconds": 25.065972291,
+      "phase": "Move complete"
+    },
+    {
+      "seconds": 25.122705791,
+      "phase": "Lifting the vial"
+    },
+    {
+      "seconds": 25.3915065,
+      "phase": "Moving into position"
+    },
+    {
+      "seconds": 25.602098791,
+      "phase": "Pouring"
+    },
+    {
+      "seconds": 27.72948175,
+      "phase": "Returning the vial"
+    },
+    {
+      "seconds": 28.632464041,
+      "phase": "Final settling"
+    },
+    {
+      "seconds": 28.770716791,
+      "phase": "Move complete"
+    },
+    {
+      "seconds": 28.816069708,
+      "phase": "Lifting the vial"
+    },
+    {
+      "seconds": 29.08884025,
+      "phase": "Moving into position"
+    },
+    {
+      "seconds": 29.30177825,
+      "phase": "Pouring"
+    },
+    {
+      "seconds": 31.623272208,
+      "phase": "Returning the vial"
+    },
+    {
+      "seconds": 32.526430666,
+      "phase": "Final settling"
+    },
+    {
+      "seconds": 32.647067666,
+      "phase": "Move complete"
+    },
+    {
+      "seconds": 32.716235458,
+      "phase": "Lifting the vial"
+    },
+    {
+      "seconds": 32.983662333,
+      "phase": "Moving into position"
+    },
+    {
+      "seconds": 33.194392375,
+      "phase": "Pouring"
+    },
+    {
+      "seconds": 35.644192875,
+      "phase": "Returning the vial"
+    }
+  ],
+  "instrumentedWorkMs": {
+    "Begin pour": {
+      "samples": 9,
+      "median": 0.211667,
+      "p95": 0.334083,
+      "maximum": 0.334083
+    },
+    "Checkpoint": {
+      "samples": 8,
+      "median": 0.137583,
+      "p95": 1.167916,
+      "maximum": 1.167916
+    }
+  },
+  "attributedDisplayFrames": 521,
+  "unattributedSurfaceUpdates": 114,
+  "displayIntervalsOver33_34msByCategory": {
+    "missing display attribution": 34
+  },
+  "activeIntervalsWithoutMissingAttributionMs": {
+    "samples": 446,
+    "median": 16.666749999998842,
+    "p95": 25.000125000001816,
+    "maximum": 25.00012500000537
+  },
+  "gapsOver33_34ms": [
+    {
+      "startSeconds": 25.54203475,
+      "endSeconds": 25.683701875,
+      "durationMs": 141.66712500000145,
+      "phaseAtStart": "Moving into position",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 7,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 25.35870075,
+      "endSeconds": 25.45036775,
+      "durationMs": 91.66700000000105,
+      "phaseAtStart": "Lifting the vial",
+      "phaseAtEnd": "Moving into position",
+      "unattributedSurfaceUpdatesInsideGap": 4,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 30.158717541,
+      "endSeconds": 30.2503845,
+      "durationMs": 91.66695899999766,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 4,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 32.058724083,
+      "endSeconds": 32.133724333,
+      "durationMs": 75.00025000000221,
+      "phaseAtStart": "Returning the vial",
+      "phaseAtEnd": "Returning the vial",
+      "unattributedSurfaceUpdatesInsideGap": 3,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 32.68372625,
+      "endSeconds": 32.7587265,
+      "durationMs": 75.00025000000221,
+      "phaseAtStart": "Move complete",
+      "phaseAtEnd": "Lifting the vial",
+      "unattributedSurfaceUpdatesInsideGap": 1,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 26.000369625,
+      "endSeconds": 26.075369875,
+      "durationMs": 75.00024999999866,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 3,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 25.100366541,
+      "endSeconds": 25.167033458,
+      "durationMs": 66.66691699999916,
+      "phaseAtStart": "Move complete",
+      "phaseAtEnd": "Lifting the vial",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 26.50870475,
+      "endSeconds": 26.575371666,
+      "durationMs": 66.66691599999908,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 3,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 25.875369208,
+      "endSeconds": 25.942036083,
+      "durationMs": 66.66687500000279,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 3,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 25.033699666,
+      "endSeconds": 25.100366541,
+      "durationMs": 66.66687499999924,
+      "phaseAtStart": "Final settling",
+      "phaseAtEnd": "Move complete",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 28.783712833,
+      "endSeconds": 28.850379666,
+      "durationMs": 66.66683299999931,
+      "phaseAtStart": "Move complete",
+      "phaseAtEnd": "Lifting the vial",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 25.767035458,
+      "endSeconds": 25.825369,
+      "durationMs": 58.33354199999974,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 31.633722583,
+      "endSeconds": 31.692056125,
+      "durationMs": 58.33354199999974,
+      "phaseAtStart": "Returning the vial",
+      "phaseAtEnd": "Returning the vial",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 29.317048,
+      "endSeconds": 29.375381541,
+      "durationMs": 58.333540999999656,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 3,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 29.5587155,
+      "endSeconds": 29.617049041,
+      "durationMs": 58.333540999999656,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 30.95872025,
+      "endSeconds": 31.017053791,
+      "durationMs": 58.333540999999656,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 30.033717125,
+      "endSeconds": 30.092050625,
+      "durationMs": 58.333499999999816,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 26.683705416,
+      "endSeconds": 26.733705625,
+      "durationMs": 50.00020900000024,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 27.058706791,
+      "endSeconds": 27.108707,
+      "durationMs": 50.00020900000024,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 33.683729708,
+      "endSeconds": 33.733729916,
+      "durationMs": 50.00020800000016,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 25.492034583,
+      "endSeconds": 25.54203475,
+      "durationMs": 50.00016700000032,
+      "phaseAtStart": "Moving into position",
+      "phaseAtEnd": "Moving into position",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 26.108703333,
+      "endSeconds": 26.1587035,
+      "durationMs": 50.00016700000032,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 29.133714041,
+      "endSeconds": 29.183714208,
+      "durationMs": 50.00016700000032,
+      "phaseAtStart": "Moving into position",
+      "phaseAtEnd": "Moving into position",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 31.100387416,
+      "endSeconds": 31.150387583,
+      "durationMs": 50.00016700000032,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 30.850386541,
+      "endSeconds": 30.892053375,
+      "durationMs": 41.66683400000082,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 1,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 31.267054666,
+      "endSeconds": 31.3087215,
+      "durationMs": 41.66683400000082,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 26.842039333,
+      "endSeconds": 26.883706166,
+      "durationMs": 41.666833000000736,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 1,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 29.658715833,
+      "endSeconds": 29.700382666,
+      "durationMs": 41.666833000000736,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 1,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 30.333718125,
+      "endSeconds": 30.375384958,
+      "durationMs": 41.666833000000736,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 1,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 30.892053375,
+      "endSeconds": 30.933720208,
+      "durationMs": 41.666833000000736,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 26.375370958,
+      "endSeconds": 26.41703775,
+      "durationMs": 41.66679199999734,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 24.808698875,
+      "endSeconds": 24.850365666,
+      "durationMs": 41.66679099999726,
+      "phaseAtStart": "Returning the vial",
+      "phaseAtEnd": "Returning the vial",
+      "unattributedSurfaceUpdatesInsideGap": 1,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 27.18370725,
+      "endSeconds": 27.225374041,
+      "durationMs": 41.66679099999726,
+      "phaseAtStart": "Pouring",
+      "phaseAtEnd": "Pouring",
+      "unattributedSurfaceUpdatesInsideGap": 2,
+      "category": "missing display attribution"
+    },
+    {
+      "startSeconds": 29.0753805,
+      "endSeconds": 29.117047291,
+      "durationMs": 41.66679099999726,
+      "phaseAtStart": "Lifting the vial",
+      "phaseAtEnd": "Moving into position",
+      "unattributedSurfaceUpdatesInsideGap": 1,
+      "category": "missing display attribution"
+    }
+  ]
+}

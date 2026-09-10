@@ -1,0 +1,62 @@
+[
+  {
+    "committed" : true,
+    "matchedSeconds" : 5,
+    "preparedSimulationSeconds" : 7.5999999046325684,
+    "presentation" : "classic"
+  },
+  {
+    "committed" : true,
+    "matchedSeconds" : 5,
+    "preparedSimulationSeconds" : 5.3333377838134766,
+    "presentation" : "fluid2D"
+  },
+  {
+    "committed" : true,
+    "matchedSeconds" : 5.0333333333333332,
+    "preparedSimulationSeconds" : 6.2666568756103516,
+    "presentation" : "fluid"
+  },
+  {
+    "committed" : true,
+    "matchedSeconds" : 5,
+    "preparedSimulationSeconds" : 7.5999999046325684,
+    "presentation" : "classic",
+    "units" : 3
+  },
+  {
+    "committed" : true,
+    "matchedSeconds" : 5.0166666666666666,
+    "preparedSimulationSeconds" : 6.0666599273681641,
+    "presentation" : "fluid2D",
+    "units" : 3
+  },
+  {
+    "committed" : true,
+    "matchedSeconds" : 5.0333333333333332,
+    "preparedSimulationSeconds" : 7.5499706268310547,
+    "presentation" : "fluid",
+    "units" : 3
+  },
+  {
+    "committed" : true,
+    "matchedSeconds" : 5,
+    "preparedSimulationSeconds" : 7.5999999046325684,
+    "presentation" : "classic",
+    "units" : 2
+  },
+  {
+    "committed" : true,
+    "matchedSeconds" : 5.0166666666666666,
+    "preparedSimulationSeconds" : 6.4333209991455078,
+    "presentation" : "fluid2D",
+    "units" : 2
+  },
+  {
+    "committed" : true,
+    "matchedSeconds" : 5,
+    "preparedSimulationSeconds" : 8.0832958221435547,
+    "presentation" : "fluid",
+    "units" : 2
+  }
+]

@@ -36,7 +36,7 @@ private struct LabPourComparisonContent:View {
             }.pickerStyle(.segmented).disabled(session.busy || comparison.preparing)
             ZStack {
                 if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour) }
-                else if session.presentation == .fluid2D { LabFluid2DView(engine:session.fluid2D,frame:session.planarFrame) }
+                else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay) }
                 else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer).id(ObjectIdentifier(renderer)) }
             }.frame(maxWidth:.infinity,maxHeight:.infinity).frame(minHeight:220)
                 .background(Color(red:0.026,green:0.043,blue:0.060),in:RoundedRectangle(cornerRadius:18))
