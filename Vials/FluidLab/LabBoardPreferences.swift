@@ -61,3 +61,11 @@ struct LabClassicPour {
     var returning:Bool { time>5.4 }
     var finished:Bool { time>=Self.duration }
 }
+
+/// A disposable, exact starting board and transfer for presentation comparisons.
+struct LabPourExample:Identifiable {
+    let id=UUID()
+    let puzzle:LabBoardPuzzle
+    let state:LabBoardState
+    let move:LabBoardMove
+}

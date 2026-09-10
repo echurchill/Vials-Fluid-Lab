@@ -1,0 +1,25 @@
+{
+  "results" : [
+    {
+      "baselineMedianMs" : 3.1870416132733226,
+      "baselineP95Ms" : 4.516458313446492,
+      "height" : 650,
+      "samplesPerVariant" : 40,
+      "scene" : "rest",
+      "updatedMedianMs" : 3.520458354614675,
+      "updatedP95Ms" : 5.0049166893586516,
+      "width" : 1000
+    },
+    {
+      "baselineMedianMs" : 2.2396667045541108,
+      "baselineP95Ms" : 2.7667083195410669,
+      "height" : 650,
+      "samplesPerVariant" : 40,
+      "scene" : "impact",
+      "updatedMedianMs" : 2.7210416737943888,
+      "updatedP95Ms" : 3.16716666566208,
+      "width" : 1000
+    }
+  ],
+  "scope" : "Mac offscreen ImageRenderer plus draw to a CPU bitmap; not on-device GPU cost or display presents"
+}

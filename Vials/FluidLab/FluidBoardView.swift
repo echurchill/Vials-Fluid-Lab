@@ -7,6 +7,7 @@ private enum BoardSheet:String,Identifiable { case classic,study;var id:String {
 struct FluidBoardView:View {
     @StateObject private var session=FluidBoardSession()
     @State private var sheet:BoardSheet?
+    @State private var comparison:LabPourExample?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let ink=Color(red:0.80,green:0.88,blue:0.90)
@@ -30,6 +31,7 @@ struct FluidBoardView:View {
                         #endif
                         Picker("Fluid detail",selection:$session.quality) { ForEach(LabRenderQuality.allCases,id:\.self) { Text($0.title).tag($0) } }.disabled(session.busy || session.presentation != .fluid)
                         Divider()
+                        Button(session.lastPour == nil ? "Compare a pour":"Compare last pour") { comparison=session.comparisonExample }.disabled(!session.canComparePour)
                         Button("Pour study") { sheet = .study }
                         Button("Original game") { sheet = .classic }
                     } label: { Image(systemName:"ellipsis.circle").frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Board options")
@@ -55,7 +57,7 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     ZStack {
                         if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour) }
-                        else if session.presentation == .fluid2D { LabFluid2DView(engine:session.fluid2D,points:session.points,frame:session.planarFrame) }
+                        else if session.presentation == .fluid2D { LabFluid2DView(engine:session.fluid2D,points:session.points,frame:session.planarFrame,selected:session.selected,destinations:session.validDestinations,completed:Set(session.state.stacks.indices.filter { session.vialComplete($0) }),rejected:session.rejectedVial) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
                         ForEach(session.state.stacks.indices,id:\.self) { index in
@@ -63,11 +65,16 @@ struct FluidBoardView:View {
                             Button { session.select(index) } label: {
                                 RoundedRectangle(cornerRadius:20)
                                     .fill(Color.white.opacity(0.001))
-                                    .overlay(RoundedRectangle(cornerRadius:20).stroke(session.selected == index ? accent:(session.hintTarget == index ? Color.orange:Color.clear),lineWidth:1.5))
+                                    .overlay(alignment:.bottom) {
+                                        Label(cueLabel(index),systemImage:cueSymbol(index)).font(.system(size:10,weight:.semibold))
+                                            .fixedSize().padding(.horizontal,7).padding(.vertical,4).background(.black.opacity(0.75),in:Capsule())
+                                            .foregroundStyle(cueColor(index)).opacity(cueLabel(index).isEmpty ? 0:1).offset(y:17)
+                                    }
+                                    .overlay(RoundedRectangle(cornerRadius:20).stroke(cueColor(index).opacity(session.presentation == .fluid2D ? 0:0.7),style:StrokeStyle(lineWidth:1.5,dash:session.validDestinations.contains(index) ? [4,4]:[])))
                             }
                             .buttonStyle(.plain).frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
                             .disabled(session.busy || session.state.solved)
-                            .accessibilityLabel(session.accessibility(index)).accessibilityValue(session.selected == index ? "Selected source":"")
+                            .accessibilityLabel(session.accessibility(index)).accessibilityValue(cueLabel(index))
                         }
                         if session.diagnostics {
                             diagnostics.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).padding(14)
@@ -82,7 +89,7 @@ struct FluidBoardView:View {
                                 VStack(spacing:5) {
                                     HStack(spacing:5) {
                                         Text(FluidBoardSession.letter(index)).font(.system(size:13,weight:.semibold,design:.monospaced))
-                                        Text("\(session.state.stacks[index].count) / 4").font(.system(size:11,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
+                                        Text(session.vialComplete(index) ? "✓":"\(session.state.stacks[index].count) / 4").font(.system(size:11,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
                                     }
                                     HStack(spacing:3) {
                                         ForEach(0..<4,id:\.self) { layer in
@@ -90,9 +97,14 @@ struct FluidBoardView:View {
                                         }
                                     }
                                 }.frame(maxWidth:.infinity).padding(.vertical,12).padding(.horizontal,9)
-                                    .background((session.selected == index ? accent.opacity(0.16):ink.opacity(0.04)),in:RoundedRectangle(cornerRadius:10))
+                                    .background(cueLabel(index).isEmpty ? ink.opacity(0.04):cueColor(index).opacity(0.13),in:RoundedRectangle(cornerRadius:10))
+                                    .overlay(RoundedRectangle(cornerRadius:10).stroke(cueColor(index).opacity(0.65),lineWidth:1))
+                                    .scaleEffect(!reduceMotion && session.selected==index ? 1.025:1)
+                                    .offset(x:!reduceMotion && session.rejectedVial==index ? 3:0)
+                                    .animation(reduceMotion ? nil:.easeInOut(duration:0.18),value:session.selected)
+                                    .animation(reduceMotion ? nil:.easeInOut(duration:0.12),value:session.rejectedVial)
                             }.buttonStyle(.plain).disabled(session.busy || session.state.solved)
-                            .accessibilityLabel("Select "+session.accessibility(index))
+                            .accessibilityLabel("Select "+session.accessibility(index)).accessibilityValue(cueLabel(index))
                         }
                     }
                     if session.state.solved,let next=session.puzzle.next {
@@ -112,14 +124,36 @@ struct FluidBoardView:View {
         .preferredColorScheme(.dark)
         .task { await session.runTrialIfRequested() }
         .onAppear { if reduceMotion { session.paused=true;session.renderer?.paused=true } }
-        .onChange(of:sheet) { _,value in session.setSuspended(value != nil || scenePhase != .active) }
-        .onChange(of:scenePhase) { _,value in session.setSuspended(value != .active || sheet != nil) }
+        .onChange(of:sheet) { _,value in session.setSuspended(value != nil || comparison != nil || scenePhase != .active) }
+        .onChange(of:scenePhase) { _,value in session.setSuspended(value != .active || sheet != nil || comparison != nil) }
+        .onChange(of:comparison?.id) { _,value in session.setSuspended(value != nil || sheet != nil || scenePhase != .active) }
+        .sheet(item:$comparison) { example in LabPourComparisonView(example:example) }
         .sheet(item:$sheet) { item in
             ZStack(alignment:.topTrailing) {
                 if item == .study { FluidLabView() } else { ContentView() }
                 Button("Return to board",systemImage:"xmark.circle.fill") { sheet=nil }.buttonStyle(.bordered).padding()
             }.frame(minWidth:360,minHeight:640)
         }
+    }
+    private func cueLabel(_ index:Int)->String {
+        if session.busy { return "" }
+        if session.rejectedVial==index { return "Cannot pour" }
+        if session.selected==index { return "Selected" }
+        if session.hintTarget==index { return "Hint" }
+        if session.validDestinations.contains(index) { return "Pour here" }
+        return session.vialComplete(index) ? "Complete":""
+    }
+    private func cueSymbol(_ index:Int)->String {
+        if session.rejectedVial==index { return "xmark.circle" }
+        if session.selected==index { return "drop.fill" }
+        if session.hintTarget==index { return "lightbulb" }
+        return session.validDestinations.contains(index) ? "arrow.down":"checkmark.circle"
+    }
+    private func cueColor(_ index:Int)->Color {
+        if session.busy { return .clear }
+        if session.rejectedVial==index || session.hintTarget==index { return .orange }
+        if session.selected==index || session.validDestinations.contains(index) || session.vialComplete(index) { return accent }
+        return .clear
     }
     private var diagnostics:some View {
         VStack(alignment:.leading,spacing:7) {
@@ -164,14 +198,14 @@ struct FluidBoardView:View {
 }
 
 #if os(macOS)
-private struct BoardMetalSurface:NSViewRepresentable {
+struct BoardMetalSurface:NSViewRepresentable {
     let renderer:LabBoardRenderer
     func makeNSView(context:Context) -> MTKView { makeBoardView(renderer) }
     func updateNSView(_ view:MTKView,context:Context) {}
     static func dismantleNSView(_ view:MTKView,coordinator:()) { view.isPaused=true;view.delegate=nil }
 }
 #else
-private struct BoardMetalSurface:UIViewRepresentable {
+struct BoardMetalSurface:UIViewRepresentable {
     let renderer:LabBoardRenderer
     func makeUIView(context:Context) -> MTKView { makeBoardView(renderer) }
     func updateUIView(_ view:MTKView,context:Context) {}

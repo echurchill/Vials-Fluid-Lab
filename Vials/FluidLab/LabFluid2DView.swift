@@ -1,10 +1,14 @@
 import SwiftUI
 
-/// A planar surface reconstructed from particles; the glass is an illustrated outline.
+/// A planar surface reconstructed from particles; layered glass follows the same interior profile.
 struct LabFluid2DView:View {
     let engine:LabFluid2D
     var points=false
     var frame:Int=0 // Publish each completed value snapshot.
+    var selected:Int?
+    var destinations:Set<Int>=[]
+    var completed:Set<Int>=[]
+    var rejected:Int?
     var body:some View {
         Canvas(rendersAsynchronously:true) { context,size in
             let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count)
@@ -31,7 +35,11 @@ struct LabFluid2DView:View {
             }
             var baseline=Path();baseline.move(to:CGPoint(x:size.width*0.06,y:origin.y+7));baseline.addLine(to:CGPoint(x:size.width*0.94,y:origin.y+7))
             context.stroke(baseline,with:.color(.white.opacity(0.08)),lineWidth:1)
-            for index in engine.profiles.indices { context.fill(cavity(index),with:.color(.white.opacity(0.028))) }
+            for index in engine.profiles.indices {
+                let base=screen(engine.home(index)),width=CGFloat(engine.profiles[index].radius(0.3))*scale*2.4
+                context.fill(Path(ellipseIn:CGRect(x:base.x-width/2,y:base.y+3,width:width,height:7)),with:.color(.black.opacity(0.30)))
+                context.fill(cavity(index),with:.linearGradient(Gradient(colors:[Color.cyan.opacity(0.045),.white.opacity(0.012),Color.cyan.opacity(0.02)]),startPoint:CGPoint(x:base.x-width/2,y:base.y),endPoint:CGPoint(x:base.x+width/2,y:base.y)))
+            }
             for owner in -1..<engine.profiles.count {
                 let owned=engine.particles.filter { $0.owner==owner }
                 guard !owned.isEmpty else { continue }
@@ -176,35 +184,59 @@ struct LabFluid2DView:View {
                 }
             }
             for index in engine.profiles.indices {
-                let profile=engine.profiles[index],pose=engine.pose(index)
-                let bottom=screen(pose.base),top=screen(pose.world(SIMD2(0,profile.height)))
-                var outline=Path()
-                for side:Float in [1,-1] {
-                    let steps=side>0 ? Array((0...128).reversed()):Array(0...128)
-                    for k in steps {
-                        let y=Float(k)/128*profile.height,point=screen(pose.world(SIMD2(side*profile.radius(y),y)))
-                        if side>0 && k==128 { outline.move(to:point) } else { outline.addLine(to:point) }
-                    }
-                }
-                context.stroke(outline,with:.linearGradient(Gradient(colors:[.white.opacity(0.58),Color.cyan.opacity(0.15),.white.opacity(0.30)]),startPoint:top,endPoint:bottom),style:StrokeStyle(lineWidth:1.6,lineJoin:.round))
-                // Open mouth: two short lip highlights, no cap across the stream.
-                for side:Float in [-1,1] {
-                    let lip=screen(pose.world(SIMD2(side*profile.radius(profile.height),profile.height)))
-                    context.fill(Path(ellipseIn:CGRect(x:lip.x-2,y:lip.y-2,width:4,height:4)),with:.color(.white.opacity(0.65)))
-                    var glint=Path()
-                    for k in 15...110 {
-                        let y=Float(k)/128*profile.height
-                        let p=screen(pose.world(SIMD2(side*(profile.radius(y)-0.055),y)))
-                        if k==15 { glint.move(to:p) } else { glint.addLine(to:p) }
-                    }
-                    context.stroke(glint,with:.color(.white.opacity(side<0 ? 0.12:0.05)),lineWidth:1.8)
-                }
-                for unit in 1...4 {
-                    let y=profile.level(Float(unit)),r=profile.radius(y)
-                    var mark=Path();mark.move(to:screen(pose.world(SIMD2(r*0.60,y))));mark.addLine(to:screen(pose.world(SIMD2(r*0.9,y))))
-                    context.stroke(mark,with:.color(.white.opacity(0.28)),lineWidth:1)
-                }
+                let cue:Color?=rejected==index ? .orange:(selected==index ? .cyan:(destinations.contains(index) ? Color(red:0.28,green:0.85,blue:0.79):nil))
+                drawGlass(index,context:context,scale:scale,base:screen(engine.pose(index).base),cue:cue)
             }
         }.accessibilityHidden(true)
+    }
+
+    private func drawGlass(_ index:Int,context:GraphicsContext,scale:CGFloat,base:CGPoint,cue:Color?) {
+        let profile=engine.profiles[index],pose=engine.pose(index)
+        var glass=context
+        glass.translateBy(x:base.x,y:base.y);glass.rotate(by:.radians(Double(pose.angle)))
+        let height=CGFloat(profile.height)*scale,thickness=max(1.7,scale*0.040)
+        let width=CGFloat(profile.source.radii.max()! * profile.scale)*scale
+        func point(_ side:CGFloat,_ y:Float,_ inset:CGFloat=0)->CGPoint {
+            CGPoint(x:side*(CGFloat(profile.radius(y))*scale+inset),y:-CGFloat(y)*scale)
+        }
+        func contour(_ extra:CGFloat)->Path {
+            Path { path in
+                path.move(to:point(1,profile.height,extra))
+                for k in (0..<128).reversed() { path.addLine(to:point(1,Float(k)/128*profile.height,extra)) }
+                let r=CGFloat(profile.radius(0))*scale
+                path.addQuadCurve(to:CGPoint(x:-r-extra,y:0),control:CGPoint(x:0,y:extra*2))
+                for k in 1...128 { path.addLine(to:point(-1,Float(k)/128*profile.height,extra)) }
+            }
+        }
+        let inner=contour(0),outer=contour(thickness)
+        var wall=outer;wall.closeSubpath();var hollow=inner;hollow.closeSubpath();wall.addPath(hollow)
+        glass.fill(wall,with:.linearGradient(Gradient(colors:[.white.opacity(0.44),Color.cyan.opacity(0.10),.white.opacity(0.12),Color.cyan.opacity(0.36)]),startPoint:CGPoint(x:-width,y:-height),endPoint:CGPoint(x:width,y:0)),style:FillStyle(eoFill:true))
+        glass.stroke(outer,with:.linearGradient(Gradient(colors:[.white.opacity(0.62),Color.cyan.opacity(0.28),.white.opacity(0.45)]),startPoint:CGPoint(x:-width,y:-height),endPoint:CGPoint(x:width,y:0)),style:StrokeStyle(lineWidth:0.9,lineJoin:.round))
+        glass.stroke(inner,with:.color(.white.opacity(0.20)),style:StrokeStyle(lineWidth:0.7,lineJoin:.round))
+        if let cue { glass.stroke(outer,with:.color(cue.opacity(0.75)),style:StrokeStyle(lineWidth:1.6,lineJoin:.round)) }
+        // Narrow reflections sit on the walls, leaving the middle of each color clear.
+        for side:CGFloat in [-1,1] {
+            var reflection=Path()
+            for k in 12...117 {
+                let y=Float(k)/128*profile.height,p=point(side,y,-thickness*1.5)
+                if k==12 { reflection.move(to:p) } else { reflection.addLine(to:p) }
+            }
+            glass.stroke(reflection,with:.linearGradient(Gradient(colors:[.white.opacity(side<0 ? 0.26:0.09),.white.opacity(0.015),.white.opacity(0.10)]),startPoint:CGPoint(x:0,y:-height),endPoint:.zero),style:StrokeStyle(lineWidth:max(1,thickness*0.70),lineCap:.round))
+        }
+        let rim=CGFloat(profile.radius(profile.height))*scale
+        let lip=CGRect(x:-rim-thickness,y:-height-thickness*0.75,width:(rim+thickness)*2,height:thickness*1.5)
+        glass.stroke(Path(ellipseIn:lip),with:.color(.white.opacity(0.23)),lineWidth:0.8)
+        var frontLip=Path();frontLip.move(to:CGPoint(x:-rim-thickness,y:-height))
+        frontLip.addQuadCurve(to:CGPoint(x:rim+thickness,y:-height),control:CGPoint(x:0,y:-height+thickness*1.5))
+        glass.stroke(frontLip,with:.linearGradient(Gradient(colors:[.white.opacity(0.75),.white.opacity(0.15),.white.opacity(0.5)]),startPoint:CGPoint(x:-rim,y:0),endPoint:CGPoint(x:rim,y:0)),style:StrokeStyle(lineWidth:thickness*0.65,lineCap:.round))
+        let bottomRadius=CGFloat(profile.radius(0))*scale
+        var foot=Path();foot.move(to:CGPoint(x:-bottomRadius,y:thickness*0.25))
+        foot.addQuadCurve(to:CGPoint(x:bottomRadius,y:thickness*0.25),control:CGPoint(x:0,y:thickness*1.3))
+        glass.stroke(foot,with:.color((completed.contains(index) ? Color.cyan:Color.white).opacity(0.5)),style:StrokeStyle(lineWidth:thickness,lineCap:.round))
+        for unit in 1...4 {
+            let y=profile.level(Float(unit)),r=profile.radius(y)
+            var mark=Path();mark.move(to:CGPoint(x:CGFloat(r*0.60)*scale,y:-CGFloat(y)*scale));mark.addLine(to:CGPoint(x:CGFloat(r*0.86)*scale,y:-CGFloat(y)*scale))
+            glass.stroke(mark,with:.color(.white.opacity(0.25)),lineWidth:0.8)
+        }
     }
 }

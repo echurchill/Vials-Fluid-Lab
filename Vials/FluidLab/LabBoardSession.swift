@@ -13,6 +13,12 @@ import Combine
     @Published private(set) var classicPour:LabClassicPour?
     lazy var fluid2D=LabFluid2D(game:LabBoardGame(state:LabBoardState(layers:[])))
     @Published private(set) var planarFrame=0
+    @Published private(set) var rejectedVial:Int?
+    @Published private(set) var lastPour:LabPourExample?
+    private var pendingExample:LabPourExample?
+    private var rejectionTask:Task<Void,Never>?
+    // Used only by the disposable comparison session to align playback duration.
+    var comparisonSpeed:Float? { didSet { updateSpeed() } }
     @Published var selected:Int?
     @Published var hintTarget:Int?
     @Published var phase="Choose a vial"
@@ -50,7 +56,47 @@ import Combine
     var state:LabBoardState { game.state }
     var moveCount:Int { game.moveCount }
     var busy:Bool { game.pending != nil }
-    var effectiveSpeed:Float { pace.speed*(slow ? 0.35:1) }
+    var effectiveSpeed:Float { (comparisonSpeed ?? pace.speed)*(slow ? 0.35:1) }
+    var validDestinations:Set<Int> {
+        guard let selected,!busy else { return [] }
+        return Set(state.stacks.indices.filter { state.move(from:selected,to:$0) != nil })
+    }
+    func vialComplete(_ index:Int)->Bool {
+        let stack=state.stacks[index]
+        return stack.count==state.capacity && Set(stack.map { state.colors[$0] }).count==1
+    }
+    // Menu availability must not run a puzzle search on every board redraw.
+    var canComparePour:Bool {
+        guard !busy else { return false }
+        if lastPour != nil { return true }
+        guard !state.solved else { return false }
+        let sources=selected.map { [$0] } ?? Array(state.stacks.indices)
+        return sources.contains { source in state.stacks.indices.contains { state.move(from:source,to:$0) != nil } }
+    }
+    var comparisonExample:LabPourExample? {
+        guard !busy else { return nil }
+        if let lastPour { return lastPour }
+        let move:LabBoardMove?
+        if let selected {
+            move=state.stacks.indices.compactMap { state.move(from:selected,to:$0) }.first
+        } else {
+            move=state.solution()?.first ?? state.stacks.indices.compactMap { source in
+                state.stacks.indices.compactMap { state.move(from:source,to:$0) }.first
+            }.first
+        }
+        return move.map { LabPourExample(puzzle:puzzle,state:state,move:$0) }
+    }
+    private func reject(_ index:Int) {
+        rejectionTask?.cancel();rejectedVial=index
+        rejectionTask=Task { @MainActor [weak self] in
+            try? await Task.sleep(for:.milliseconds(850))
+            guard !Task.isCancelled else { return };self?.rejectedVial=nil
+        }
+    }
+    private func clearSelectionFeedback() { rejectionTask?.cancel();rejectedVial=nil }
+    private func rememberPour(_ committed:Bool) {
+        if committed { lastPour=pendingExample };pendingExample=nil
+    }
 
     init(defaults:UserDefaults? = .standard,device:MTLDevice? = MTLCreateSystemDefaultDevice(),library:MTLLibrary? = nil,restoredSave:LabComparisonSave? = nil) {
         let trial=LabTrialConfiguration.current
@@ -70,7 +116,7 @@ import Combine
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
         refresh()
     }
-    deinit { classicTask?.cancel() }
+    deinit { classicTask?.cancel();rejectionTask?.cancel() }
     private func prepareFluid() {
         guard !busy else { return }
         do {
@@ -107,6 +153,7 @@ import Combine
     }
     func changePuzzle(_ value:LabBoardPuzzle) {
         guard !busy,value != puzzle else { return }
+        lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         finishMeasurement(reason:"puzzle changed");checkpoint();puzzle=value;game=saved.games[value.rawValue] ?? LabBoardGame(state:value.initial);game.cancel()
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
@@ -130,6 +177,7 @@ import Combine
             let committed=renderer.game.moveCount == game.moveCount+1
             if committed { undoParticles.append(beforeParticles);game=renderer.game;settledParticles=renderer.particleSamples() }
             else { game.cancel();notice=renderer.lastOutcome }
+            rememberPour(committed)
             performance.endMove(committed:committed,correctionPercent:Double(correction)/Double(amount*640)*100)
             if committed { feedback.completed(solved:state.solved) } else { feedback.stop() }
             beforeParticles=nil;checkpoint()
@@ -139,8 +187,9 @@ import Combine
     func select(_ index:Int) {
         guard state.stacks.indices.contains(index),!busy,!state.solved else { return }
         if let source=selected {
-            if source == index { selected=nil;hintTarget=nil;notice="Choose another vial.";return }
+            if source == index { clearSelectionFeedback();selected=nil;hintTarget=nil;notice="Choose another vial.";return }
             guard let move=state.move(from:source,to:index) else {
+                reject(index)
                 notice=state.stacks[index].count == state.capacity ? "That vial is full.":"Choose the same top color or an empty vial.";return
             }
             if begin(move) {
@@ -148,8 +197,8 @@ import Combine
                 notice="\(move.amount) \(move.amount == 1 ? "unit":"units") of \(Self.name(move.color)) · \(Self.letter(source)) → \(Self.letter(index))"
             }
         } else {
-            guard !state.stacks[index].isEmpty else { notice="Choose a vial that contains liquid first.";return }
-            feedback.selection();selected=index;hintTarget=nil;notice="Now choose a matching color or an empty vial."
+            guard !state.stacks[index].isEmpty else { reject(index);notice="Choose a vial that contains liquid first.";return }
+            clearSelectionFeedback();feedback.selection();selected=index;hintTarget=nil;notice="Now choose a matching color or an empty vial."
         }
     }
     @discardableResult func begin(_ move:LabBoardMove,automaticClock:Bool = true) -> Bool {
@@ -162,6 +211,7 @@ import Combine
         }
         if presentation == .fluid2D { guard fluid2D.begin(move) else { return false } }
         guard game.begin(from:move.source,to:move.destination) != nil else { return false }
+        clearSelectionFeedback();pendingExample=LabPourExample(puzzle:puzzle,state:state,move:move)
         paused=false;metrics=LabBoardMetrics();correction=0;captured=0;updatePause()
         performance.beginMove(presentation:presentation,pace:pace)
         if presentation == .classic { classicPour=LabClassicPour(move:move) }
@@ -232,6 +282,7 @@ import Combine
                 game=fluid2D.game;undoParticles.append(beforeParticles);settledParticles=nil
                 feedback.completed(solved:state.solved)
             } else { game.cancel();notice=fluid2D.lastOutcome;feedback.stop() }
+            rememberPour(committed)
             performance.endMove(committed:committed,correctionPercent:Double(fluid2D.cleanupPercent))
             beforeParticles=nil;classicTask?.cancel();classicTask=nil;checkpoint()
         }
@@ -244,6 +295,7 @@ import Combine
         pour.time+=min(max(deltaTime,0),0.05)*effectiveSpeed
         if pour.finished {
             guard game.commit(pour.move) else { return }
+            rememberPour(true)
             performance.endMove(committed:true,correctionPercent:0)
             feedback.completed(solved:state.solved)
             undoParticles.append(beforeParticles);beforeParticles=nil;settledParticles=nil
@@ -253,6 +305,7 @@ import Combine
         performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:nil)
     }
     func reset() {
+        lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         feedback.stop()
         classicTask?.cancel();classicTask=nil;classicPour=nil
         game=LabBoardGame(state:puzzle.initial);undoParticles=[];settledParticles=nil;beforeParticles=nil
@@ -263,6 +316,7 @@ import Combine
     }
     func undo() {
         guard !busy,game.undo() else { return }
+        lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         settledParticles=undoParticles.isEmpty ? nil:undoParticles.removeLast()
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarFrame+=1 }
@@ -271,10 +325,17 @@ import Combine
     }
     func hint() {
         guard !busy,!state.solved else { return }
+        clearSelectionFeedback()
         if let move=state.solution()?.first {
             selected=move.source;hintTarget=move.destination
             notice="Try \(Self.letter(move.source)) → \(Self.letter(move.destination)) · \(move.amount) \(Self.name(move.color)) \(move.amount == 1 ? "unit":"units")"
         } else { notice="No solution from here. Undo a move to try another route." }
+    }
+    // A dismissed preview must release its clock even when it closes mid-pour.
+    func discardPreview() {
+        guard defaults == nil else { return }
+        classicTask?.cancel();classicTask=nil;clockRevision+=1
+        game.cancel();classicPour=nil;renderer?.paused=true;suspended=true;feedback.stop()
     }
     func setSuspended(_ value:Bool) { suspended=value;updatePause() }
     func togglePause() { paused.toggle();updatePause() }
