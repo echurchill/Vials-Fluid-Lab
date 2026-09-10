@@ -1,0 +1,135 @@
+{
+  "scope": "iPad running CPU samples from the isolated 2D app; categories are heuristic, disjoint stack classifications, not GPU times or energy measurements",
+  "sampleWeightMs": 4773.0,
+  "firstSampleSeconds": 23.570813625,
+  "lastSampleSeconds": 35.997813875,
+  "threadsMs": {
+    "background": 2643.0,
+    "main": 2130.0
+  },
+  "mainThreadPhysicsSampleWeightMs": 0,
+  "categories": [
+    {
+      "name": "physics simulation/worker",
+      "weightMs": 1655.0,
+      "sharePercent": 34.67420909281375
+    },
+    {
+      "name": "other framework/runtime work",
+      "weightMs": 1312.0,
+      "sharePercent": 27.48795306934842
+    },
+    {
+      "name": "other UI framework work",
+      "weightMs": 1004.0,
+      "sharePercent": 21.03498847684894
+    },
+    {
+      "name": "other 2D drawing",
+      "weightMs": 383.0,
+      "sharePercent": 8.024303373140583
+    },
+    {
+      "name": "board controls and layout",
+      "weightMs": 228.0,
+      "sharePercent": 4.776869893148962
+    },
+    {
+      "name": "glass drawing",
+      "weightMs": 191.0,
+      "sharePercent": 4.00167609469935
+    }
+  ],
+  "inclusiveAppFunctions": [
+    {
+      "name": "closure #1 in FluidBoardSession.startPlanarClock()",
+      "weightMs": 1667.0,
+      "sharePercent": 34.92562329771632
+    },
+    {
+      "name": "LabFluid2D.advance(deltaTime:speed:)",
+      "weightMs": 1655.0,
+      "sharePercent": 34.67420909281375
+    },
+    {
+      "name": "LabFluid2D.tick()",
+      "weightMs": 1647.0,
+      "sharePercent": 34.50659962287869
+    },
+    {
+      "name": "LabFluid2D.solve(active:dt:poses:)",
+      "weightMs": 1542.0,
+      "sharePercent": 32.30672532998115
+    },
+    {
+      "name": "closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 572.0,
+      "sharePercent": 11.98407710035617
+    },
+    {
+      "name": "LabFluid2D.constrain(_:poses:)",
+      "weightMs": 358.0,
+      "sharePercent": 7.500523779593547
+    },
+    {
+      "name": "LabFluid2DView.drawGlass(_:context:scale:base:cue:)",
+      "weightMs": 191.0,
+      "sharePercent": 4.00167609469935
+    },
+    {
+      "name": "closure #2 in closure #1 in closure #5 in closure #1 in closure #1 in FluidBoardView.body.getter",
+      "weightMs": 92.0,
+      "sharePercent": 1.9275089042530904
+    },
+    {
+      "name": "closure #1 in cavity #1 (_:) in closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 76.0,
+      "sharePercent": 1.5922899643829875
+    },
+    {
+      "name": "mask #1 (_:_:) in closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 60.0,
+      "sharePercent": 1.257071024512885
+    },
+    {
+      "name": "partial apply for closure #7 in closure #1 in LabFluid2DView.body.getter",
+      "weightMs": 58.0,
+      "sharePercent": 1.2151686570291222
+    },
+    {
+      "name": "closure #1 in contour #1 (_:) in LabFluid2DView.drawGlass(_:context:scale:base:cue:)",
+      "weightMs": 56.0,
+      "sharePercent": 1.1732662895453594
+    },
+    {
+      "name": "FluidBoardView.hitRect(_:size:)",
+      "weightMs": 55.0,
+      "sharePercent": 1.152315105803478
+    },
+    {
+      "name": "closure #1 in closure #1 in closure #6 in closure #1 in closure #1 in FluidBoardView.body.getter",
+      "weightMs": 54.0,
+      "sharePercent": 1.1313639220615965
+    },
+    {
+      "name": "closure #1 in closure #1 in FluidBoardView.body.getter",
+      "weightMs": 42.0,
+      "sharePercent": 0.8799497171590195
+    },
+    {
+      "name": "closure #1 in FluidBoardView.body.getter",
+      "weightMs": 42.0,
+      "sharePercent": 0.8799497171590195
+    },
+    {
+      "name": "closure #2 in closure #1 in closure #1 in closure #6 in closure #1 in closure #1 in FluidBoardView.body.getter",
+      "weightMs": 22.0,
+      "sharePercent": 0.4609260423213911
+    },
+    {
+      "name": "closure #1 in closure #2 in closure #1 in closure #2 in closure #1 in closure #1 in closure #6 in closure #1 in closure #1 in FluidBoardView.body.getter",
+      "weightMs": 21.0,
+      "sharePercent": 0.43997485857950974
+    }
+  ]
+}
