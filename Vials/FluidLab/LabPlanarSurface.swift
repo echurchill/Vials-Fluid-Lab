@@ -7,10 +7,9 @@ struct LabPlanarSurface:View {
     var points=false
     var selected:Int?
     var destinations:Set<Int>=[]
-    var completed:Set<Int>=[]
     var rejected:Int?
     var body:some View {
-        LabFluid2DView(engine:display.snapshot,points:points,frame:display.frame,selected:selected,destinations:destinations,completed:completed,rejected:rejected)
+        LabFluid2DView(engine:display.snapshot,points:points,frame:display.frame,selected:selected,destinations:destinations,rejected:rejected)
     }
 }
 

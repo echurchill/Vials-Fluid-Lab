@@ -7,7 +7,6 @@ struct LabFluid2DView:View {
     var frame:Int=0 // Publish each completed value snapshot.
     var selected:Int?
     var destinations:Set<Int>=[]
-    var completed:Set<Int>=[]
     var rejected:Int?
     var body:some View {
         Canvas(rendersAsynchronously:true) { context,size in
@@ -232,7 +231,7 @@ struct LabFluid2DView:View {
         let bottomRadius=CGFloat(profile.radius(0))*scale
         var foot=Path();foot.move(to:CGPoint(x:-bottomRadius,y:thickness*0.25))
         foot.addQuadCurve(to:CGPoint(x:bottomRadius,y:thickness*0.25),control:CGPoint(x:0,y:thickness*1.3))
-        glass.stroke(foot,with:.color((completed.contains(index) ? Color.cyan:Color.white).opacity(0.5)),style:StrokeStyle(lineWidth:thickness,lineCap:.round))
+        glass.stroke(foot,with:.color(Color.white.opacity(0.5)),style:StrokeStyle(lineWidth:thickness,lineCap:.round))
         for unit in 1...4 {
             let y=profile.level(Float(unit)),r=profile.radius(y)
             var mark=Path();mark.move(to:CGPoint(x:CGFloat(r*0.60)*scale,y:-CGFloat(y)*scale));mark.addLine(to:CGPoint(x:CGFloat(r*0.86)*scale,y:-CGFloat(y)*scale))

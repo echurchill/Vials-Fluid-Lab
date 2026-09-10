@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Color-matched completion caps](Reports/Prototype14/README.md) distinguish fully sorted vials from source and destination hints in all three presentations.
+
 The latest [highlight and 3D surface fixes](Reports/Prototype13/README.md) strengthen selection cues and handle presentation switching safely.
 
 The latest [2D redraw optimization and display-gap investigation](Reports/Prototype12/README.md) includes measured iPad CPU results and a [checklist for tonight’s testing](Reports/Prototype12/TestingTonight.md).
