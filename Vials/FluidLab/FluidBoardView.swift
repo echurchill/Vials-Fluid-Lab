@@ -70,7 +70,13 @@ struct FluidBoardView:View {
                                             .fixedSize().padding(.horizontal,7).padding(.vertical,4).background(.black.opacity(0.75),in:Capsule())
                                             .foregroundStyle(cueColor(index)).opacity(cueLabel(index).isEmpty ? 0:1).offset(y:17)
                                     }
-                                    .overlay(RoundedRectangle(cornerRadius:20).stroke(cueColor(index).opacity(session.presentation == .fluid2D ? 0:0.7),style:StrokeStyle(lineWidth:1.5,dash:session.validDestinations.contains(index) ? [4,4]:[])))
+                                    .overlay {
+                                        let target=session.validDestinations.contains(index)
+                                        let outline=RoundedRectangle(cornerRadius:20)
+                                        let style=StrokeStyle(lineWidth:session.selected==index ? 3:2.5,lineCap:.round,dash:target ? [6,4]:[])
+                                        outline.stroke(.black.opacity(cueLabel(index).isEmpty || session.busy ? 0:0.45),style:StrokeStyle(lineWidth:style.lineWidth+2,lineCap:.round,dash:style.dash))
+                                        outline.stroke(cueColor(index).opacity(0.95),style:style)
+                                    }
                             }
                             .buttonStyle(.plain).frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
                             .disabled(session.busy || session.state.solved)
@@ -214,6 +220,6 @@ struct BoardMetalSurface:UIViewRepresentable {
 @MainActor private func makeBoardView(_ renderer:LabBoardRenderer) -> MTKView {
     let view=MTKView(frame:.zero,device:renderer.device)
     view.colorPixelFormat = .bgra8Unorm_srgb;view.preferredFramesPerSecond=60
-    view.delegate=renderer;view.autoResizeDrawable=false;view.drawableSize=CGSize(width:1000,height:650)
+    view.autoResizeDrawable=false;view.delegate=renderer
     return view
 }

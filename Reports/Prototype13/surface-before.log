@@ -1,0 +1,1 @@
+main/validate_surface_lifecycle.swift:36: Fatal error: Missing drawable incorrectly cached as a rendered idle frame

@@ -83,6 +83,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var lastWallTime: CFTimeInterval?
     private var frame = 0
     private var pausedSignature: SIMD4<Float>?
+    private weak var renderedView:MTKView?
     private var accumulator: Float = 0
     private var particleVolume: Float = 0
     private let inFlight = DispatchSemaphore(value: 3)
@@ -554,29 +555,34 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         return Array(UnsafeBufferPointer(start:particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount),count:particleCount))
     }
 
-    nonisolated func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+    nonisolated func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        MainActor.assumeIsolated { pausedSignature=nil }
+    }
     nonisolated func draw(in view: MTKView) {
         MainActor.assumeIsolated {
             guard inFlight.wait(timeout:.now()) == .success else { return }
             let bounds=view.bounds.size
-            if bounds.width > 0 && bounds.height > 0 {
-                let scale=min(1.5,quality.maximumDimension/max(bounds.width,bounds.height))
-                let desired=CGSize(width:max(1,Int(bounds.width*scale)),height:max(1,Int(bounds.height*scale)))
-                if view.drawableSize != desired { view.drawableSize=desired }
-            }
+            // A newly attached surface can draw before SwiftUI finishes layout.
+            // Never cache that provisional aspect ratio as a completed idle frame.
+            guard bounds.width>0,bounds.height>0 else { inFlight.signal();return }
+            let scale=min(1.5,quality.maximumDimension/max(bounds.width,bounds.height))
+            let desired=CGSize(width:max(1,Int(bounds.width*scale)),height:max(1,Int(bounds.height*scale)))
+            if view.drawableSize != desired { view.drawableSize=desired }
             if lastCommand?.status == .error {
                 onError?(lastCommand?.error?.localizedDescription ?? "The GPU could not complete a frame.")
                 view.isPaused=true
                 inFlight.signal()
                 return
             }
+            let signature=SIMD4<Float>(Float(desired.width),Float(desired.height),orbit,pointMode ? 1:0)
             if paused || resting {
-                let signature=SIMD4<Float>(Float(view.drawableSize.width),Float(view.drawableSize.height),orbit,pointMode ? 1:0)
-                if pausedSignature == signature { inFlight.signal(); return }
-                pausedSignature=signature
+                if renderedView === view,pausedSignature == signature { inFlight.signal(); return }
                 if lastCommand?.status == .completed { onUpdate?(lastMetrics,phase,pourTime ?? 0) }
             } else { pausedSignature=nil }
             guard let drawable=view.currentDrawable else { inFlight.signal(); return }
+            // MTKView may return the previous drawable during a resize. Presenting
+            // it stretches the old camera projection beneath correctly placed hints.
+            guard drawable.texture.width==Int(desired.width),drawable.texture.height==Int(desired.height) else { inFlight.signal();return }
             if frame % 30 == 0, lastCommand?.status == .completed {
                 onUpdate?(lastMetrics,phase,pourTime ?? 0)
             }
@@ -588,6 +594,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             encodeFrame(target:drawable.texture,deltaTime:delta,present:drawable) { _ in
                 semaphore.signal()
             }
+            renderedView=view
+            pausedSignature=(paused || resting) ? signature:nil
             if !resting && !paused { onFrame?(Double(delta),(CACurrentMediaTime()-encodeStart)*1000,lastMetrics.gpuMilliseconds) }
         }
     }

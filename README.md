@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+The latest [highlight and 3D surface fixes](Reports/Prototype13/README.md) strengthen selection cues and handle presentation switching safely.
+
 The latest [2D redraw optimization and display-gap investigation](Reports/Prototype12/README.md) includes measured iPad CPU results and a [checklist for tonight’s testing](Reports/Prototype12/TestingTonight.md).
 
 Independent native Swift + Metal investigation of liquid pouring. Prototype 06 adds a true **2D Fluid** particle experiment alongside **Classic / 3D Fluid**. All three presentations share the 12-puzzle progression, progress, hints, undo and **Relaxed / Quick** pacing. The 2D mode uses equal-area particles, shape-dependent fill heights and smooth flat liquid silhouettes. Prototype 07 adds more fluid single-unit streams, quicker 2D turns and distinct blue, orange and green materials. The existing 3D mode retains its equal-volume simulation. The teal pouring-vial icon distinguishes this Lab from the original game.
