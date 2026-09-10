@@ -4,7 +4,7 @@ Independent native Swift + Metal investigation of liquid pouring. Prototype 06 a
 
 Start with **Green arrival → 2D Fluid → Quick**, then switch presentations between moves. Board diagnostics can reveal the particles. Sound is unchanged. Fluid detail controls apply to 3D; the 2D Canvas currently draws at native view resolution.
 
-See the latest [real-time 2D execution and measured comparisons](Reports/Prototype08/README.md), [2D materials and faster pours](Reports/Prototype07/README.md), [2D experiment notes, validation and captures](Reports/Prototype06/README.md), or the [previous 3D progression and battery results](Reports/Prototype05/README.md).
+See the latest [surface/material polish and iPad checks](Reports/Prototype09/README.md), [real-time 2D execution and measured comparisons](Reports/Prototype08/README.md), [2D materials and faster pours](Reports/Prototype07/README.md), [2D experiment notes, validation and captures](Reports/Prototype06/README.md), or the [previous 3D progression and battery results](Reports/Prototype05/README.md).
 
 Open `Vials Fluid Lab.xcodeproj` and select the shared **Vials Fluid Lab** scheme. Run now uses **Release** for performance testing. Use **Vials Fluid Lab Debug** when you need an unoptimized debugging build.
 The target/product is `VialsFluidLab`; the installed display name is **Vials Fluid Lab**.

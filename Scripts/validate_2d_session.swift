@@ -67,6 +67,7 @@ import AppKit
         }
         try capture("end")
         let remaining=engine.game.state.solution()!
+        var impactColors:Set<Int>=[]
         for (index,nextMove) in remaining.enumerated() {
             let last=index==remaining.count-1
             if last { try capture("nearly-full-before") }
@@ -74,6 +75,9 @@ import AppKit
             var captured=false,frame=0
             while engine.busy && frame<1000 {
                 engine.advance(deltaTime:1/60);frame+=1
+                if !impactColors.contains(nextMove.color),engine.surfaces[nextMove.destination].energy>0.65 {
+                    try capture("impact-color-\(nextMove.color)");impactColors.insert(nextMove.color)
+                }
                 if last && frame==20 { try capture("nearly-full-selected") }
                 if last && !captured && engine.phase=="Final settling" {
                     try capture("full-before-cleanup");captured=true
@@ -102,7 +106,7 @@ import AppKit
         session.togglePause()
         let pausedFrame=session.fluid2D
         try await Task.sleep(for:.milliseconds(120))
-        require(session.fluid2D.time==pausedFrame.time && session.fluid2D.particles==pausedFrame.particles,"Worker advanced a paused board")
+        require(session.fluid2D.time==pausedFrame.time && session.fluid2D.particles==pausedFrame.particles && session.fluid2D.surfaces==pausedFrame.surfaces && session.fluid2D.splashes==pausedFrame.splashes,"Worker advanced a paused board")
         session.togglePause();session.setSuspended(true)
         let suspendedFrame=session.fluid2D
         try await Task.sleep(for:.milliseconds(120))

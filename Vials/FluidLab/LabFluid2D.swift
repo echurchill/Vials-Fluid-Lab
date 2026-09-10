@@ -46,12 +46,47 @@ nonisolated struct Lab2DMotion:Sendable {
     var tiltStart:Float { lift+travel }
     var returned:Float { upright+returnTravel+lower }
 }
+/// Visual response only: these settings never change particle mass or puzzle rules.
+nonisolated struct Lab2DMaterial:Sendable {
+    let waveHeight:Float,frequency:Float,damping:Float,splashSpeed:Float
+    let harmonics:Float
+    static func forColor(_ color:Int)->Self {
+        switch color {
+        case 0: return Self(waveHeight:0.022,frequency:13,damping:3.2,splashSpeed:1.65,harmonics:2)
+        case 1: return Self(waveHeight:0.017,frequency:9,damping:2.5,splashSpeed:1.25,harmonics:2)
+        default: return Self(waveHeight:0.014,frequency:6,damping:1.8,splashSpeed:0.9,harmonics:1)
+        }
+    }
+}
+nonisolated struct Lab2DSurfaceState:Sendable,Equatable {
+    var energy:Float=0,phase:Float=0,impactX:Float=0
+    var color=0
+    // Each basis has zero mean over the vial width; a ripple does not add a layer.
+    func offset(x:Float,halfWidth:Float,envelope:Float)->Float {
+        let material=Lab2DMaterial.forColor(color),u=min(1,max(-1,x/max(0.01,halfWidth)))
+        return material.waveHeight*energy*envelope*(cos(material.harmonics * .pi*(u-impactX/max(0.01,halfWidth)))*sin(phase)+0.3*sin(2 * .pi*(u-impactX/max(0.01,halfWidth)))*cos(phase*0.7))/1.3
+    }
+}
+nonisolated struct Lab2DSplash:Sendable,Equatable {
+    let owner:Int,color:Int,origin:SIMD2<Float>,velocity:SIMD2<Float>
+    var age:Float=0
+    var position:SIMD2<Float> { origin+velocity*age+SIMD2(0,-4.9*age*age) }
+}
 nonisolated struct LabFluid2D:Sendable {
     static let particlesPerUnit=96
     static let step:Float=1/120
     var quickMotion=false
     var motion:Lab2DMotion { quickMotion ? .quick:.relaxed }
     private(set) var materialTimes:[Float]=[]
+    private(set) var surfaces:[Lab2DSurfaceState]=[]
+    private(set) var splashes:[Lab2DSplash]=[]
+    private var lastSplashTime:Float = -1
+    private var splashSerial=0
+    var surfaceEnvelope:Float {
+        guard busy else { return 0 }
+        guard let cutoff else { return 1 }
+        return 1-labSmooth((time-cutoff)/max(0.01,motion.returned+motion.settle))
+    }
     let radius:Float=0.037
     let separation:Float=0.084
     private(set) var profiles:[Lab2DProfile]=[]
@@ -128,6 +163,7 @@ nonisolated struct LabFluid2D:Sendable {
         if preserve { return }
         profiles=LabBoardLayout.profiles(count:game.state.stacks.count).map { Lab2DProfile($0,area:2.12) }
         materialTimes=Array(repeating:0,count:profiles.count)
+        surfaces=Array(repeating:Lab2DSurfaceState(),count:profiles.count);splashes=[]
         particles=seed(game.state);links=Array(repeating:-1,count:particles.count)
         // Relax the deterministic area-stratified seed without advancing a game move.
         for _ in 0..<240 { solve(active:Set(game.state.stacks.indices),dt:Self.step,poses:profiles.indices.map { pose($0) }) }
@@ -150,7 +186,7 @@ nonisolated struct LabFluid2D:Sendable {
     @discardableResult mutating func begin(_ move:LabBoardMove)->Bool {
         guard !busy,game.state.move(from:move.source,to:move.destination)==move,game.begin(from:move.source,to:move.destination)==move else { return false }
         before=particles;time=0;cutoff=nil;targets=nil;accumulator=0;arrived=0;departed=0;cleanupPercent=0
-        selected=Set(move.parcels);return true
+        selected=Set(move.parcels);lastSplashTime = -1;splashSerial=0;splashes=[];return true
     }
     mutating func advance(deltaTime:Float,speed:Float=1) {
         guard busy else { return }
@@ -169,11 +205,19 @@ nonisolated struct LabFluid2D:Sendable {
         materialTimes[move.source]+=Self.step
         if arrived>0 { materialTimes[move.destination]+=Self.step }
         let poses=profiles.indices.map { pose($0) }
+        for owner in [move.source,move.destination] {
+            let material=Lab2DMaterial.forColor(surfaces[owner].color)
+            surfaces[owner].phase+=Self.step*material.frequency
+            surfaces[owner].energy*=exp(-material.damping*Self.step)
+        }
+        for i in splashes.indices { splashes[i].age+=Self.step }
+        splashes.removeAll { $0.age>0.42 }
         if let targets {
             let f=labSmooth((time-targetStart)/motion.cleanup)
             for i in particles.indices { particles[i].position=simd_mix(before[i].position,targets[i].position,SIMD2(repeating:f)) }
             if f>=1 {
                 particles=targets;_ = game.commit(move);self.targets=nil;cutoff=nil;lastOutcome="Move complete"
+                surfaces[move.source].energy=0;surfaces[move.destination].energy=0;splashes=[]
             }
             return
         }
@@ -194,7 +238,7 @@ nonisolated struct LabFluid2D:Sendable {
             cleanupPercent=100*Float(count-arrived)/Float(count)
         }
         if cutoff==nil,time>12 {
-            particles=before;game.cancel();lastOutcome="Pour did not reach 95%; move restored.";return
+            particles=before;game.cancel();surfaces=Array(repeating:Lab2DSurfaceState(),count:profiles.count);splashes=[];lastOutcome="Pour did not reach 95%; move restored.";return
         }
         if let cutoff,time-cutoff>motion.returned+motion.settle {
             guard let next=game.state.applying(move) else { return }
@@ -211,6 +255,21 @@ nonisolated struct LabFluid2D:Sendable {
                 final[i].velocity = .zero
             }
             before=particles;targets=final;targetStart=time
+        }
+    }
+    private mutating func registerImpact(owner:Int,color:Int,point:SIMD2<Float>,velocity:SIMD2<Float>) {
+        guard game.pending?.destination==owner else { return }
+        if surfaces[owner].energy<0.003 { surfaces[owner].phase=0 }
+        surfaces[owner].color=color
+        surfaces[owner].impactX=surfaces[owner].impactX*0.75+point.x*0.25
+        surfaces[owner].energy=min(1,surfaces[owner].energy+min(0.16,abs(velocity.y)*0.04+0.015))
+        guard time-lastSplashTime>0.10,splashes.count<10,surfaceEnvelope>0.25 else { return }
+        lastSplashTime=time;splashSerial+=1
+        let material=Lab2DMaterial.forColor(color)
+        let level=profiles[owner].level(bulkUnits[owner])
+        for side:Float in [-1,1] {
+            let variation=Float(splashSerial%3)*0.10
+            splashes.append(Lab2DSplash(owner:owner,color:color,origin:SIMD2(point.x,level),velocity:SIMD2(side*(0.45+variation),material.splashSpeed+variation)))
         }
     }
     private func cell(_ p:SIMD2<Float>)->Int {
@@ -291,6 +350,7 @@ nonisolated struct LabFluid2D:Sendable {
         if !p.inBulk {
             if q.y<=profile.level(bulkUnits[owner])+radius*1.4 {
                 p.inBulk=true;bulkUnits[owner]+=1/Float(Self.particlesPerUnit)
+                registerImpact(owner:owner,color:p.color,point:q,velocity:p.velocity)
             } else {
                 q.y=max(radius,q.y)
                 let r=max(radius,profile.radius(q.y)-radius)

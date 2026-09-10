@@ -308,6 +308,34 @@ import Combine
         catch { self.error=error.localizedDescription }
         measurementActive=false
     }
+    // Explicit diagnostic flag: exercise the same actions as the board controls
+    // on the device, outside the timed/battery sample and without saved progress.
+    private func checkTrialControls() async -> [String:Bool] {
+        guard presentation == .fluid2D,let move=state.solution()?.first else { return [:] }
+        let initial=state
+        guard begin(move) else { return ["begin":false] }
+        try? await Task.sleep(for:.milliseconds(200))
+        togglePause();let frozen=fluid2D
+        try? await Task.sleep(for:.milliseconds(200))
+        let pauseOK=fluid2D.time==frozen.time && fluid2D.particles==frozen.particles && fluid2D.surfaces==frozen.surfaces && fluid2D.splashes==frozen.splashes
+        togglePause();setSuspended(true);let suspendedTime=fluid2D.time
+        try? await Task.sleep(for:.milliseconds(200))
+        let suspendOK=fluid2D.time==suspendedTime
+        setSuspended(false)
+        try? await Task.sleep(for:.milliseconds(150))
+        let resumeOK=fluid2D.time>suspendedTime
+        reset()
+        try? await Task.sleep(for:.milliseconds(100))
+        let resetOK=state==initial && !busy && fluid2D.time==0
+        let began=begin(move)
+        for _ in 0..<600 where busy && !Task.isCancelled { try? await Task.sleep(for:.milliseconds(16)) }
+        let commitOK=began && state==initial.applying(move) && !busy
+        undo();let undoOK=state==initial && !busy
+        let reloaded=(try? checkpointData()).flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) }
+        let saveOK=reloaded?.games[puzzle.rawValue]?.state==initial
+        reset()
+        return ["pause":pauseOK,"suspension":suspendOK,"resume":resumeOK,"reset":resetOK,"commit":commitOK,"undo":undoOK,"saveReload":saveOK]
+    }
     func runTrialIfRequested() async {
         guard !trialStarted,let trial=LabTrialConfiguration.current else { return }
         trialStarted=true
@@ -317,7 +345,9 @@ import Combine
         defer { UIApplication.shared.isIdleTimerDisabled=previousIdleTimer }
         #endif
         try? await Task.sleep(for:.seconds(2))
+        let checks=ProcessInfo.processInfo.arguments.contains("--check-controls") ? await checkTrialControls():[:]
         beginMeasurement()
+        if !checks.isEmpty { performance.context["deviceControlChecks"]=checks }
         let start=ProcessInfo.processInfo.systemUptime
         var reason="completed"
         while !Task.isCancelled && ProcessInfo.processInfo.systemUptime-start<trial.seconds {

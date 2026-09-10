@@ -1,0 +1,105 @@
+{
+  "animationFrameIntervalMs" : {
+    "maximum" : 17.895916476845741,
+    "median" : 17.724499106407166,
+    "p95" : 17.809417098760605,
+    "samples" : 565
+  },
+  "configuration" : {
+    "colorCount" : 3,
+    "cpuCounter" : "2D worker solver only; excludes Canvas drawing",
+    "deviceControlChecks" : {
+      "commit" : true,
+      "pause" : true,
+      "reset" : true,
+      "resume" : true,
+      "saveReload" : true,
+      "suspension" : true,
+      "undo" : true
+    },
+    "frameCounter" : "controller updates, not compositor presents",
+    "maximumSimulationBacklogSeconds" : 0.020690549165010452,
+    "particleCount" : 1152,
+    "physicsExecution" : "isolated actor, immutable value snapshots",
+    "puzzle" : "greenArrival",
+    "quality" : "canvas-native",
+    "vialCount" : 6
+  },
+  "date" : "2026-09-10T15:14:08Z",
+  "elapsedSeconds" : 10.095772041648161,
+  "end" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 10.095772916654823,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "environmentSamples" : [
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 3.7500285543501377e-07,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 3.3522330833366141,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : null,
+      "batteryState" : "unavailable",
+      "deviceModel" : "Mac",
+      "elapsedSeconds" : 6.8109352083411068,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    }
+  ],
+  "fluidGPUFrameMs" : {
+    "samples" : 0
+  },
+  "intervalsOver25ms" : 0,
+  "keptAwakeForTrial" : false,
+  "moves" : [
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3493278750102036
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3560306666768156
+    }
+  ],
+  "notes" : "Intervals are controller\/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Classic and 2D record animation updates; 3D records MTKView draw intervals. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging\/full cannot measure drain; short unplugged samples are coarse and do not establish battery life.",
+  "os" : "Version 27.0 (Build 26A5425a)",
+  "pace" : "quick",
+  "presentation" : "fluid2D",
+  "reason" : "completed",
+  "schema" : 2,
+  "start" : {
+    "batteryLevel" : null,
+    "batteryState" : "unavailable",
+    "deviceModel" : "Mac",
+    "elapsedSeconds" : 3.7500285543501377e-07,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "updateOrEncodeWallMs" : {
+    "maximum" : 4.0587083494756371,
+    "median" : 2.2053749999031425,
+    "p95" : 3.5252083325758576,
+    "samples" : 565
+  }
+}
