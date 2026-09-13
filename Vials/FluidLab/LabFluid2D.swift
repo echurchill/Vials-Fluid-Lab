@@ -137,7 +137,7 @@ nonisolated struct LabFluid2D:Sendable {
         let raised=home+SIMD2(0,2.65)
         let rotation=Lab2DPose(base:.zero,angle:tilt)
         let positioned=lip-rotation.rotate(SIMD2(0,h))
-        var base=simd_mix(home,raised,SIMD2(repeating:labSmooth(time/motion.lift)))
+        var base=simd_mix(home,raised,SIMD2(repeating:labLiftProgress(time/motion.lift)))
         if time>=motion.lift { base=simd_mix(raised,positioned,SIMD2(repeating:labSmooth((time-motion.lift)/motion.travel))) }
         if let cutoff,time-cutoff>=motion.upright {
             let start=highLip-SIMD2(0,h),t=time-cutoff-motion.upright

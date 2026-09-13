@@ -115,7 +115,8 @@ struct LabClassicBoardView:View {
         func mix(_ a:CGPoint,_ b:CGPoint,_ value:Float) -> CGPoint {
             let f=CGFloat(labSmooth(value));return CGPoint(x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f)
         }
-        var point=mix(source,lift,t/0.5)
+        let liftProgress=CGFloat(labLiftProgress(t/0.5))
+        var point=CGPoint(x:source.x+(lift.x-source.x)*liftProgress,y:source.y+(lift.y-source.y)*liftProgress)
         if t>=0.5 { point=mix(lift,positioned,(t-0.5)/0.45) }
         if t>=5.95 {
             let raised=CGPoint(x:mouth.x,y:lift.y)

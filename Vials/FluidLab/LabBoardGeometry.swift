@@ -52,7 +52,7 @@ struct LabBoardLayout {
             let highHome=home+SIMD3<Float>(0,2.65,0)
             let highLip=receiver-direction*0.22+SIMD3<Float>(0,highHome.y+h-receiver.y,0)
             let pouringLip=SIMD3<Float>(highLip.x,receiver.y+profiles[move.destination].height+0.59,highLip.z)
-            var position=simd_mix(home,highHome,SIMD3(repeating:labSmooth(time/LabBoardTiming.lift)))
+            var position=simd_mix(home,highHome,SIMD3(repeating:labLiftProgress(time/LabBoardTiming.lift)))
             if time>=LabBoardTiming.lift { position=simd_mix(highHome,highLip-SIMD3(0,h,0),SIMD3(repeating:labSmooth((time-LabBoardTiming.lift)/LabBoardTiming.travel))) }
             func lip(_ tilt:Float) -> SIMD3<Float> {
                 simd_mix(highLip,pouringLip,SIMD3(repeating:labSmooth((tilt-0.55)/0.95)))

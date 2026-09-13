@@ -57,7 +57,7 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     ZStack {
                         if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour) }
-                        else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial) }
+                        else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
                         LabVialCaps(state:session.state,planarProfiles:session.fluid2D.profiles,presentation:session.presentation,orbit:Float(session.orbit),
@@ -81,7 +81,7 @@ struct FluidBoardView:View {
                                         outline.stroke(cueColor(index).opacity(0.95),style:style)
                                     }
                             }
-                            .buttonStyle(.plain).frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
+                            .buttonStyle(LabVialPressStyle()).frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
                             .disabled(session.busy || session.state.solved)
                             .accessibilityLabel(session.accessibility(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
                         }
@@ -112,7 +112,7 @@ struct FluidBoardView:View {
                                     .offset(x:!reduceMotion && session.rejectedVial==index ? 3:0)
                                     .animation(reduceMotion ? nil:.easeInOut(duration:0.18),value:session.selected)
                                     .animation(reduceMotion ? nil:.easeInOut(duration:0.12),value:session.rejectedVial)
-                            }.buttonStyle(.plain).disabled(session.busy || session.state.solved)
+                            }.buttonStyle(LabVialPressStyle()).disabled(session.busy || session.state.solved)
                             .accessibilityLabel("Select "+session.accessibility(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
                         }
                     }
@@ -291,6 +291,16 @@ private struct LabVialCaps:View {
                 context.stroke(lid,with:.color(.white.opacity(0.55)),lineWidth:0.8)
                 context.stroke(path(ring(height+0.182,radius*0.79)),with:.color(.black.opacity(0.20)),lineWidth:0.7)
             }
+        }
+    }
+}
+
+/// Touch-down feedback does not wait for the button action on release.
+private struct LabVialPressStyle:ButtonStyle {
+    func makeBody(configuration:Configuration)->some View {
+        configuration.label.overlay {
+            RoundedRectangle(cornerRadius:16).fill(.white.opacity(configuration.isPressed ? 0.09:0))
+                .overlay(RoundedRectangle(cornerRadius:16).stroke(.white.opacity(configuration.isPressed ? 0.4:0),lineWidth:1))
         }
     }
 }

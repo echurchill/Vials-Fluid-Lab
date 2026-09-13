@@ -259,3 +259,9 @@ func labGlassMesh(_ profile: LabVesselProfile, rings:Int = 96, segments:Int = 96
 extension SIMD4 where Scalar == Float {
     var xyz: SIMD3<Float> { SIMD3(x,y,z) }
 }
+
+/// Same lift duration and endpoints, with a visible response in the first frames.
+nonisolated func labLiftProgress(_ value:Float)->Float {
+    let t=min(1,max(0,value))
+    return labSmooth(t)+0.65*t*(1-t)*(1-t)
+}

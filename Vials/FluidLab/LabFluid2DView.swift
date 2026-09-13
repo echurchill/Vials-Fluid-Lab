@@ -77,7 +77,7 @@ struct LabFluid2DView:View {
                             let angle=flying ? atan2(CGFloat(-p.velocity.y),CGFloat(p.velocity.x)):0
                             let oval=Path(ellipseIn:CGRect(x:-r*stretch,y:-r/stretch,width:2*r*stretch,height:2*r/stretch))
                             blobs.addPath(oval,transform:CGAffineTransform(rotationAngle:angle).concatenating(CGAffineTransform(translationX:point.x,y:point.y)))
-                            if (color==0 && (flying || index%5==0)) || (color==1 && flying && index%4==0) {
+                            if (color==0 && (flying || index%9==0)) || (color==1 && flying && index%4==0) {
                                 let core=scale*CGFloat(engine.radius)*(color==1 ? 0.5:(flying ? 0.28:0.22))
                                 cores.addEllipse(in:CGRect(x:point.x-core,y:point.y-core,width:core*2,height:core*2))
                             }
@@ -94,10 +94,14 @@ struct LabFluid2DView:View {
                             }
                         }
                         var body=liquid
-                        body.opacity=color==0 ? 0.50:(color==2 ? 0.92:1)
+                        body.opacity=color==0 ? 0.44:(color==2 ? 0.70:0.78)
                         body.drawLayer { surface in mask(&surface,ink) }
                         var detail=liquid
                         detail.clipToLayer { clip in mask(&clip,.white) }
+                        if owner>=0 {
+                            let center=screen(pose.base),r=CGFloat(engine.profiles[owner].source.radii.max()! * engine.profiles[owner].scale)*scale
+                            detail.fill(Path(CGRect(origin:.zero,size:size)),with:.linearGradient(Gradient(colors:[.white.opacity(0.09),.clear,.black.opacity(0.12),.white.opacity(0.04)]),startPoint:CGPoint(x:center.x-r,y:center.y),endPoint:CGPoint(x:center.x+r,y:center.y)))
+                        }
                         if color==1 {
                             detail.fill(cores,with:.color(.black.opacity(0.10)))
                             detail.stroke(cores,with:.color(Color(red:1,green:0.88,blue:0.50).opacity(0.5)),lineWidth:0.6)
@@ -105,9 +109,9 @@ struct LabFluid2DView:View {
                         if color==0 {
                             detail.drawLayer { glow in
                                 glow.addFilter(.blur(radius:1.3))
-                                glow.stroke(cores,with:.color(Color.cyan.opacity(0.48)),lineWidth:1.8)
+                                glow.stroke(cores,with:.color(Color.cyan.opacity(0.30)),lineWidth:1.8)
                             }
-                            detail.fill(cores,with:.color(Color(red:0.40,green:0.90,blue:1).opacity(0.85)))
+                            detail.fill(cores,with:.color(Color(red:0.40,green:0.90,blue:1).opacity(0.58)))
                         } else if owner>=0 {
                             let pose=engine.pose(owner),profile=engine.profiles[owner]
                             let local=group.filter(\.inBulk).map { pose.local($0.position) }
@@ -127,7 +131,7 @@ struct LabFluid2DView:View {
                                         let r=scale*CGFloat(0.018+Float(n%3)*0.008)*(1+CGFloat(pop)*0.9)
                                         let bubble=Path(ellipseIn:CGRect(x:point.x-r,y:point.y-r,width:r*2,height:r*2))
                                         detail.fill(bubble,with:.color(Color(red:1,green:0.85,blue:0.40).opacity(0.09*Double(1-pop))))
-                                        detail.stroke(bubble,with:.color(Color(red:1,green:0.88,blue:0.50).opacity((0.46+0.16*Double(surface.energy*envelope))*Double(1-pop))),lineWidth:0.8)
+                                        detail.stroke(bubble,with:.color(Color(red:1,green:0.88,blue:0.50).opacity((0.32+0.16*Double(surface.energy*envelope))*Double(1-pop))),lineWidth:0.8)
                                     }
                                 } else {
                                     // A few broad, quiet ribbons provide a silky material cue.
@@ -140,7 +144,7 @@ struct LabFluid2DView:View {
                                             let point=screen(pose.world(SIMD2(x,y)))
                                             if k==0 { ribbon.move(to:point) } else { ribbon.addLine(to:point) }
                                         }
-                                        detail.stroke(ribbon,with:.color(Color(red:0.67,green:1,blue:0.79).opacity(0.14)),style:StrokeStyle(lineWidth:max(1,scale*0.028),lineCap:.round))
+                                        detail.stroke(ribbon,with:.color(Color(red:0.67,green:1,blue:0.79).opacity(0.08)),style:StrokeStyle(lineWidth:max(1,scale*0.028),lineCap:.round))
                                     }
                                 }
                             }
