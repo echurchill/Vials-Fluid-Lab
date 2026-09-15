@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Stable idle detail and the latest iPad check](Reports/Prototype16/README.md) address the extra lines at pour boundaries and record the latest device trial.
+
 [Translucent 2D materials and responsive pickup](Reports/Prototype15/README.md) add restrained idle detail, touch-down feedback and a more visible start to the lift.
 
 [Color-matched completion caps](Reports/Prototype14/README.md) distinguish fully sorted vials from source and destination hints in all three presentations.

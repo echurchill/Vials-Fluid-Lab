@@ -1,0 +1,24 @@
+{
+  "scope": "iPad running CPU samples from the isolated 2D app; categories are heuristic, disjoint stack classifications, not GPU times or energy measurements",
+  "sampleWeightMs": 363.0,
+  "firstSampleSeconds": 14.596849625,
+  "lastSampleSeconds": 27.217849291,
+  "threadsMs": {
+    "main": 334.0,
+    "background": 29.0
+  },
+  "mainThreadPhysicsSampleWeightMs": 0,
+  "categories": [
+    {
+      "name": "other framework/runtime work",
+      "weightMs": 234.0,
+      "sharePercent": 64.46280991735537
+    },
+    {
+      "name": "other UI framework work",
+      "weightMs": 129.0,
+      "sharePercent": 35.53719008264463
+    }
+  ],
+  "inclusiveAppFunctions": []
+}

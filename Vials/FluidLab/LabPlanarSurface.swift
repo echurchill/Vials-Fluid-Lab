@@ -12,8 +12,8 @@ struct LabPlanarSurface:View {
     var body:some View {
         ZStack {
             LabFluid2DView(engine:display.snapshot,points:points,frame:display.frame,selected:selected,destinations:destinations,rejected:rejected)
-            if !points && !display.snapshot.busy {
-                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle)
+            if !points {
+                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,excluded:Set([display.snapshot.game.pending?.source,display.snapshot.game.pending?.destination].compactMap { $0 }))
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
         }
@@ -34,6 +34,7 @@ private struct LabIdleFluidDetail:View {
     let state:LabBoardState
     let profiles:[Lab2DProfile]
     let enabled:Bool
+    let excluded:Set<Int>
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var economical=ProcessInfo.processInfo.isLowPowerModeEnabled || ProcessInfo.processInfo.thermalState != .nominal
     var body:some View {
@@ -41,7 +42,7 @@ private struct LabIdleFluidDetail:View {
             Canvas { context,size in
                 let layout=LabClassicLayout(size:size,vesselCount:profiles.count),scale=layout.scale
                 let t=Float(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy:120))*Float.pi/60
-                for index in state.stacks.indices {
+                for index in state.stacks.indices where !excluded.contains(index) {
                     let stack=state.stacks[index],profile=profiles[index],base=layout.base(index)
                     func screen(_ x:Float,_ y:Float)->CGPoint { CGPoint(x:base.x+CGFloat(x)*scale,y:base.y-CGFloat(y)*scale) }
                     var start=0
@@ -71,17 +72,6 @@ private struct LabIdleFluidDetail:View {
                             let dot=Path(ellipseIn:CGRect(x:point.x-radius,y:point.y-radius,width:radius*2,height:radius*2))
                             if color==1 { detail.stroke(dot,with:.color(.white.opacity(0.24)),lineWidth:0.7) }
                             else { detail.fill(dot,with:.color(.white.opacity(0.22))) }
-                        }
-                        // Two broad highlights sway slowly inside each color band.
-                        for n in 0..<2 {
-                            var ribbon=Path()
-                            for k in 0...16 {
-                                let f=Float(k)/16,y=low+(high-low)*f
-                                let x=(Float(n)-0.5)*profile.radius(y)*0.7+sin(f*3+phase*2+Float(n))*profile.radius(y)*0.15
-                                let point=screen(x,y)
-                                if k==0 { ribbon.move(to:point) } else { ribbon.addLine(to:point) }
-                            }
-                            detail.stroke(ribbon,with:.color(.white.opacity(color==0 ? 0.10:0.065)),style:StrokeStyle(lineWidth:max(1,scale*0.055),lineCap:.round))
                         }
                         // A faint ripple below the meniscus never changes the silhouette.
                         if end==stack.count {

@@ -1,0 +1,21 @@
+{
+  "scope": "iPad Game Performance retained window; app-attributed GPU interval unions and first display appearance of each app frame. Excludes other processes. GPU figures exclude compositor work. Partial boundary frames are retained; GPU intervals without a frame ID are excluded from per-frame summaries. Display frame changes are only those with app attribution; consult the flow-trace summary for missing attribution.",
+  "gpuIntervalsWithoutFrameID": 0,
+  "gpuFrameActiveUnionMs": {
+    "samples": 152,
+    "median": 0.09966700000040873,
+    "p95": 0.10087399999974878,
+    "maximum": 0.10233399999924586
+  },
+  "displayedUniqueFrames": 150,
+  "firstDisplayTimeSeconds": 14.697765291,
+  "lastDisplayTimeSeconds": 27.114478,
+  "displayIntervalMs": {
+    "samples": 149,
+    "median": 83.33362500000163,
+    "p95": 83.33366700000155,
+    "maximum": 87.50195800000071
+  },
+  "observedDisplayChangesPerSecond": 11.99995550287641,
+  "potentialHangsOver100ms": 0
+}
