@@ -48,8 +48,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     var onError:((String)->Void)?
     var onUpdate:((LabBoardMetrics,String,Float)->Void)?
     var resting:Bool { game.pending == nil }
+    private var compositeVessels:[LabVesselUniform]?
     var currentVessels:[LabVesselUniform] {
-        LabBoardLayout.vessels(profiles:profiles,move:game.pending,time:pourTime ?? 0,tilt:tilt,
+        if let compositeVessels { return compositeVessels }
+        return LabBoardLayout.vessels(profiles:profiles,move:game.pending,time:pourTime ?? 0,tilt:tilt,
             cutoffTilt:cutoffTime == nil ? nil:cutoffTilt,cutoffElapsed:(pourTime ?? 0)-(cutoffTime ?? 0),
             returnElapsed:returnStart.map { (pourTime ?? 0)-$0 })
     }
@@ -80,6 +82,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var glassDepth: MTLTexture!
     private var viewportSize = SIMD2<Int>(0,0)
     private var lastCommand: MTLCommandBuffer?
+    var lastGPUWorkMilliseconds:Double {
+        guard let lastCommand,lastCommand.status == .completed else { return 0 }
+        return max(0,(lastCommand.gpuEndTime-lastCommand.gpuStartTime)*1000)
+    }
     private var lastWallTime: CFTimeInterval?
     private var frame = 0
     private var pausedSignature: SIMD4<Float>?
@@ -144,6 +150,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
 
     private func clearMotion() {
+        compositeVessels=nil
         pourTime=nil;tilt=0;cutoffTime=nil;returnStart=nil;cleanupStart=nil
         previousWorlds=[];accumulator=0;lastWallTime=nil;pausedSignature=nil
         correctionCount=0;arrivalBeforeCorrection=0;lastMetrics=LabBoardMetrics();paused=false
@@ -196,12 +203,12 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         return values
     }
-    @discardableResult func begin(from:Int,to:Int) -> Bool {
+    @discardableResult func begin(from:Int,to:Int,reserved:Bool=false) -> Bool {
         guard game.pending == nil,game.state.move(from:from,to:to) != nil else { return false }
         lastCommand?.waitUntilCompleted()
         beforeParticles=particleSamples()
         clearMotion();lastOutcome=""
-        guard let move=game.begin(from:from,to:to) else { return false }
+        guard let move=game.begin(from:from,to:to,reserved:reserved) else { return false }
         let ids=Set(move.parcels)
         let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
         for i in 0..<particleCount { p[i].visual.w=0; p[i].visual.z=ids.contains(Int(p[i].visual.y)) ? 1:0; p[i].velocity=SIMD4(0,0,0,p[i].velocity.w) }
@@ -442,16 +449,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
 
     /// Same path is used by the interactive view and the offscreen validation tool.
-    @discardableResult
-    func encodeFrame(target: MTLTexture, deltaTime: Float, present: CAMetalDrawable? = nil, completion: MTLCommandBufferHandler? = nil) -> MTLCommandBuffer {
-        if game.pending != nil && !paused { updateTransfer() }
-        resize(width:target.width,height:target.height)
-        let command = queue.makeCommandBuffer()!
-        command.label = "Fluid Lab frame"
-        let (vp,view,eye) = LabBoardLayout.camera(aspect:Float(target.width)/Float(target.height), azimuth:orbit,vesselCount:profiles.count)
-        var u = LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
-            viewport:SIMD4(Float(target.width),Float(target.height),pointMode ? spacing*0.30 : spacing*1.16,simulationTime),
-            physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,UInt32(profiles.count),1 | (funnelEnabled ? 65536:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
+    private func encodeSimulation(command:MTLCommandBuffer,uniforms:LabUniforms,deltaTime:Float) {
         if !paused && !resting {
             accumulator = min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
             var steps = 0
@@ -464,13 +462,54 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 }
                 previousWorlds=vessels.map(\.world)
                 layerBands=makeBands()
-                var stepUniforms=u
+                var stepUniforms=uniforms
                 stepUniforms.viewport.w=simulationTime
                 if (pourTime ?? 0) < 0 || returnStart != nil { stepUniforms.physics.w=max(viscosity,0.30) }
                 simulate(command:command,uniforms:stepUniforms,vessels:vessels)
                 accumulator -= timeStep; steps += 1
             }
         }
+    }
+    /// Simulation lanes own their solver buffers and omit surface rendering.
+    convenience init(simulationCopyOf source:LabBoardRenderer) throws {
+        try self.init(device:source.device,library:source.library)
+    }
+    func installSimulation(game:LabBoardGame,samples:[LabParticle],vessels:Set<Int>) {
+        install(game:game)
+        let ids=Set(vessels.flatMap { game.state.stacks[$0] })
+        let local=particleSamples().filter { !ids.contains(Int($0.visual.y)) }+samples.filter { ids.contains(Int($0.visual.y)) }
+        precondition(local.count==particleCount)
+        particles=makeBuffer(local)
+    }
+    func advanceSimulation(deltaTime:Float) {
+        if game.pending != nil && !paused { updateTransfer() }
+        guard !paused,!resting else { return }
+        let command=queue.makeCommandBuffer()!
+        let (vp,view,eye)=LabBoardLayout.camera(aspect:1,azimuth:orbit,vesselCount:profiles.count)
+        let u=LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
+            viewport:SIMD4(1,1,spacing*1.16,simulationTime),physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),
+            options:SIMD4(UInt32(particleCount),0,UInt32(profiles.count),1 | (funnelEnabled ? 65536:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
+        encodeSimulation(command:command,uniforms:u,deltaTime:deltaTime)
+        lastCommand=command;command.commit()
+    }
+    func displayComposite(game:LabBoardGame,samples:[LabParticle],vessels:[LabVesselUniform]) {
+        lastCommand?.waitUntilCompleted()
+        precondition(samples.count==particleCount)
+        samples.withUnsafeBytes { bytes in particles.contents().copyMemory(from:bytes.baseAddress!,byteCount:bytes.count) }
+        self.game=game;compositeVessels=vessels;pausedSignature=nil
+    }
+
+    @discardableResult
+    func encodeFrame(target: MTLTexture, deltaTime: Float, present: CAMetalDrawable? = nil, completion: MTLCommandBufferHandler? = nil) -> MTLCommandBuffer {
+        if game.pending != nil && !paused { updateTransfer() }
+        resize(width:target.width,height:target.height)
+        let command = queue.makeCommandBuffer()!
+        command.label = "Fluid Lab frame"
+        let (vp,view,eye) = LabBoardLayout.camera(aspect:Float(target.width)/Float(target.height), azimuth:orbit,vesselCount:profiles.count)
+        var u = LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
+            viewport:SIMD4(Float(target.width),Float(target.height),pointMode ? spacing*0.30 : spacing*1.16,simulationTime),
+            physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,UInt32(profiles.count),1 | (funnelEnabled ? 65536:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
+        encodeSimulation(command:command,uniforms:u,deltaTime:deltaTime)
         u.viewport.w = simulationTime
         let vessels = currentVessels
         let surfacePass=pass(color:depth,clear:MTLClearColorMake(1,1,1,1),depth:depthTest)

@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Pause-aware motion and concurrent pours](Reports/Prototype17/README.md) add two overlapping pours in all three views, capacity reservations, and device measurements.
+
 [Stable idle detail and the latest iPad check](Reports/Prototype16/README.md) address the extra lines at pour boundaries and record the latest device trial.
 
 [Translucent 2D materials and responsive pickup](Reports/Prototype15/README.md) add restrained idle detail, touch-down feedback and a more visible start to the lift.

@@ -1,0 +1,156 @@
+[
+  {
+    "fixture": "30fps",
+    "puzzle": "greenArrival",
+    "pace": "quick",
+    "frameRate": 30,
+    "moves": 9,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0,
+    "maximumFillHeightErrorPercent": 5.3263727750163525e-05
+  },
+  {
+    "fixture": "confluence",
+    "puzzle": "confluence",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 10,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.3472222089767456,
+    "maximumFillHeightErrorPercent": 0.33828046917915344
+  },
+  {
+    "fixture": "crossCurrents",
+    "puzzle": "crossCurrents",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 6,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.5208333134651184,
+    "maximumFillHeightErrorPercent": 0.33666732907295227
+  },
+  {
+    "fixture": "crossingPaths",
+    "puzzle": "crossingPaths",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 10,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.5208333134651184,
+    "maximumFillHeightErrorPercent": 0.33828046917915344
+  },
+  {
+    "fixture": "deepCurrent",
+    "puzzle": "deepCurrent",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 10,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0,
+    "maximumFillHeightErrorPercent": 5.3263727750163525e-05
+  },
+  {
+    "fixture": "estuary",
+    "puzzle": "estuary",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 9,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.3472222089767456,
+    "maximumFillHeightErrorPercent": 0.33828046917915344
+  },
+  {
+    "fixture": "firstSort",
+    "puzzle": "firstSort",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 4,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.3472222089767456,
+    "maximumFillHeightErrorPercent": 0.33666732907295227
+  },
+  {
+    "fixture": "glassGarden",
+    "puzzle": "glassGarden",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 9,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.3472222089767456,
+    "maximumFillHeightErrorPercent": 0.23353861272335052
+  },
+  {
+    "fixture": "greenArrival",
+    "puzzle": "greenArrival",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 9,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0,
+    "maximumFillHeightErrorPercent": 5.3263727750163525e-05
+  },
+  {
+    "fixture": "lastDrops",
+    "puzzle": "lastDrops",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 3,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.3472222089767456,
+    "maximumFillHeightErrorPercent": 0.23353861272335052
+  },
+  {
+    "fixture": "orchard",
+    "puzzle": "orchard",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 10,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.5208333134651184,
+    "maximumFillHeightErrorPercent": 0.36091500520706177
+  },
+  {
+    "fixture": "relaxed",
+    "puzzle": "greenArrival",
+    "pace": "relaxed",
+    "frameRate": 60,
+    "moves": 9,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0,
+    "maximumFillHeightErrorPercent": 5.3263727750163525e-05
+  },
+  {
+    "fixture": "switchback",
+    "puzzle": "switchback",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 9,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.5208333134651184,
+    "maximumFillHeightErrorPercent": 0.33666732907295227
+  },
+  {
+    "fixture": "tidalPool",
+    "puzzle": "tidalPool",
+    "pace": "quick",
+    "frameRate": 60,
+    "moves": 9,
+    "solved": true,
+    "allChecksPassed": true,
+    "maximumCleanupPercent": 0.5208333134651184,
+    "maximumFillHeightErrorPercent": 0.33666732907295227
+  }
+]

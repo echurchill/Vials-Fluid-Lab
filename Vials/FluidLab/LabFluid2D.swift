@@ -82,7 +82,13 @@ nonisolated struct LabFluid2D:Sendable {
     private(set) var splashes:[Lab2DSplash]=[]
     private var lastSplashTime:Float = -1
     private var splashSerial=0
+    private var displayPoses:[Int:Lab2DPose]=[:]
+    private(set) var displayMoves:[LabBoardMove]=[]
+    private var displayEnvelope:Float?
+    private var displayStreamActive:Bool?
+    var streamActive:Bool { displayStreamActive ?? (busy && departed>0 && cutoff==nil) }
     var surfaceEnvelope:Float {
+        if let displayEnvelope { return displayEnvelope }
         guard busy else { return 0 }
         guard let cutoff else { return 1 }
         return 1-labSmooth((time-cutoff)/max(0.01,motion.returned+motion.settle))
@@ -109,7 +115,7 @@ nonisolated struct LabFluid2D:Sendable {
     private var links:[Int]=[]
     private var selected:Set<Int>=[]
     private var bulkUnits:[Float]=[]
-    var busy:Bool { game.pending != nil }
+    var busy:Bool { game.pending != nil || !displayMoves.isEmpty }
     var phase:String {
         if targets != nil { return "Final settling" }
         if cutoff != nil { return "Returning the vial" }
@@ -120,6 +126,7 @@ nonisolated struct LabFluid2D:Sendable {
     init(game:LabBoardGame=LabBoardGame()) { install(game) }
     func home(_ i:Int)->SIMD2<Float> { SIMD2((Float(i)-Float(profiles.count-1)/2)*2.2,0) }
     func pose(_ i:Int)->Lab2DPose {
+        if let displayed=displayPoses[i] { return displayed }
         let home=home(i)
         guard let move=game.pending,i==move.source else { return Lab2DPose(base:home) }
         let destination=self.home(move.destination),h=profiles[i].height
@@ -158,6 +165,7 @@ nonisolated struct LabFluid2D:Sendable {
     }
     mutating func install(_ game:LabBoardGame) {
         let preserve = !busy && self.game.state==game.state && !particles.isEmpty
+        displayPoses=[:];displayMoves=[];displayEnvelope=nil;displayStreamActive=nil
         self.game=game;self.game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
         cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
         if preserve { return }
@@ -168,6 +176,33 @@ nonisolated struct LabFluid2D:Sendable {
         // Relax the deterministic area-stratified seed without advancing a game move.
         for _ in 0..<240 { solve(active:Set(game.state.stacks.indices),dt:Self.step,poses:profiles.indices.map { pose($0) }) }
         for i in particles.indices { particles[i].velocity = .zero }
+    }
+    /// Reuse the settled particles without reseeding or relaxing at touch-down.
+    mutating func adoptConcurrent(_ game:LabBoardGame,vessels:Set<Int>) {
+        displayPoses=[:];displayMoves=[];displayEnvelope=nil;displayStreamActive=nil
+        self.game=game;self.game.cancel();install(game)
+        // Foreign airborne particles must not be captured by this lane's funnel.
+        // They are rendered from their own lane, while this solver sees them at rest.
+        let owned=Set(vessels.flatMap { game.state.stacks[$0] }),stable=seed(game.state)
+        for i in particles.indices where !owned.contains(particles[i].parcel) { particles[i]=stable[i] }
+    }
+    mutating func setDisplayGame(_ game:LabBoardGame) { self.game=game }
+    mutating func compose(_ lanes:[Lab2DLane],game:LabBoardGame) {
+        self.game=game;displayPoses=[:];displayMoves=[];displayEnvelope=0;displayStreamActive=false;splashes=[]
+        cpuMilliseconds=lanes.reduce(0) { $0+$1.engine.cpuMilliseconds }
+        arrived=lanes.reduce(0) { $0+$1.engine.arrived };departed=lanes.reduce(0) { $0+$1.engine.departed }
+        for lane in lanes {
+            for i in particles.indices where lane.parcels.contains(particles[i].parcel) { particles[i]=lane.engine.particles[i] }
+            for owner in [lane.item.move.source,lane.item.move.destination] {
+                materialTimes[owner]=lane.engine.materialTimes[owner];surfaces[owner]=lane.engine.surfaces[owner]
+            }
+            splashes+=lane.engine.splashes
+            if lane.engine.busy {
+                displayStreamActive=(displayStreamActive ?? false) || lane.engine.streamActive
+                displayMoves.append(lane.item.move);displayPoses[lane.item.move.source]=lane.engine.pose(lane.item.move.source)
+                displayEnvelope=max(displayEnvelope ?? 0,lane.engine.surfaceEnvelope)
+            }
+        }
     }
     private func seed(_ state:LabBoardState)->[Lab2DParticle] {
         var result:[Lab2DParticle]=[]
@@ -183,8 +218,8 @@ nonisolated struct LabFluid2D:Sendable {
         }
         return result.sorted { $0.parcel == $1.parcel ? $0.position.y<$1.position.y:$0.parcel<$1.parcel }
     }
-    @discardableResult mutating func begin(_ move:LabBoardMove)->Bool {
-        guard !busy,game.state.move(from:move.source,to:move.destination)==move,game.begin(from:move.source,to:move.destination)==move else { return false }
+    @discardableResult mutating func begin(_ move:LabBoardMove,reserved:Bool=false)->Bool {
+        guard !busy,game.state.move(from:move.source,to:move.destination)==move,game.begin(from:move.source,to:move.destination,reserved:reserved)==move else { return false }
         before=particles;time=0;cutoff=nil;targets=nil;accumulator=0;arrived=0;departed=0;cleanupPercent=0
         selected=Set(move.parcels);lastSplashTime = -1;splashSerial=0;splashes=[];return true
     }
@@ -368,6 +403,9 @@ nonisolated struct LabFluid2D:Sendable {
             var lo=layer,hi=layer+1
             while lo>0,game.state.colors[stack[lo-1]]==p.color { lo-=1 }
             while hi<stack.count,game.state.colors[stack[hi]]==p.color { hi+=1 }
+            // A partial pour owns the top units, even when the retained fluid
+            // has the same color. Keep that outgoing band above the remainder.
+            if outgoing,let move=game.pending { lo=max(lo,stack.count-move.amount) }
             lower=max(radius,profile.level(Float(lo))+radius*0.75)
             if !outgoing {
                 var units=Float(hi)
@@ -397,4 +435,41 @@ actor Lab2DWorker {
         engine.advance(deltaTime:deltaTime,speed:speed)
         return engine
     }
+}
+
+nonisolated struct Lab2DLane:Sendable {
+    let item:LabPourReservation
+    let parcels:Set<Int>
+    var engine:LabFluid2D
+    let initialMoves:Int
+}
+nonisolated struct LabLaneResult:Sendable {
+    let id:Int,committed:Bool,cleanup:Float
+}
+nonisolated struct Lab2DConcurrentFrame:Sendable {
+    var display:LabFluid2D
+    let finished:[LabLaneResult]
+}
+actor LabConcurrent2DWorker {
+    private var display:LabFluid2D
+    private var lanes:[Lab2DLane]=[]
+    private var previous: (LabFluid2D,[Lab2DLane])?
+    init(_ display:LabFluid2D) { self.display=display }
+    func advance(game:LabBoardGame,starts:[LabPourReservation],deltaTime:Float,speed:Float)->Lab2DConcurrentFrame {
+        previous=(display,lanes)
+        var failed:[LabLaneResult]=[]
+        for item in starts {
+            var engine=display;engine.adoptConcurrent(game,vessels:item.vessels)
+            guard engine.begin(item.move,reserved:true) else { failed.append(LabLaneResult(id:item.id,committed:false,cleanup:0));continue }
+            let ids=Set(game.state.stacks[item.move.source]+game.state.stacks[item.move.destination])
+            lanes.append(Lab2DLane(item:item,parcels:ids,engine:engine,initialMoves:game.moveCount))
+        }
+        for i in lanes.indices { lanes[i].engine.advance(deltaTime:deltaTime,speed:speed) }
+        display.compose(lanes,game:game)
+        let done=lanes.filter { !$0.engine.busy }.map { LabLaneResult(id:$0.item.id,committed:$0.engine.game.moveCount==$0.initialMoves+1,cleanup:$0.engine.cleanupPercent) }
+        lanes.removeAll { !$0.engine.busy }
+        return Lab2DConcurrentFrame(display:display,finished:failed+done)
+    }
+    func replace(display:LabFluid2D,lanes:[Lab2DLane]) { self.display=display;self.lanes=lanes }
+    func rollbackLastAdvance() { if let previous { display=previous.0;lanes=previous.1 };previous=nil }
 }

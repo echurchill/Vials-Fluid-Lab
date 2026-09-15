@@ -265,3 +265,14 @@ nonisolated func labLiftProgress(_ value:Float)->Float {
     let t=min(1,max(0,value))
     return labSmooth(t)+0.65*t*(1-t)*(1-t)
 }
+
+/// A monotonic presentation clock: suspension contributes no animation time.
+nonisolated struct LabAnimationClock {
+    private(set) var accumulated:Double=0
+    private var started:Double?
+    func elapsed(at now:Double)->Double { accumulated+(started.map { max(0,now-$0) } ?? 0) }
+    mutating func setRunning(_ running:Bool,at now:Double) {
+        if running { if started == nil { started=now } }
+        else if let start=started { accumulated+=max(0,now-start);started=nil }
+    }
+}

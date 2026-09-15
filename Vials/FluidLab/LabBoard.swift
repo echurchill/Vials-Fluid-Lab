@@ -71,17 +71,64 @@ nonisolated struct LabBoardGame: Sendable, Codable {
     private(set) var history:[LabBoardState]=[]
     var moveCount:Int { history.count }
     init(state:LabBoardState = .firstSort) { self.state=state }
-    mutating func begin(from:Int,to:Int) -> LabBoardMove? {
-        guard pending == nil, !state.solved, let move=state.move(from:from,to:to) else { return nil }
+    mutating func begin(from:Int,to:Int,reserved:Bool=false) -> LabBoardMove? {
+        guard pending == nil, (reserved || !state.solved), let move=state.move(from:from,to:to) else { return nil }
         pending=move;return move
     }
     mutating func commit(_ move:LabBoardMove) -> Bool {
         guard pending == move,let next=state.applying(move) else { return false }
         history.append(state);state=next;pending=nil;return true
     }
+    /// A previously reserved independent move may finish while another is active.
+    mutating func commitReserved(_ move:LabBoardMove)->Bool {
+        guard pending == nil,let next=state.applying(move) else { return false }
+        history.append(state);state=next;return true
+    }
     mutating func cancel() { pending=nil }
     mutating func undo() -> Bool {
         guard pending == nil,let previous=history.popLast() else { return false }
         state=previous;return true
     }
+}
+
+nonisolated struct LabPourReservation:Identifiable,Sendable {
+    let id:Int
+    let move:LabBoardMove
+    var started=false
+    var vessels:Set<Int> { [move.source,move.destination] }
+}
+/// Reservations are made against the projected board, never against empty space
+/// that another accepted move already owns. Shared receivers are served in order.
+nonisolated struct LabPourQueue:Sendable {
+    private(set) var items:[LabPourReservation]=[]
+    private var nextID=0
+    var busy:Bool { !items.isEmpty }
+    var active:[LabPourReservation] { items.filter(\.started) }
+    var lockedSources:Set<Int> { Set(items.flatMap { [$0.move.source,$0.move.destination] }) }
+    var movingSources:Set<Int> { Set(items.map { $0.move.source }) }
+    func projected(_ state:LabBoardState)->LabBoardState {
+        items.reduce(state) { current,item in current.applying(item.move) ?? current }
+    }
+    func move(from:Int,to:Int,state:LabBoardState)->LabBoardMove? {
+        guard !lockedSources.contains(from),!movingSources.contains(to) else { return nil }
+        return projected(state).move(from:from,to:to)
+    }
+    mutating func reserve(_ move:LabBoardMove,state:LabBoardState)->Bool {
+        guard self.move(from:move.source,to:move.destination,state:state)==move else { return false }
+        items.append(LabPourReservation(id:nextID,move:move));nextID+=1;return true
+    }
+    mutating func startReady(limit:Int=2)->[LabPourReservation] {
+        var occupied=Set(active.flatMap { Array($0.vessels) }),count=active.count,result:[LabPourReservation]=[]
+        for i in items.indices where !items[i].started {
+            guard count<limit else { break }
+            if !occupied.isDisjoint(with:items[i].vessels) { continue }
+            // Do not let a later move bypass an earlier reservation on its ports.
+            if items[..<i].contains(where:{ !$0.started && !$0.vessels.isDisjoint(with:items[i].vessels) }) { continue }
+            items[i].started=true;result.append(items[i]);occupied.formUnion(items[i].vessels);count+=1
+        }
+        return result
+    }
+    mutating func unstart(_ ids:Set<Int>) { for i in items.indices where ids.contains(items[i].id) { items[i].started=false } }
+    mutating func finish(_ id:Int) { items.removeAll { $0.id==id } }
+    mutating func cancelAll() { items=[] }
 }

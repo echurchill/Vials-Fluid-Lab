@@ -1,0 +1,6 @@
+PASS: idle clock pause, long suspension, exact resume, repeated suspension
+PASS: classic overlapping lanes, queue limit, shared receiver order, pause/suspend, checkpoint, partial completion, undo and reset
+PASS: fluid2D overlapping lanes, queue limit, shared receiver order, pause/suspend, checkpoint, partial completion, undo and reset
+PASS: fluid overlapping lanes, queue limit, shared receiver order, pause/suspend, checkpoint, partial completion, undo and reset
+PASS: projected capacity and color reservations
+PASS: automatic concurrent clock pause and reset during actor work

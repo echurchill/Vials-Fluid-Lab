@@ -15,15 +15,17 @@ struct LabClassicLayout {
 struct LabClassicBoardView:View {
     let state:LabBoardState
     let pour:LabClassicPour?
+    var additionalPours:[LabClassicPour]=[]
+    private var pours:[LabClassicPour] { [pour].compactMap { $0 }+additionalPours }
     private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(count:state.stacks.count) }
     var body:some View {
         Canvas { context,size in
             let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count),scale=layout.scale
             let tray=CGRect(x:size.width*0.06,y:layout.base(0).y-10,width:size.width*0.88,height:40)
             context.stroke(Path(ellipseIn:tray),with:.color(.white.opacity(0.08)),lineWidth:1)
-            let moving=pour?.move.source
-            for index in state.stacks.indices where index != moving { drawVial(index,context:context,layout:layout) }
-            if let pour {
+            let moving=Set(pours.map { $0.move.source })
+            for index in state.stacks.indices where !moving.contains(index) { drawVial(index,context:context,layout:layout) }
+            for pour in pours {
                 let pose=pose(pour,layout:layout)
                 if pour.progress>0 && pour.progress<1 {
                     let h=CGFloat(profiles[pour.move.source].height)*scale
@@ -60,13 +62,13 @@ struct LabClassicBoardView:View {
         var ctx=context
         let profile=profiles[index],scale=layout.scale
         var base=layout.base(index),angle:CGFloat=0
-        if let pour,pour.move.source == index { let transform=pose(pour,layout:layout);base=transform.base;angle=transform.angle }
+        if let pour=pours.first(where:{$0.move.source==index}) { let transform=pose(pour,layout:layout);base=transform.base;angle=transform.angle }
         ctx.translateBy(x:base.x,y:base.y);ctx.rotate(by:.radians(angle))
         let cavity=shape(profile,scale:scale),radius=CGFloat(profile.radii.max() ?? 0.6)*scale
         ctx.fill(cavity,with:.color(.white.opacity(0.035)))
         var liquid=ctx;liquid.clip(to:cavity)
         var amounts=state.stacks[index].map { (state.colors[$0],Float(1)) }
-        if let pour {
+        for pour in pours {
             if index == pour.move.source {
                 amounts=amounts.enumerated().map { position,pair in
                     (pair.0,position>=amounts.count-pour.move.amount ? 1-pour.progress:1)

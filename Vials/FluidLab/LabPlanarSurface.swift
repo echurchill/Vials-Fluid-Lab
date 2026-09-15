@@ -13,7 +13,7 @@ struct LabPlanarSurface:View {
         ZStack {
             LabFluid2DView(engine:display.snapshot,points:points,frame:display.frame,selected:selected,destinations:destinations,rejected:rejected)
             if !points {
-                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,excluded:Set([display.snapshot.game.pending?.source,display.snapshot.game.pending?.destination].compactMap { $0 }))
+                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,excluded:Set((display.snapshot.displayMoves+[display.snapshot.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] }))
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
         }
@@ -37,11 +37,14 @@ private struct LabIdleFluidDetail:View {
     let excluded:Set<Int>
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var economical=ProcessInfo.processInfo.isLowPowerModeEnabled || ProcessInfo.processInfo.thermalState != .nominal
+    @State private var clock=LabAnimationClock()
+    private var running:Bool { enabled && !reduceMotion && !economical }
     var body:some View {
-        TimelineView(.animation(minimumInterval:1.0/12,paused:!enabled || reduceMotion || economical)) { timeline in
+        TimelineView(.animation(minimumInterval:1.0/12,paused:!running)) { _ in
+            // Capture a new phase in the Canvas value on every timeline tick.
+            let t=Float(clock.elapsed(at:ProcessInfo.processInfo.systemUptime).truncatingRemainder(dividingBy:120))*Float.pi/60
             Canvas { context,size in
                 let layout=LabClassicLayout(size:size,vesselCount:profiles.count),scale=layout.scale
-                let t=Float(timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy:120))*Float.pi/60
                 for index in state.stacks.indices where !excluded.contains(index) {
                     let stack=state.stacks[index],profile=profiles[index],base=layout.base(index)
                     func screen(_ x:Float,_ y:Float)->CGPoint { CGPoint(x:base.x+CGFloat(x)*scale,y:base.y-CGFloat(y)*scale) }
@@ -87,6 +90,8 @@ private struct LabIdleFluidDetail:View {
                 }
             }
         }
+        .onChange(of:running,initial:true) { _,value in clock.setRunning(value,at:ProcessInfo.processInfo.systemUptime) }
+        .onDisappear { clock.setRunning(false,at:ProcessInfo.processInfo.systemUptime) }
         .onReceive(NotificationCenter.default.publisher(for:.NSProcessInfoPowerStateDidChange)) { _ in updateEconomy() }
         .onReceive(NotificationCenter.default.publisher(for:ProcessInfo.thermalStateDidChangeNotification)) { _ in updateEconomy() }
     }

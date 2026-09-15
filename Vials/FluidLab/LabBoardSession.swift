@@ -19,6 +19,26 @@ import Combine
     @Published private(set) var puzzle:LabBoardPuzzle
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
+    let allowsConcurrentPours:Bool
+    @Published private(set) var pourQueue=LabPourQueue()
+    @Published private(set) var concurrentClassicPours:[LabClassicPour]=[]
+    private var concurrentExamples:[Int:LabPourExample]=[:]
+    private var classicLanes:[Int:LabClassicPour]=[:]
+    private var metalLanes:[Int:LabMetalLane]=[:]
+    private var metalPool:[LabBoardRenderer]=[]
+    private var compositeSamples:[LabParticle]=[]
+    private var concurrentFrame=0
+    private var concurrentWorker:LabConcurrent2DWorker?
+    var activeMoves:[LabBoardMove] { allowsConcurrentPours ? pourQueue.items.map(\.move):[game.pending].compactMap { $0 } }
+    var solved:Bool { state.solved && !busy }
+    func canTap(_ index:Int)->Bool {
+        guard !solved else { return false }
+        if !allowsConcurrentPours { return !busy }
+        return selected == nil ? !pourQueue.lockedSources.contains(index):!pourQueue.movingSources.contains(index)
+    }
+    func availableMove(from:Int,to:Int)->LabBoardMove? {
+        allowsConcurrentPours ? pourQueue.move(from:from,to:to,state:state):state.move(from:from,to:to)
+    }
     lazy var fluid2D=LabFluid2D(game:LabBoardGame(state:LabBoardState(layers:[])))
     let planarDisplay=LabPlanarDisplay()
     @Published private(set) var rejectedVial:Int?
@@ -63,11 +83,11 @@ import Combine
     private var clockRevision=0
     var state:LabBoardState { game.state }
     var moveCount:Int { game.moveCount }
-    var busy:Bool { game.pending != nil }
+    var busy:Bool { game.pending != nil || pourQueue.busy }
     var effectiveSpeed:Float { (comparisonSpeed ?? pace.speed)*(slow ? 0.35:1) }
     var validDestinations:Set<Int> {
-        guard let selected,!busy else { return [] }
-        return Set(state.stacks.indices.filter { state.move(from:selected,to:$0) != nil })
+        guard let selected,allowsConcurrentPours || !busy else { return [] }
+        return Set(state.stacks.indices.filter { availableMove(from:selected,to:$0) != nil })
     }
     func vialComplete(_ index:Int)->Bool {
         let stack=state.stacks[index]
@@ -106,7 +126,8 @@ import Combine
         if committed { lastPour=pendingExample };pendingExample=nil
     }
 
-    init(defaults:UserDefaults? = .standard,device:MTLDevice? = MTLCreateSystemDefaultDevice(),library:MTLLibrary? = nil,restoredSave:LabComparisonSave? = nil) {
+    init(defaults:UserDefaults? = .standard,device:MTLDevice? = MTLCreateSystemDefaultDevice(),library:MTLLibrary? = nil,restoredSave:LabComparisonSave? = nil,allowsConcurrentPours:Bool=false) {
+        self.allowsConcurrentPours=allowsConcurrentPours
         let trial=LabTrialConfiguration.current
         self.defaults=trial == nil ? defaults:nil;self.device=device;self.library=library
         var save=self.defaults?.data(forKey:"lab.comparison.v1").flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) } ?? LabComparisonSave()
@@ -131,12 +152,19 @@ import Combine
             if renderer == nil {
                 guard let device else { throw LabError.message("Fluid rendering is unavailable. Classic remains playable.") }
                 let engine=try LabBoardRenderer(device:device,library:library)
-                engine.onFrame={ [weak self] interval,cpu,gpu in self?.performance.recordFrame(interval:interval,cpuMS:cpu,gpuMS:gpu) }
+                engine.onFrame={ [weak self] interval,cpu,gpu in
+                    guard let self,!self.allowsConcurrentPours else { return }
+                    self.performance.recordFrame(interval:interval,cpuMS:cpu,gpuMS:gpu)
+                }
                 engine.onError={ [weak self] in self?.error=$0 }
                 engine.onUpdate={ [weak self] _,_,_ in self?.fluidUpdate() }
                 renderer=engine
             }
             renderer?.install(game:game,samples:settledParticles)
+            if allowsConcurrentPours,let renderer {
+                compositeSamples=renderer.particleSamples()
+                if metalPool.isEmpty { metalPool=try (0..<2).map { _ in try LabBoardRenderer(simulationCopyOf:renderer) } }
+            }
             renderer?.quality=quality;renderer?.pointMode=points;renderer?.orbit=Float(orbit);updateSpeed();updatePause()
         } catch { self.error=error.localizedDescription;presentation = .classic }
     }
@@ -173,10 +201,13 @@ import Combine
     func refresh() {
         updateFeedback()
         let nextPhase:String
-        if state.solved {
+        if solved {
             nextPhase="Sorted beautifully"
             let solvedNotice="Every color has a home. Undo to explore, or play again."
             if notice != solvedNotice { notice=solvedNotice }
+        } else if allowsConcurrentPours,busy {
+            let active=pourQueue.active.count,waiting=pourQueue.items.count-active
+            nextPhase="\(active) \(active == 1 ? "pour":"pours")"+(waiting>0 ? " · \(waiting) queued":"")
         } else if let pour=classicPour {
             nextPhase=pour.time<0.95 ? "Moving into position":(pour.returning ? "Returning the vial":"Pouring \(pour.move.amount) \(pour.move.amount == 1 ? "unit":"units")")
         } else if busy { nextPhase=presentation == .fluid2D ? fluid2D.phase:(renderer?.phase ?? "Pouring") }
@@ -184,7 +215,7 @@ import Combine
         if phase != nextPhase { phase=nextPhase;performance.tracePhase(nextPhase) }
     }
     private func fluidUpdate() {
-        guard presentation == .fluid,let renderer else { return }
+        guard !allowsConcurrentPours,presentation == .fluid,let renderer else { return }
         metrics=renderer.lastMetrics;correction=renderer.correctionCount;captured=renderer.arrivalBeforeCorrection
         if busy,renderer.game.pending == nil {
             let amount=game.pending?.amount ?? 1
@@ -199,23 +230,28 @@ import Combine
         refresh()
     }
     func select(_ index:Int) {
-        guard state.stacks.indices.contains(index),!busy,!state.solved else { return }
+        guard state.stacks.indices.contains(index),allowsConcurrentPours || !busy,!solved else { return }
         if let source=selected {
             if source == index { clearSelectionFeedback();selected=nil;hintTarget=nil;notice="Choose another vial.";return }
-            guard let move=state.move(from:source,to:index) else {
+            guard let move=availableMove(from:source,to:index) else {
                 reject(index)
-                notice=state.stacks[index].count == state.capacity ? "That vial is full.":"Choose the same top color or an empty vial.";return
+                if allowsConcurrentPours,pourQueue.movingSources.contains(index) { notice="That vial is already pouring or queued." }
+                else if pourQueue.projected(state).stacks[index].count == state.capacity { notice="That vial is full or its remaining space is reserved." }
+                else { notice="Choose the same top color or an empty vial." }
+                return
             }
             if begin(move) {
                 selected=nil;hintTarget=nil
                 notice="\(move.amount) \(move.amount == 1 ? "unit":"units") of \(Self.name(move.color)) · \(Self.letter(source)) → \(Self.letter(index))"
             }
         } else {
+            guard !allowsConcurrentPours || !pourQueue.lockedSources.contains(index) else { reject(index);notice="That vial is already in use.";return }
             guard !state.stacks[index].isEmpty else { reject(index);notice="Choose a vial that contains liquid first.";return }
             clearSelectionFeedback();feedback.selection();selected=index;hintTarget=nil;notice="Now choose a matching color or an empty vial."
         }
     }
     @discardableResult func begin(_ move:LabBoardMove,automaticClock:Bool = true) -> Bool {
+        if allowsConcurrentPours { return beginConcurrent(move,automaticClock:automaticClock) }
         guard !busy,!state.solved,game.state.move(from:move.source,to:move.destination)==move else { return false }
         performance.traceBegin("Begin pour");defer { performance.traceEnd("Begin pour") }
         beforeParticles=settledParticles
@@ -320,6 +356,7 @@ import Combine
         performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:nil)
     }
     func reset() {
+        cancelConcurrent()
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         feedback.stop()
         classicTask?.cancel();classicTask=nil;classicPour=nil
@@ -349,6 +386,7 @@ import Combine
     // A dismissed preview must release its clock even when it closes mid-pour.
     func discardPreview() {
         guard defaults == nil else { return }
+        cancelConcurrent()
         classicTask?.cancel();classicTask=nil;clockRevision+=1
         game.cancel();classicPour=nil;renderer?.paused=true;suspended=true;feedback.stop()
     }
@@ -357,7 +395,13 @@ import Combine
     private func updatePause() { clockRevision+=1;renderer?.paused=paused || suspended || presentation != .fluid;updateFeedback() }
     private func updateFeedback() {
         let visibleStream:Bool
-        if let pour=classicPour { visibleStream=pour.progress>0 && pour.progress<1 }
+        if allowsConcurrentPours {
+            switch presentation {
+            case .classic: visibleStream=concurrentClassicPours.contains { $0.progress>0 && $0.progress<1 }
+            case .fluid2D: visibleStream=fluid2D.streamActive
+            case .fluid: visibleStream=metalLanes.values.contains { $0.engine.lastMetrics.departed>20 && $0.engine.cutoffTime==nil }
+            }
+        } else if let pour=classicPour { visibleStream=pour.progress>0 && pour.progress<1 }
         else if presentation == .fluid2D { visibleStream=busy && fluid2D.departed>0 && fluid2D.cutoff==nil }
         else { visibleStream=busy && (renderer?.lastMetrics.departed ?? 0)>20 && renderer?.cutoffTime == nil }
         feedback.setPouring(visibleStream && !paused && !suspended)
@@ -370,6 +414,11 @@ import Combine
             performance.context["frameCounter"]="controller updates, not compositor presents"
             performance.context["cpuCounter"]="2D worker solver only; excludes Canvas drawing"
             performance.context["physicsExecution"]="isolated actor, immutable value snapshots"
+        }
+        if allowsConcurrentPours {
+            performance.context["concurrentPourLimit"]=2
+            performance.context["frameCounter"]="concurrent controller updates, not compositor presents"
+            if presentation == .fluid { performance.context["cpuCounter"]="simulation scheduling and GPU waits; excludes surface rendering" }
         }
         performance.begin(presentation:presentation,pace:pace);measurementActive=true;reportURL=nil
     }
@@ -387,6 +436,7 @@ import Combine
     // Explicit diagnostic flag: exercise the same actions as the board controls
     // on the device, outside the timed/battery sample and without saved progress.
     private func checkTrialControls() async -> [String:Bool] {
+        if allowsConcurrentPours { return await checkConcurrentControls() }
         guard presentation == .fluid2D,let move=state.solution()?.first else { return [:] }
         let initial=state
         guard begin(move) else { return ["begin":false] }
@@ -428,7 +478,16 @@ import Combine
         var reason="completed"
         while !Task.isCancelled && ProcessInfo.processInfo.systemUptime-start<trial.seconds {
             if suspended { reason="application suspended";break }
-            if !busy {
+            if allowsConcurrentPours,ProcessInfo.processInfo.arguments.contains("--concurrent-pours") {
+                if solved { reset() }
+                if pourQueue.items.count<2 {
+                    let projected=pourQueue.projected(state)
+                    let options=state.stacks.indices.flatMap { a in state.stacks.indices.compactMap { b in availableMove(from:a,to:b) } }
+                    if let next=options.first(where:{ move in
+                        !(projected.stacks[move.destination].isEmpty && Set(projected.stacks[move.source].map { projected.colors[$0] }).count==1) && projected.applying(move)?.solution() != nil
+                    }) { _=begin(next) }
+                }
+            } else if !busy {
                 if state.solved { reset() }
                 guard let move=state.solution()?.first,begin(move) else { reason="no legal continuation";break }
             }
@@ -450,5 +509,172 @@ import Combine
     func accessibility(_ index:Int) -> String {
         let layers=state.stacks[index].reversed().map { Self.name(state.colors[$0]) }.joined(separator:", ")
         return "Vial \(Self.letter(index)), \(state.stacks[index].count) of 4 units. \(layers.isEmpty ? "Empty":"Top to bottom: "+layers)."
+    }
+}
+
+@MainActor private struct LabMetalLane {
+    let item:LabPourReservation
+    let parcels:Set<Int>
+    let engine:LabBoardRenderer
+    let initialMoves:Int
+}
+
+extension FluidBoardSession {
+    @discardableResult private func beginConcurrent(_ move:LabBoardMove,automaticClock:Bool)->Bool {
+        guard !solved else { return false }
+        let wasBusy=busy,example=LabPourExample(puzzle:puzzle,state:pourQueue.projected(state),move:move)
+        guard pourQueue.reserve(move,state:state),let item=pourQueue.items.last else { return false }
+        concurrentExamples[item.id]=example;clearSelectionFeedback()
+        if !wasBusy {
+            paused=false;updatePause()
+            if presentation == .fluid2D { concurrentWorker=LabConcurrent2DWorker(fluid2D) }
+            if presentation == .fluid { compositeSamples=renderer?.particleSamples() ?? [] }
+            if automaticClock { startConcurrentClock() }
+        }
+        refresh();return true
+    }
+    private func startConcurrentClock() {
+        classicTask?.cancel()
+        let initialRevision=clockRevision
+        classicTask=Task { @MainActor [weak self] in
+            var last=ProcessInfo.processInfo.systemUptime,revision=initialRevision
+            while !Task.isCancelled {
+                guard let self,self.busy else { return }
+                let now=ProcessInfo.processInfo.systemUptime
+                // Background suspension can stop the task itself. Never turn that
+                // wall-clock gap into simulation debt on the first resumed tick.
+                let delta=revision==self.clockRevision ? Float(now-last):0
+                last=now;revision=self.clockRevision
+                if !self.paused && !self.suspended { await self.advanceConcurrent(deltaTime:delta) }
+                let remaining=1.0/60-(ProcessInfo.processInfo.systemUptime-now)
+                if remaining>0 { try? await Task.sleep(for:.seconds(remaining)) } else { await Task.yield() }
+            }
+        }
+    }
+    /// Shared by the live clock and deterministic multi-pour regression checks.
+    func advanceConcurrent(deltaTime:Float) async {
+        guard allowsConcurrentPours,busy,!paused,!suspended else { return }
+        var queue=pourQueue
+        let starts=queue.startReady()
+        if !starts.isEmpty { pourQueue=queue }
+        let revision=clockRevision
+        let updateStart=ProcessInfo.processInfo.systemUptime
+        for item in starts { performance.beginConcurrentMove(id:item.id,presentation:presentation,pace:pace) }
+        if presentation == .fluid2D {
+            guard let worker=concurrentWorker else { return }
+            let frame=await worker.advance(game:game,starts:starts,deltaTime:deltaTime,speed:effectiveSpeed)
+            guard !Task.isCancelled else { return }
+            if revision != clockRevision {
+                await worker.rollbackLastAdvance()
+                pourQueue.unstart(Set(starts.map(\.id)))
+                return
+            }
+            fluid2D=frame.display
+            for result in frame.finished { finishConcurrent(result) }
+            fluid2D.setDisplayGame(game);planarDisplay.publish(fluid2D)
+            performance.recordFrame(interval:Double(deltaTime),cpuMS:fluid2D.cpuMilliseconds,gpuMS:nil)
+        } else if presentation == .classic {
+            for item in starts {
+                guard state.move(from:item.move.source,to:item.move.destination)==item.move else {
+                    finishConcurrent(LabLaneResult(id:item.id,committed:false,cleanup:0));continue
+                }
+                classicLanes[item.id]=LabClassicPour(move:item.move)
+            }
+            var finished:[Int]=[]
+            for id in classicLanes.keys.sorted() {
+                classicLanes[id]!.time+=min(max(deltaTime,0),0.05)*effectiveSpeed
+                if classicLanes[id]!.finished { finished.append(id) }
+            }
+            for id in finished { classicLanes[id]=nil;finishConcurrent(LabLaneResult(id:id,committed:true,cleanup:0)) }
+            concurrentClassicPours=classicLanes.keys.sorted().compactMap { classicLanes[$0] }
+            performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:nil)
+        } else if let renderer {
+            for item in starts {
+                guard let engine=metalPool.popLast() else { finishConcurrent(LabLaneResult(id:item.id,committed:false,cleanup:0));continue }
+                engine.installSimulation(game:game,samples:compositeSamples,vessels:item.vessels);engine.playbackSpeed=effectiveSpeed
+                guard engine.begin(from:item.move.source,to:item.move.destination,reserved:true),engine.game.pending==item.move else {
+                    metalPool.append(engine);finishConcurrent(LabLaneResult(id:item.id,committed:false,cleanup:0));continue
+                }
+                metalLanes[item.id]=LabMetalLane(item:item,parcels:Set(state.stacks[item.move.source]+state.stacks[item.move.destination]),engine:engine,initialMoves:game.moveCount)
+            }
+            var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+            var results:[LabLaneResult]=[],aggregate=LabBoardMetrics()
+            aggregate.gpuMilliseconds=renderer.lastGPUWorkMilliseconds
+            for id in metalLanes.keys.sorted() {
+                let lane=metalLanes[id]!,engine=lane.engine
+                engine.playbackSpeed=effectiveSpeed;engine.advanceSimulation(deltaTime:deltaTime)
+                let samples=engine.particleSamples()
+                aggregate.gpuMilliseconds+=engine.lastGPUWorkMilliseconds
+                aggregate.arrived+=engine.lastMetrics.arrived;aggregate.departed+=engine.lastMetrics.departed
+                aggregate.guided+=engine.lastMetrics.guided;aggregate.outside+=engine.lastMetrics.outside
+                aggregate.wrongParcel+=engine.lastMetrics.wrongParcel;aggregate.nonFinite+=engine.lastMetrics.nonFinite
+                compositeSamples.removeAll { lane.parcels.contains(Int($0.visual.y)) }
+                compositeSamples+=samples.filter { lane.parcels.contains(Int($0.visual.y)) }
+                for owner in [lane.item.move.source,lane.item.move.destination] { vessels[owner]=engine.currentVessels[owner] }
+                if engine.resting { results.append(LabLaneResult(id:id,committed:engine.game.moveCount==lane.initialMoves+1,cleanup:Float(engine.correctionCount)/Float(lane.item.move.amount*LabBoardRenderer.particlesPerUnit)*100)) }
+            }
+            for result in results {
+                if let lane=metalLanes.removeValue(forKey:result.id) { metalPool.append(lane.engine) }
+                finishConcurrent(result)
+            }
+            concurrentFrame+=1
+            if concurrentFrame%15==0 || !busy { metrics=aggregate }
+            renderer.displayComposite(game:game,samples:compositeSamples,vessels:vessels)
+            if !busy { settledParticles=compositeSamples }
+            performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:aggregate.gpuMilliseconds)
+        }
+        if measurementActive {
+            performance.context["maximumConcurrentPours"]=max(performance.context["maximumConcurrentPours"] as? Int ?? 0,pourQueue.active.count)
+        }
+        refresh()
+    }
+    private func finishConcurrent(_ result:LabLaneResult) {
+        guard let item=pourQueue.items.first(where:{$0.id==result.id}) else { return }
+        let committed=result.committed && game.commitReserved(item.move)
+        pourQueue.finish(result.id)
+        if committed {
+            undoParticles.append(nil);lastPour=concurrentExamples[result.id]
+            if presentation != .fluid { settledParticles=nil }
+            feedback.completed(solved:solved)
+        } else { notice="A pour could not finish. Its source has been restored.";feedback.stop() }
+        concurrentExamples[result.id]=nil
+        performance.endConcurrentMove(id:result.id,committed:committed,correctionPercent:Double(result.cleanup))
+        checkpoint()
+    }
+    private func cancelConcurrent() {
+        classicTask?.cancel();classicTask=nil;clockRevision+=1
+        for lane in metalLanes.values { lane.engine.paused=true;metalPool.append(lane.engine) }
+        metalLanes=[:];classicLanes=[:];concurrentClassicPours=[];concurrentWorker=nil
+        pourQueue.cancelAll();concurrentExamples=[:];compositeSamples=[]
+    }
+}
+
+extension FluidBoardSession {
+    private func checkConcurrentControls() async->[String:Bool] {
+        guard let move=state.solution()?.first else { return [:] }
+        let initial=state
+        func signature()->[Float] {
+            switch presentation {
+            case .classic: return concurrentClassicPours.map(\.time)
+            case .fluid2D: return fluid2D.particles.flatMap { [$0.position.x,$0.position.y] }
+            case .fluid: return renderer?.currentVessels.flatMap { [$0.world.columns.3.x,$0.world.columns.3.y,$0.world.columns.3.z] } ?? []
+            }
+        }
+        guard begin(move) else { return ["begin":false] }
+        try? await Task.sleep(for:.milliseconds(200));togglePause();let frozen=signature()
+        try? await Task.sleep(for:.milliseconds(200));let pauseOK=signature()==frozen
+        togglePause();setSuspended(true);let background=signature()
+        try? await Task.sleep(for:.milliseconds(200));let suspendOK=signature()==background
+        setSuspended(false);try? await Task.sleep(for:.milliseconds(150));let resumeOK=signature() != background
+        reset();try? await Task.sleep(for:.milliseconds(100));let resetOK = !busy && state==puzzle.initial
+        // The diagnostic trial starts from the puzzle's actual saved fixture.
+        guard state==initial,begin(move) else { return ["pause":pauseOK,"suspension":suspendOK,"resume":resumeOK,"reset":resetOK,"restart":false] }
+        for _ in 0..<1000 where busy { try? await Task.sleep(for:.milliseconds(16)) }
+        let commitOK=state==initial.applying(move) && !busy
+        undo();let undoOK=state==initial && !busy
+        let save=(try? checkpointData()).flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) }
+        let reloadOK=save?.games[puzzle.rawValue]?.state==initial
+        reset()
+        return ["pause":pauseOK,"suspension":suspendOK,"resume":resumeOK,"reset":resetOK,"commit":commitOK,"undo":undoOK,"saveReload":reloadOK]
     }
 }

@@ -45,6 +45,7 @@ struct LabTrialConfiguration {
     private var frames:[[Double]]=[] // interval ms, host update/encode wall ms, GPU ms (-1 for Classic)
     private var moves:[[String:Any]]=[]
     private var environments:[[String:Any]]=[]
+    private var concurrentStarts:[Int:(Double,String,String)]=[:]
     private var moveStart:Double?
     private var moveMode="",movePace=""
     private var mode="",pace=""
@@ -53,7 +54,7 @@ struct LabTrialConfiguration {
         #if canImport(UIKit)
         UIDevice.current.isBatteryMonitoringEnabled=true
         #endif
-        active=true;started=ProcessInfo.processInfo.systemUptime;frames=[];moves=[];moveStart=nil
+        active=true;started=ProcessInfo.processInfo.systemUptime;frames=[];moves=[];moveStart=nil;concurrentStarts=[:]
         first=environment();environments=[first]
     }
     func recordFrame(interval:Double,cpuMS:Double,gpuMS:Double?) {
@@ -63,6 +64,14 @@ struct LabTrialConfiguration {
     func beginMove(presentation:LabBoardPresentation,pace:LabBoardPace) {
         guard active else { return }
         moveStart=ProcessInfo.processInfo.systemUptime;moveMode=presentation.rawValue;movePace=pace.rawValue
+    }
+    func beginConcurrentMove(id:Int,presentation:LabBoardPresentation,pace:LabBoardPace) {
+        guard active else { return };concurrentStarts[id]=(ProcessInfo.processInfo.systemUptime,presentation.rawValue,pace.rawValue)
+    }
+    func endConcurrentMove(id:Int,committed:Bool,correctionPercent:Double) {
+        guard active,let start=concurrentStarts.removeValue(forKey:id) else { return }
+        moves.append(["seconds":ProcessInfo.processInfo.systemUptime-start.0,"presentation":start.1,"pace":start.2,"committed":committed,"cleanupPercent":correctionPercent])
+        if environments.count<1000 { environments.append(environment()) }
     }
     func endMove(committed:Bool,correctionPercent:Double) {
         guard active,let moveStart else { return }
@@ -98,7 +107,7 @@ struct LabTrialConfiguration {
             "os":ProcessInfo.processInfo.operatingSystemVersionString,"start":first,"end":last,"environmentSamples":environments,"moves":moves,
             "animationFrameIntervalMs":summary(frames.map{$0[0]}),"updateOrEncodeWallMs":summary(frames.map{$0[1]}),"fluidGPUFrameMs":summary(frames.map{$0[2]}.filter{$0>=0}),
             "intervalsOver25ms":frames.filter{$0[0]>25}.count,
-            "notes":"Intervals are controller/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Classic and 2D record animation updates; 3D records MTKView draw intervals. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging/full cannot measure drain; short unplugged samples are coarse and do not establish battery life."
+            "notes":"Intervals are controller/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Concurrent play records controller updates in every presentation. Legacy Classic/2D record animation updates; legacy 3D records MTKView draw intervals. The configuration identifies each counter. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging/full cannot measure drain; short unplugged samples are coarse and do not establish battery life."
         ]
         let args=ProcessInfo.processInfo.arguments
         let directory:URL

@@ -5,7 +5,7 @@ import Combine
 private enum BoardSheet:String,Identifiable { case classic,study;var id:String { rawValue } }
 
 struct FluidBoardView:View {
-    @StateObject private var session=FluidBoardSession()
+    @StateObject private var session=FluidBoardSession(allowsConcurrentPours:true)
     @State private var sheet:BoardSheet?
     @State private var comparison:LabPourExample?
     @Environment(\.scenePhase) private var scenePhase
@@ -56,12 +56,12 @@ struct FluidBoardView:View {
                 }.padding(.horizontal,compact ? 20:32).frame(height:38)
                 GeometryReader { board in
                     ZStack {
-                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour) }
+                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours) }
                         else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
                         LabVialCaps(state:session.state,planarProfiles:session.fluid2D.profiles,presentation:session.presentation,orbit:Float(session.orbit),
-                            uncapped:Set([session.selected,session.game.pending?.source].compactMap { $0 }))
+                            uncapped:Set([session.selected].compactMap { $0 }+session.activeMoves.flatMap { [$0.source,$0.destination] }))
                             .allowsHitTesting(false).accessibilityHidden(true)
                         ForEach(session.state.stacks.indices,id:\.self) { index in
                             let rect=hitRect(index,size:board.size)
@@ -71,18 +71,18 @@ struct FluidBoardView:View {
                                     .overlay(alignment:.bottom) {
                                         Label(cueLabel(index),systemImage:cueSymbol(index)).font(.system(size:10,weight:.semibold))
                                             .fixedSize().padding(.horizontal,7).padding(.vertical,4).background(.black.opacity(0.75),in:Capsule())
-                                            .foregroundStyle(cueColor(index)).opacity(cueLabel(index).isEmpty ? 0:1).offset(y:17)
+                                            .foregroundStyle(cueColor(index) == .clear ? ink.opacity(0.75):cueColor(index)).opacity(cueLabel(index).isEmpty ? 0:1).offset(y:17)
                                     }
                                     .overlay {
                                         let target=session.validDestinations.contains(index)
                                         let outline=RoundedRectangle(cornerRadius:20)
                                         let style=StrokeStyle(lineWidth:session.selected==index ? 3:2.5,lineCap:.round,dash:target ? [6,4]:[])
-                                        outline.stroke(.black.opacity(cueLabel(index).isEmpty || session.busy ? 0:0.45),style:StrokeStyle(lineWidth:style.lineWidth+2,lineCap:.round,dash:style.dash))
+                                        outline.stroke(.black.opacity(cueColor(index) == .clear ? 0:0.45),style:StrokeStyle(lineWidth:style.lineWidth+2,lineCap:.round,dash:style.dash))
                                         outline.stroke(cueColor(index).opacity(0.95),style:style)
                                     }
                             }
                             .buttonStyle(LabVialPressStyle()).frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
-                            .disabled(session.busy || session.state.solved)
+                            .disabled(!session.canTap(index))
                             .accessibilityLabel(session.accessibility(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
                         }
                         if session.diagnostics {
@@ -112,20 +112,20 @@ struct FluidBoardView:View {
                                     .offset(x:!reduceMotion && session.rejectedVial==index ? 3:0)
                                     .animation(reduceMotion ? nil:.easeInOut(duration:0.18),value:session.selected)
                                     .animation(reduceMotion ? nil:.easeInOut(duration:0.12),value:session.rejectedVial)
-                            }.buttonStyle(LabVialPressStyle()).disabled(session.busy || session.state.solved)
+                            }.buttonStyle(LabVialPressStyle()).disabled(!session.canTap(index))
                             .accessibilityLabel("Select "+session.accessibility(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
                         }
                     }
-                    if session.state.solved,let next=session.puzzle.next {
+                    if session.solved,let next=session.puzzle.next {
                         Button("Next: \(next.title)",systemImage:"arrow.right") { session.nextPuzzle() }.buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
                     }
                     Text(session.notice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity,minHeight:30).multilineTextAlignment(.center)
                     HStack(spacing:12) {
                         Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || session.moveCount == 0)
-                        Button("Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.state.solved)
+                        Button("Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved)
                         Spacer(minLength:0)
                         Button { session.togglePause() } label: { Image(systemName:session.paused ? "play.fill":"pause.fill") }.accessibilityLabel(session.paused ? "Resume board":"Pause board")
-                        Button(session.state.solved ? "Play again":"Reset",systemImage:"arrow.counterclockwise") { session.reset() }
+                        Button(session.solved ? "Play again":"Reset",systemImage:"arrow.counterclockwise") { session.reset() }
                     }.buttonStyle(.bordered).controlSize(.regular)
                 }.padding(.horizontal,compact ? 20:32).padding(.vertical,18).background(Color(red:0.065,green:0.060,blue:0.075))
             }.background(Color(red:0.026,green:0.043,blue:0.060)).foregroundStyle(ink)
@@ -145,7 +145,8 @@ struct FluidBoardView:View {
         }
     }
     private func cueLabel(_ index:Int)->String {
-        if session.busy { return "" }
+        if let item=session.pourQueue.items.first(where:{$0.move.source==index}) { return item.started ? "Pouring":"Queued" }
+        if session.busy && !session.allowsConcurrentPours { return "" }
         if session.rejectedVial==index { return "Cannot pour" }
         if session.selected==index { return "Selected" }
         if session.hintTarget==index { return "Hint" }
@@ -153,13 +154,14 @@ struct FluidBoardView:View {
         return ""
     }
     private func cueSymbol(_ index:Int)->String {
+        if let item=session.pourQueue.items.first(where:{$0.move.source==index}) { return item.started ? "drop":"clock" }
         if session.rejectedVial==index { return "xmark.circle" }
         if session.selected==index { return "drop.fill" }
         if session.hintTarget==index { return "lightbulb" }
         return session.validDestinations.contains(index) ? "arrow.down":"checkmark.circle"
     }
     private func cueColor(_ index:Int)->Color {
-        if session.busy { return .clear }
+        if session.busy && !session.allowsConcurrentPours { return .clear }
         if session.rejectedVial==index || session.hintTarget==index { return .orange }
         if session.selected==index || session.validDestinations.contains(index) { return accent }
         return .clear
