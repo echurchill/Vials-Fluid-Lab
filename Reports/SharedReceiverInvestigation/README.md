@@ -56,3 +56,5 @@ Two sources plus one receiver means three active vials rather than four in two i
 The available 2D iPad reference is Prototype17: 49 successful pours in 120.021 seconds, two independent pours active, worker p95 5.090 ms, controller interval p95 17.918 ms and nominal thermal state. These are not compositor FPS measurements. Concurrent 3D iPad performance remains unmeasured. No defensible shared-receiver speed estimate is available until the prototype runs.
 
 This is a moderate change to the model and Classic motion, and a larger refactor of the 2D/3D transfer lifecycle. The recommended first implementation is the reservation/Classic/2D slice, followed by 3D on the same tested group model.
+
+See also [overlapping-vial rendering recommendations](OverlapRendering.md), covering opacity, lensing and presentation-specific changes.
