@@ -1,0 +1,10 @@
+3+3 into empty: reserved amounts 3+1
+Current dispatch starts 1 pour
+Second can begin against current committed board: false
+Second can commit first with current applying: false
+Acceptance order succeeds: true
+2+2 reverse completion succeeds: true
+Capacity fixtures accepting both: 24; current second-first application rejected: 14
+
+Existing same-side 3D source transforms coincide: true
+Source centers: SIMD4<Float>(-0.5872043, 2.6487088, 1.7212926, 1.0), SIMD4<Float>(-0.5872043, 2.6487088, 1.7212926, 1.0)
