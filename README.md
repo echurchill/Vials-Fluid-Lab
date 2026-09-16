@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Cached pour setup and separated 3D travel](Reports/Prototype19/README.md) reduce repeated preparation work, separate crossing paths and keep edge pours in frame. iPad validation is pending device availability.
+
 [Shared receivers and clearer overlapping vials](Reports/Prototype18/README.md) add simultaneous streams into one receiver and fix stale particle inventory during rapid consecutive pours.
 
 [Pause-aware motion and concurrent pours](Reports/Prototype17/README.md) add two overlapping pours in all three views, capacity reservations, and device measurements.

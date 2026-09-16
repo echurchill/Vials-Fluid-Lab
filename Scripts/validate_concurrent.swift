@@ -30,6 +30,26 @@ import AppKit
    let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort,games:["firstSort":LabBoardGame(state:state)])
    return FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save,allowsConcurrentPours:true)
   }
+  if CommandLine.arguments.contains("--partial-stress") {
+   var failures=0
+   for round in 0..<12 {
+    let session=make(LabBoardState(layers:[[0,0,0],[0,0,0],[],[]]),.fluid)
+    require(session.begin(session.availableMove(from:0,to:2)!,automaticClock:false),"partial first")
+    require(session.begin(session.availableMove(from:1,to:2)!,automaticClock:false),"partial second")
+    for tick in 0..<1800 where session.busy {
+     await session.advanceConcurrent(deltaTime:1/60)
+     if CommandLine.arguments.contains("--inspect"),tick==350 {
+      let missing=session.renderer!.particleSamples().filter {Int($0.visual.y)==5 && Int($0.position.w) != 2}
+      print("UNCAPTURED \(round) count=\(missing.count) guided=\(missing.filter {$0.visual.w>0}.count)")
+      for p in missing.prefix(50) {print("particle \(p.position) velocity=\(p.velocity)")};fflush(stdout)
+     }
+    }
+    let passed = !session.busy && session.moveCount==2
+    print("PARTIAL \(round) passed=\(passed) \(String(describing:session.performance.context["lastRejectedPour"]))");fflush(stdout)
+    if !passed {failures+=1}
+   }
+   require(failures==0,"partial stress failures=\(failures)");return
+  }
   if CommandLine.arguments.contains("--autoplay") {
    let mode=LabBoardPresentation(rawValue:CommandLine.arguments.last!) ?? .fluid2D
    let session=make(LabBoardPuzzle.greenArrival.initial,mode)
@@ -165,7 +185,7 @@ import AppKit
    let remainder=limited.availableMove(from:1,to:2)!
    require(remainder.amount==1 && limited.begin(remainder,automaticClock:false),"truncated capacity reservation")
    for _ in 0..<1800 where limited.busy { await limited.advanceConcurrent(deltaTime:1/60) }
-   require(!limited.busy && limited.moveCount==2 && limited.state.stacks[2].count==4 && limited.state.stacks[1].count==2,"reserved partial pour overflow \(mode): busy=\(limited.busy) moves=\(limited.moveCount) stacks=\(limited.state.stacks) notice=\(limited.notice) arrived=\(limited.fluid2D.arrived)")
+   require(!limited.busy && limited.moveCount==2 && limited.state.stacks[2].count==4 && limited.state.stacks[1].count==2,"reserved partial pour overflow \(mode): busy=\(limited.busy) moves=\(limited.moveCount) stacks=\(limited.state.stacks) notice=\(limited.notice) arrived=\(limited.fluid2D.arrived) diagnostic=\(String(describing:limited.performance.context["lastRejectedPour"]))")
    // An accepted move must still start if an earlier completion sorts the board.
    let finishing=make(LabBoardState(layers:[[0,0],[0,0],[1,1,1,1],[],[2,2,2,2],[]]),mode)
    for pair in [(0,1),(2,3),(4,5)] { require(finishing.begin(finishing.availableMove(from:pair.0,to:pair.1)!,automaticClock:false),"endgame reservation") }

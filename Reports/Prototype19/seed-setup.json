@@ -1,0 +1,15 @@
+{
+  "baselineMs" : {
+    "maximum" : 3.9981667068786919,
+    "median" : 3.6378749646246433,
+    "p95" : 3.9553333190269768,
+    "samples" : 60
+  },
+  "cachedMs" : {
+    "maximum" : 0.36975002149119973,
+    "median" : 0.2248333184979856,
+    "p95" : 0.31820836011320353,
+    "samples" : 60
+  },
+  "scope" : "Alternating same-process Mac receiver-group initialization; canonical particles verified bit-for-bit, including profile-count changes. Excludes fluid advancement and rendering."
+}

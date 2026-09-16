@@ -113,6 +113,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private weak var renderedView:MTKView?
     private var accumulator: Float = 0
     private var particleVolume: Float = 0
+    // Canonical positions depend only on the vessel profile and unit slot.
+    // Reuse them when a receiver group starts instead of inverting volume for
+    // every particle again on the main actor.
+    private var seedPositions:[[SIMD3<Float>]]=[]
     private let inFlight = DispatchSemaphore(value: 3)
     private let spacing: Float = 0.079
     private let timeStep: Float = 1.0 / 120
@@ -138,7 +142,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         state.depthCompareFunction = .lessEqual; state.isDepthWriteEnabled = true
         depthState = device.makeDepthStencilState(descriptor: state)
         profilesBuffer = makeBuffer(profiles.flatMap(\.radii))
-        heads = device.makeBuffer(length: 96*48*32*MemoryLayout<Int32>.stride, options: .storageModePrivate)
+        heads = device.makeBuffer(length: 96*48*40*MemoryLayout<Int32>.stride, options: .storageModePrivate)
         meshes = profiles.map { profile in
             let vertices = labGlassMesh(profile,rings:48,segments:64)
             return (makeBuffer(vertices), vertices.count)
@@ -180,7 +184,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         lastCommand?.waitUntilCompleted()
         game=LabBoardGame(state:state);simulationTime=0;clearMotion();historyParticles=[];beforeParticles=[];lastOutcome=""
         if profiles.count != state.stacks.count {
-            profiles=LabBoardLayout.profiles(count:state.stacks.count)
+            profiles=LabBoardLayout.profiles(count:state.stacks.count);seedPositions=[]
             profilesBuffer=makeBuffer(profiles.flatMap(\.radii))
             meshes=profiles.map { let vertices=labGlassMesh($0,rings:48,segments:64);return (makeBuffer(vertices),vertices.count) }
         }
@@ -208,16 +212,25 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         return result
     }
     private func seed(state:LabBoardState) -> [LabParticle] {
-        var values:[LabParticle]=[]
-        for owner in state.stacks.indices {
-            let profile=profiles[owner],world=labTranslation(homes[owner]),unit=profile.usableVolume/4
-            for (layer,parcel) in state.stacks[owner].enumerated() {
-                for i in 0..<Self.particlesPerUnit {
+        if seedPositions.count != profiles.count {
+            seedPositions=profiles.map { profile in
+                let unit=profile.usableVolume/4
+                return (0..<(4*Self.particlesPerUnit)).map { slot in
+                    let layer=slot/Self.particlesPerUnit,i=slot%Self.particlesPerUnit
                     let v=(Float(layer)+(Float(i)+0.5)/Float(Self.particlesPerUnit))*unit
                     let y=max(0.04,profile.height(for:v))
-                    let r=max(0.01,profile.radius(at:y)-0.042)*sqrt(radical(i+1,2))
-                    let a=radical(i+1,3)*2*Float.pi
-                    let p=SIMD4((world*SIMD4<Float>(r*cos(a),y,r*sin(a),1)).xyz,Float(owner))
+                    let r=max(0.01,profile.radius(at:y)-0.042)*sqrt(radical(i+1,2)),a=radical(i+1,3)*2*Float.pi
+                    return SIMD3(r*cos(a),y,r*sin(a))
+                }
+            }
+        }
+        var values:[LabParticle]=[]
+        values.reserveCapacity(state.colors.count*Self.particlesPerUnit)
+        let origins=homes
+        for (owner,stack) in state.stacks.enumerated() {
+            for (layer,parcel) in stack.enumerated() {
+                for i in 0..<Self.particlesPerUnit {
+                    let p=SIMD4(seedPositions[owner][layer*Self.particlesPerUnit+i]+origins[owner],Float(owner))
                     values.append(LabParticle(position:p,predicted:p,velocity:SIMD4(0,0,0,Float(state.colors[parcel])),visual:SIMD4(0,Float(parcel),0,0)))
                 }
             }
@@ -446,7 +459,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         dispatch("labPredict",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         constrainLayers(command:command,uniforms:uniforms,vessels:vessels)
         for _ in 0..<5 {
-            dispatch("labClearHeads",count:96*48*32,command:command,buffers:[(0,heads)])
+            dispatch("labClearHeads",count:96*48*40,command:command,buffers:[(0,heads)])
             dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
             dispatch("labLambda",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas)],uniforms:uniforms)
             dispatch("labDelta",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas),(5,deltas)],uniforms:uniforms)
@@ -454,7 +467,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             constrainLayers(command:command,uniforms:uniforms,vessels:vessels)
         }
         // Rebuild after the final corrections, before velocity smoothing.
-        dispatch("labClearHeads",count:96*48*32,command:command,buffers:[(0,heads)])
+        dispatch("labClearHeads",count:96*48*40,command:command,buffers:[(0,heads)])
         dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
         dispatch("labVelocity",count:n,command:command,buffers:[(0,particles),(4,velocities),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         dispatch("labFinish",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,velocities)],uniforms:uniforms)
@@ -496,6 +509,11 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     /// Simulation lanes own their solver buffers and omit surface rendering.
     convenience init(simulationCopyOf source:LabBoardRenderer) throws {
         try self.init(device:source.device,library:source.library)
+        // Warm both receiver slots before play. Profile data and canonical
+        // positions are immutable; each lane still owns its particle buffers.
+        profiles=source.profiles;profilesBuffer=source.profilesBuffer;meshes=source.meshes
+        seedPositions=source.seedPositions
+        reset(state:source.game.state)
     }
     func installSimulation(game:LabBoardGame,samples:[LabParticle],vessels:Set<Int>) {
         install(game:game)
@@ -578,7 +596,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         var result=LabBoardLayout.vessels(profiles:profiles,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
         for job in groupTransfers {
             let move=job.item.move
-            let poses=LabBoardLayout.vessels(profiles:profiles,move:move,time:job.time,tilt:job.tilt,cutoffTilt:job.cutoff==nil ? nil:job.cutoffTilt,cutoffElapsed:job.time-(job.cutoff ?? 0),returnElapsed:job.returned.map {job.time-$0},approach:job.item.approach)
+            let poses=LabBoardLayout.vessels(profiles:profiles,move:move,time:job.time,tilt:job.tilt,cutoffTilt:job.cutoff==nil ? nil:job.cutoffTilt,cutoffElapsed:job.time-(job.cutoff ?? 0),returnElapsed:job.returned.map {job.time-$0},approach:job.item.approach,depthSide:job.item.depthSide)
             result[move.source]=poses[move.source];result[move.destination]=poses[move.destination]
         }
         return result

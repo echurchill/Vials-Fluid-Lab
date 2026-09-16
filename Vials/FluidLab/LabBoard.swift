@@ -106,6 +106,7 @@ nonisolated struct LabPourReservation:Identifiable,Sendable {
     let move:LabBoardMove
     var started=false
     var approach:Float=0 // Stable tilt direction / receiver approach slot.
+    var depthSide:Float=0 // Stable 3D travel lane; never reassigned mid-pour.
     var vessels:Set<Int> { [move.source,move.destination] }
 }
 /// Reservations are made against the projected board, never against empty space
@@ -139,6 +140,8 @@ nonisolated struct LabPourQueue:Sendable {
             let used=Set(running.filter { $0.move.destination==move.destination }.map(\.approach))
             guard used.count<2 else { continue }
             items[i].approach=used.contains(preferred) ? -preferred:preferred
+            let occupiedDepth=Set(running.map(\.depthSide))
+            items[i].depthSide=occupiedDepth.contains(1) ? -1:1
             items[i].started=true;result.append(items[i]);count+=1
         }
         return result

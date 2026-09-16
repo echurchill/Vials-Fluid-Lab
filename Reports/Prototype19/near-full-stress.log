@@ -1,0 +1,14 @@
+PASS: idle clock pause, long suspension, exact resume, repeated suspension
+PASS: exact reservation, reverse completion and failed earlier reservation
+PARTIAL 0 passed=true nil
+PARTIAL 1 passed=true nil
+PARTIAL 2 passed=true nil
+PARTIAL 3 passed=true nil
+PARTIAL 4 passed=true nil
+PARTIAL 5 passed=true nil
+PARTIAL 6 passed=true nil
+PARTIAL 7 passed=true nil
+PARTIAL 8 passed=true nil
+PARTIAL 9 passed=true nil
+PARTIAL 10 passed=true nil
+PARTIAL 11 passed=true nil

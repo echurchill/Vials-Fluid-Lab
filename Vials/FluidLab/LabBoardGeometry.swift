@@ -37,26 +37,31 @@ struct LabBoardLayout {
                 shape("Pear flask",[(0,0.25),(0.06,0.48),(0.27,0.69),(0.49,0.59),(0.73,0.32),(0.91,0.32),(1,0.54)])]
         return (0..<count).map { shapes[$0 % shapes.count] }
     }
-    static func vessels(profiles:[LabVesselProfile],move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?,approach:Float=0) -> [LabVesselUniform] {
+    static func vessels(profiles:[LabVesselProfile],move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?,approach:Float=0,depthSide:Float=0) -> [LabVesselUniform] {
         let homes=homes(count:profiles.count)
         var positions=homes,rotations=[simd_float4x4](repeating:matrix_identity_float4x4,count:profiles.count)
         if let move {
             let home=homes[move.source], receiver=homes[move.destination]
             let sign:Float=approach==0 ? (receiver.x >= home.x ? 1:-1):approach
-            let direction=SIMD3<Float>(sign*0.7,0,-sqrt(0.51))
+            // Separate travel in depth, including late joins and the return path.
+            let side:Float=depthSide==0 ? 1:depthSide
+            let direction=SIMD3<Float>(sign*0.7,0,-side*sqrt(0.51))
             let yaw=atan2(-direction.z,direction.x)
             let cy=cos(yaw),sy=sin(yaw)
             let orient=simd_float4x4(SIMD4(cy,0,-sy,0),SIMD4(0,1,0,0),SIMD4(sy,0,cy,0),SIMD4(0,0,0,1))
             func rotation(_ tilt:Float) -> simd_float4x4 { orient*labRotation(-tilt) }
             let h=profiles[move.source].height
-            let highHome=home+SIMD3<Float>(0,2.65,0)
+            let highHome=home+SIMD3<Float>(0,2.65,depthSide==0 ? 0:side*1.5)
             let separation:Float=approach==0 ? 0.22:1.2
             let highLip=receiver-direction*separation+SIMD3<Float>(0,highHome.y+h-receiver.y,0)
             let pouringLip=receiver-direction*(approach==0 ? 0.22:0.65)+SIMD3<Float>(0,profiles[move.destination].height+0.59,0)
             var position=simd_mix(home,highHome,SIMD3(repeating:labLiftProgress(time/LabBoardTiming.lift)))
             if time>=LabBoardTiming.lift { position=simd_mix(highHome,highLip-SIMD3(0,h,0),SIMD3(repeating:labSmooth((time-LabBoardTiming.lift)/LabBoardTiming.travel))) }
+            // Bring the nozzle into guide range before the first liquid exits.
+            // Keeping it at travel height during early tilt can launch a small
+            // top layer over the receiver before the guide can engage.
             func lip(_ tilt:Float) -> SIMD3<Float> {
-                simd_mix(highLip,pouringLip,SIMD3(repeating:labSmooth((tilt-0.55)/0.95)))
+                simd_mix(highLip,pouringLip,SIMD3(repeating:labSmooth((tilt-(depthSide==0 ? 0.55:0.25))/(depthSide==0 ? 0.95:0.90))))
             }
             if time>=LabBoardTiming.tiltStart { position=lip(tilt)-(rotation(tilt)*SIMD4<Float>(0,h,0,0)).xyz }
             if let initial=cutoffTilt {
@@ -84,7 +89,9 @@ struct LabBoardLayout {
         }
     }
     static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
-        let distance:Float=vesselCount>4 ? 20:14
+        // Fixed framing includes outward edge pours in either depth lane.
+        // Resting and active boards share a camera, avoiding a zoom at pickup.
+        let distance:Float=vesselCount>4 ? 25:19
         let eye=SIMD3<Float>(sin(azimuth)*distance,5.4,cos(azimuth)*distance),target=SIMD3<Float>(0,2.5,0)
         let forward=simd_normalize(eye-target),right=simd_normalize(simd_cross(SIMD3<Float>(0,1,0),forward)),up=simd_cross(forward,right)
         let view=simd_float4x4(SIMD4(right.x,up.x,forward.x,0),SIMD4(right.y,up.y,forward.y,0),SIMD4(right.z,up.z,forward.z,0),SIMD4(-simd_dot(right,eye),-simd_dot(up,eye),-simd_dot(forward,eye),1))

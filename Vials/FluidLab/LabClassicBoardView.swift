@@ -3,7 +3,9 @@ import SwiftUI
 struct LabClassicLayout {
     let size:CGSize
     var vesselCount:Int = 4
-    var scale:CGFloat { min(size.width/(CGFloat(vesselCount)*2.2+0.7),size.height/6.4) }
+    // Reserve fixed side room for an outward shared pour. The board never
+    // changes scale when a source lifts or returns.
+    var scale:CGFloat { min(size.width/(CGFloat(vesselCount)*2.2+4.4),size.height/6.4) }
     func base(_ index:Int) -> CGPoint { CGPoint(x:size.width/2+CGFloat(LabBoardLayout.homes(count:vesselCount)[index].x)*scale,y:size.height*0.82) }
     func hitRect(_ index:Int,profile:LabVesselProfile) -> CGRect {
         let point=base(index),radius=CGFloat(profile.radii.max() ?? 0.6)*scale

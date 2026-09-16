@@ -1,0 +1,15 @@
+PASS: idle clock pause, long suspension, exact resume, repeated suspension
+PASS: exact reservation, reverse completion and failed earlier reservation
+PARTIAL 0 passed=true nil
+PARTIAL 1 passed=true nil
+PARTIAL 2 passed=false Optional("fluid 1→2 units=1 approach=-1.0 arrived=607/640 departed=640 time=13.841541")
+PARTIAL 3 passed=false Optional("fluid 1→2 units=1 approach=-1.0 arrived=607/640 departed=640 time=13.841541")
+PARTIAL 4 passed=true nil
+PARTIAL 5 passed=true nil
+PARTIAL 6 passed=true nil
+PARTIAL 7 passed=true nil
+PARTIAL 8 passed=false Optional("fluid 1→2 units=1 approach=-1.0 arrived=604/640 departed=640 time=13.841541")
+PARTIAL 9 passed=true nil
+PARTIAL 10 passed=true nil
+PARTIAL 11 passed=true nil
+validate/validate_concurrent.swift:8: Fatal error: partial stress failures=3

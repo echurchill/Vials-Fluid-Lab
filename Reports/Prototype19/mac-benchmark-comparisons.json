@@ -1,0 +1,126 @@
+{
+  "baseline": {
+    "completed": 22,
+    "controllerMs": {
+      "maximum": 26.32554166484624,
+      "median": 7.659833354409784,
+      "p95": 14.562791679054499,
+      "samples": 3301
+    },
+    "device": "Apple M4",
+    "failures": 0,
+    "rounds": 2,
+    "scope": "Mac offscreen 1000x600; controller includes solver GPU waits; surface GPU excludes solver and compositor. Two repeated Green arrival solutions.",
+    "startControllerMs": {
+      "maximum": 26.18858334608376,
+      "median": 20.467833324801177,
+      "p95": 23.956250050105155,
+      "samples": 22
+    },
+    "steadyControllerMs": {
+      "maximum": 26.32554166484624,
+      "median": 7.654250017367303,
+      "p95": 14.480083365924656,
+      "samples": 3257
+    },
+    "surfaceGPUMs": {
+      "maximum": 3.5737499711103737,
+      "median": 0.8002499816939235,
+      "p95": 1.153874967712909,
+      "samples": 3301
+    }
+  },
+  "optimized": {
+    "completed": 22,
+    "controllerMs": {
+      "maximum": 35.173666663467884,
+      "median": 10.000166657846421,
+      "p95": 21.61637501558289,
+      "samples": 3319
+    },
+    "device": "Apple M4",
+    "failures": 0,
+    "rounds": 2,
+    "scope": "Mac offscreen 1000x600; controller includes solver GPU waits; surface GPU excludes solver and compositor. Two repeated Green arrival solutions.",
+    "startControllerMs": {
+      "maximum": 22.838625009171665,
+      "median": 12.980791681911796,
+      "p95": 22.751000011339784,
+      "samples": 22
+    },
+    "steadyControllerMs": {
+      "maximum": 35.173666663467884,
+      "median": 10.000166657846421,
+      "p95": 21.60929166711867,
+      "samples": 3276
+    },
+    "surfaceGPUMs": {
+      "maximum": 4.985416715499014,
+      "median": 0.8625416667200625,
+      "p95": 1.66937499307096,
+      "samples": 3319
+    }
+  },
+  "cache-only": {
+    "completed": 22,
+    "controllerMs": {
+      "maximum": 36.425666650757194,
+      "median": 11.394166620448232,
+      "p95": 22.671000042464584,
+      "samples": 3303
+    },
+    "device": "Apple M4",
+    "failures": 0,
+    "rounds": 2,
+    "scope": "Mac offscreen 1000x600; controller includes solver GPU waits; surface GPU excludes solver and compositor. Two repeated Green arrival solutions.",
+    "startControllerMs": {
+      "maximum": 36.425666650757194,
+      "median": 19.09287500893697,
+      "p95": 24.609416723251343,
+      "samples": 22
+    },
+    "steadyControllerMs": {
+      "maximum": 32.022374973166734,
+      "median": 11.366833350621164,
+      "p95": 22.606041689869016,
+      "samples": 3261
+    },
+    "surfaceGPUMs": {
+      "maximum": 4.128250002395362,
+      "median": 0.88320835493505,
+      "p95": 1.549958367832005,
+      "samples": 3303
+    }
+  },
+  "optimized-repeat": {
+    "completed": 22,
+    "controllerMs": {
+      "maximum": 41.0015833331272,
+      "median": 7.335708301980048,
+      "p95": 18.21716665290296,
+      "samples": 3307
+    },
+    "device": "Apple M4",
+    "failures": 0,
+    "rounds": 2,
+    "scope": "Mac offscreen 1000x600; controller includes solver GPU waits; surface GPU excludes solver and compositor. Two repeated Green arrival solutions.",
+    "startControllerMs": {
+      "maximum": 30.778125044889748,
+      "median": 12.121208303142339,
+      "p95": 20.786625042092055,
+      "samples": 22
+    },
+    "steadyControllerMs": {
+      "maximum": 41.0015833331272,
+      "median": 7.334875001106411,
+      "p95": 18.106750037986785,
+      "samples": 3264
+    },
+    "surfaceGPUMs": {
+      "maximum": 3.5648749908432364,
+      "median": 0.8155833347700536,
+      "p95": 1.6366249765269458,
+      "samples": 3307
+    }
+  }
+}

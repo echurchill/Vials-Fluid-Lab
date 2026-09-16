@@ -1,0 +1,578 @@
+[
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 0,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.62331211566925049,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 0.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.62331211566925049,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 1.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.62331211566925049,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 3.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.62331211566925049,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 0,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97323882579803467,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 0.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97323882579803467,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 1.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97323882579803467,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 3.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97323882579803467,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 0,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97091972827911377,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 0.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97091972827911377,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 1.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97091972827911377,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 3.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97091972827911377,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 0,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.65557587146759033,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 0.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.65557587146759033,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 1.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.65557587146759033,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 3.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.65557587146759033,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 0,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.6246827244758606,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 0.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.6246827244758606,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 1.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.6246827244758606,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 3.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.6246827244758606,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 0,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.90067028999328613,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 0.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.90067028999328613,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 1.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.90067028999328613,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 3.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.90067028999328613,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 0,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.9360191822052002,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 0.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.9360191822052002,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 1.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.9360191822052002,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 3.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.9360191822052002,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 0,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.6471867561340332,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 0.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.6471867561340332,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 1.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.6471867561340332,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 3.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.6471867561340332,
+    "vialCount" : 4
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 0,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.68646895885467529,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 0.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.68646895885467529,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 1.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.68646895885467529,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 3.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.68646895885467529,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 0,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97209560871124268,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 0.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97209560871124268,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 1.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97209560871124268,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 3.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.97209560871124268,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 0,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.98996329307556152,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 0.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.98996329307556152,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 1.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.98996329307556152,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 3.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.98996329307556152,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 0,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.71618694067001343,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 0.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.71618694067001343,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 1.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.71618694067001343,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 3.5,
+    "firstLane" : -1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.71618694067001343,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 0,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.69920837879180908,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 0.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.69920837879180908,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 1.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.69920837879180908,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "crossing",
+    "delay" : 3.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.69920837879180908,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 0,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.94187086820602417,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 0.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.94187086820602417,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 1.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.94187086820602417,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-left",
+    "delay" : 3.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.94187086820602417,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 0,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.96614819765090942,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 0.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.96614819765090942,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 1.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.96614819765090942,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "shared-right",
+    "delay" : 3.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.96614819765090942,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 0,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.71583807468414307,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 0.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.71583807468414307,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 1.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.71583807468414307,
+    "vialCount" : 6
+  },
+  {
+    "atTime" : 0,
+    "case" : "neighbors",
+    "delay" : 3.5,
+    "firstLane" : 1,
+    "maximumPenetration" : 0,
+    "maximumScreenExtent" : 0.71583807468414307,
+    "vialCount" : 6
+  }
+]

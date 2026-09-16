@@ -10,15 +10,15 @@ struct Uniforms {
 struct Vessel { float4x4 world, inverseWorld, previousWorld; float4 dimensions, marks; };
 struct Vertex { float4 position, normal; };
 // Include sources approaching the outside of either edge receiver.
-constant uint gridCount = 96*48*32;
+constant uint gridCount = 96*48*40;
 
 float radiusAt(float y, constant Vessel &v, device const float *profiles) {
     float f = clamp(y / v.dimensions.x, 0.0f, 1.0f) * 127;
     uint i = min(uint(f),126u), offset = uint(v.dimensions.y)*128;
     return mix(profiles[offset+i], profiles[offset+i+1], f-float(i));
 }
-int3 gridCell(float3 p, float h) { return int3(floor((p+float3(9.6,0.4,2.6))/0.20f)); }
-uint gridIndex(int3 c) { c=clamp(c,int3(0),int3(95,47,31)); return uint(c.x+96*(c.y+48*c.z)); }
+int3 gridCell(float3 p, float h) { return int3(floor((p+float3(9.6,0.4,3.8))/0.20f)); }
+uint gridIndex(int3 c) { c=clamp(c,int3(0),int3(95,47,39)); return uint(c.x+96*(c.y+48*c.z)); }
 float poly6(float r2, float h) {
     float q = max(0.0f,1-r2/(h*h));
     return 1.56668147f/(h*h*h)*q*q*q;
@@ -64,7 +64,7 @@ float4 collide(float4 point, constant Vessel *vessels, device const float *profi
         }
     }
     p.y=max(p.y,0.045f);
-    p.xz=clamp(p.xz,float2(board ? -9.5:-3.7,-2.35),float2(board ? 9.5:3.7,board ? 3.3:2.35));
+    p.xz=clamp(p.xz,float2(board ? -9.5:-3.7,board ? -3.5:-2.35),float2(board ? 9.5:3.7,board ? 3.3:2.35));
     return float4(p,float(owner));
 }
 
@@ -148,7 +148,9 @@ kernel void labLambda(device const Particle *p [[buffer(0)]], constant Uniforms 
 kernel void labDelta(device const Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]],
                      device atomic_int *heads [[buffer(2)]], device const int *next [[buffer(3)]],
                      device const float *lambdas [[buffer(4)]], device float4 *deltas [[buffer(5)]], uint i [[thread_position_in_grid]]) {
-    if(i>=u.options.x) return;
+    // Frozen particles never consume a delta in labApply. Keep their pressure
+    // calculation for neighboring active particles, but omit this unused solve.
+    if(i>=u.options.x || boardFrozen(p[i],u)) return;
     float3 pos=p[i].predicted.xyz, delta=0;
     float h=u.physics.y;
     int3 cell=gridCell(pos,h);
