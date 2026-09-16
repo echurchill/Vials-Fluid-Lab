@@ -73,8 +73,8 @@ enum LevelFeedbackStore {
         save(feedback)
     }
 
-    static func clear() {
-        UserDefaults.standard.removeObject(forKey: feedbackKey)
+    static func clear(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: feedbackKey)
     }
 
     private static func feedbackID(mode: LevelMode, levelNumber: Int, zenSalt: UInt64) -> String {

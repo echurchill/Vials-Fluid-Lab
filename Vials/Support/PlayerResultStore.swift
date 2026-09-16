@@ -97,6 +97,11 @@ enum PlayerResultStore {
         saveResults(results)
     }
 
+    static func reset(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: resultsKey)
+        defaults.removeObject(forKey: flowKey)
+    }
+
     static func flow() -> FlowState {
         loadFlow()
     }

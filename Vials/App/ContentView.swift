@@ -619,7 +619,9 @@ struct ContentView: View {
             pourProgresses[pour.id] = 1
         }
 
+        let progressGeneration=GameProgressStore.resetGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + move.fluid.material.pourDuration) {
+            guard GameProgressStore.resetGeneration == progressGeneration else { return }
             finish(pour)
         }
     }
@@ -990,11 +992,12 @@ struct ContentView: View {
         minimumMoveCount = nil
         minimumMoveKey = key
 
+        let progressGeneration=GameProgressStore.resetGeneration
         Task.detached(priority: .utility) {
             let minimumMoves = VialLevelGenerator.minimumMoveCount(level.vials, nodeLimit: nodeLimit)
 
             await MainActor.run {
-                guard minimumMoveKey == key else { return }
+                guard GameProgressStore.resetGeneration == progressGeneration, minimumMoveKey == key else { return }
                 minimumMoveCount = minimumMoves
                 if let minimumMoves {
                     PlayerResultStore.recordKnownMinimum(
@@ -1034,6 +1037,7 @@ struct ContentView: View {
         preparedNextLevel = nil
         preparedNextLevelKey = key
 
+        let progressGeneration=GameProgressStore.resetGeneration
         Task.detached(priority: .utility) {
             let generatedLevel = VialLevelGenerator.generateTuned(
                 mode: key.mode,
@@ -1042,7 +1046,7 @@ struct ContentView: View {
             )
 
             await MainActor.run {
-                guard currentLevel.mode == key.mode, currentLevel.number + 1 == key.number else { return }
+                guard GameProgressStore.resetGeneration == progressGeneration, currentLevel.mode == key.mode, currentLevel.number + 1 == key.number else { return }
                 LevelVariantStore.save(
                     generatedLevel.generationVariant,
                     for: key.mode,

@@ -6,6 +6,7 @@ private enum BoardSheet:String,Identifiable { case classic,study;var id:String {
 
 struct FluidBoardView:View {
     @StateObject private var session=FluidBoardSession(allowsConcurrentPours:true)
+    @State private var showResetProgress=false
     @State private var sheet:BoardSheet?
     @State private var comparison:LabPourExample?
     @Environment(\.scenePhase) private var scenePhase
@@ -35,6 +36,8 @@ struct FluidBoardView:View {
                         Button(session.lastPour == nil ? "Compare a pour":"Compare last pour") { comparison=session.comparisonExample }.disabled(!session.canComparePour)
                         Button("Pour study") { sheet = .study }
                         Button("Original game") { sheet = .classic }
+                        Divider()
+                        Button("Reset all progress…",role:.destructive) { showResetProgress=true }
                     } label: { Image(systemName:"ellipsis.circle").frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Board options")
                 }.padding(.horizontal,compact ? 20:32).padding(.top,20).padding(.bottom,12)
                 HStack(spacing:12) {
@@ -58,7 +61,7 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     ZStack {
                         if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours) }
-                        else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial) }
+                        else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
                         LabVialCaps(state:session.state,planarProfiles:session.fluid2D.profiles,presentation:session.presentation,orbit:Float(session.orbit),
@@ -136,9 +139,19 @@ struct FluidBoardView:View {
         .onChange(of:reduceTransparency,initial:true) { _,value in session.renderer?.reduceTransparency=value }
         .onChange(of:session.presentation) { _,_ in session.renderer?.reduceTransparency=reduceTransparency }
         .onAppear { if reduceMotion { session.paused=true;session.renderer?.paused=true } }
-        .onChange(of:sheet) { _,value in session.setSuspended(value != nil || comparison != nil || scenePhase != .active) }
-        .onChange(of:scenePhase) { _,value in session.setSuspended(value != .active || sheet != nil || comparison != nil) }
-        .onChange(of:comparison?.id) { _,value in session.setSuspended(value != nil || sheet != nil || scenePhase != .active) }
+        .onChange(of:sheet) { _,value in session.setSuspended(value != nil || comparison != nil || showResetProgress || scenePhase != .active) }
+        .onChange(of:scenePhase) { _,value in session.setSuspended(value != .active || sheet != nil || comparison != nil || showResetProgress) }
+        .onChange(of:comparison?.id) { _,value in session.setSuspended(value != nil || sheet != nil || showResetProgress || scenePhase != .active) }
+        .onChange(of:showResetProgress) { _,value in session.setSuspended(value || sheet != nil || comparison != nil || scenePhase != .active) }
+        .confirmationDialog("Reset all progress?",isPresented:$showResetProgress,titleVisibility:.visible) {
+            Button("Reset all progress",role:.destructive) {
+                session.resetAllProgress()
+                GameProgressStore.resetAll()
+            }
+            Button("Cancel",role:.cancel) {}
+        } message: {
+            Text("Start again at Level 1. This clears all saved puzzles, completion marks, undo history, and Original game progress, scores, and ratings. This can’t be undone.")
+        }
         .sheet(item:$comparison) { example in LabPourComparisonView(example:example) }
         .sheet(item:$sheet) { item in
             ZStack(alignment:.topTrailing) {

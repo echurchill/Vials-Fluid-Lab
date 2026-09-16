@@ -1,6 +1,8 @@
 import Foundation
 
 enum GameProgressStore {
+    // Invalidate detached preparation and delayed completions from an old run.
+    private(set) static var resetGeneration=UUID()
     struct Progress {
         let mode: LevelMode
         let levelNumber: Int
@@ -11,8 +13,7 @@ enum GameProgressStore {
     private static let levelNumberKey = "progress.levelNumber"
     private static let zenSaltKey = "progress.zenSalt"
 
-    static func load() -> Progress {
-        let defaults = UserDefaults.standard
+    static func load(defaults: UserDefaults = .standard) -> Progress {
         let savedMode = defaults.string(forKey: modeKey).flatMap(LevelMode.init(rawValue:)) ?? .easy
         let mode = LevelMode.visibleCases.contains(savedMode) ? savedMode : .easy
         let savedLevelNumber = defaults.object(forKey: levelNumberKey) as? Int ?? 1
@@ -23,6 +24,15 @@ enum GameProgressStore {
             levelNumber: max(1, savedLevelNumber),
             zenSalt: savedZenSalt
         )
+    }
+
+    /// Only progress owned by the bundled Original game is removed.
+    static func resetAll(defaults: UserDefaults = .standard) {
+        resetGeneration=UUID()
+        for key in [modeKey, levelNumberKey, zenSaltKey] { defaults.removeObject(forKey: key) }
+        PlayerResultStore.reset(defaults: defaults)
+        LevelVariantStore.reset(defaults: defaults)
+        LevelFeedbackStore.clear(defaults: defaults)
     }
 
     static func save(mode: LevelMode, levelNumber: Int, zenSalt: UInt64) {

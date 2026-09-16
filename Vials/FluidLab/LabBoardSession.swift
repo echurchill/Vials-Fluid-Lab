@@ -366,6 +366,20 @@ import Combine
         selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         notice="Tap a filled vial, then a matching color or an empty vial.";updatePause();checkpoint();refresh()
     }
+    /// Clears every saved board, not just the currently selected puzzle.
+    /// reset() invalidates in-flight worker results before the fresh checkpoint.
+    func resetAllProgress() {
+        finishMeasurement(reason:"all progress reset")
+        saved=LabComparisonSave()
+        puzzle=saved.puzzle;presentation=saved.presentation;pace=saved.pace
+        comparisonSpeed=nil;slow=false;points=false;diagnostics=false;orbit=0.12
+        error=nil;reportURL=nil
+        reset()
+        fluid2D.quickMotion=false;fluid2D.install(game);planarDisplay.publish(fluid2D)
+        prepareFluid()
+        checkpoint()
+        notice="All progress reset. Tap a filled vial to begin."
+    }
     func undo() {
         guard !busy,game.undo() else { return }
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()

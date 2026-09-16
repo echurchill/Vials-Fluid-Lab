@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Reset all progress](Reports/Prototype22/README.md) adds a confirmed fresh start from the Board options menu, clearing all saved levels and bundled Original game progress. Mac UI and state checks pass.
+
 [Smoother 3D glass edges](Reports/Prototype21/README.md) add antialiasing to the stronger outlines. Mac visual/overlap checks pass; the signed iPad build is ready for device validation.
 
 [Stronger 3D glass edges and USB profiles](Reports/Prototype20/README.md) improve vial visibility and record actual iPad frame timing. The updated app is installed on the iPad.

@@ -13,6 +13,10 @@ enum LevelVariantStore {
         UserDefaults.standard.set(updated, forKey: storageKey)
     }
 
+    static func reset(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: storageKey)
+    }
+
     private static var variants: [String: Int] {
         UserDefaults.standard.dictionary(forKey: storageKey) as? [String: Int] ?? [:]
     }
