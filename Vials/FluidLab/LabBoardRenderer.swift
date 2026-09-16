@@ -88,6 +88,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var composePipeline: MTLRenderPipelineState!
     private var glassPipeline: MTLRenderPipelineState!
     private var copyPipeline: MTLRenderPipelineState!
+    private var glassCopyPipeline: MTLRenderPipelineState!
+    private(set) var glassSampleCount = 1
+    private var glassMultisampleColor: MTLTexture?
     private var depthState: MTLDepthStencilState!
     private var depth: MTLTexture!
     private var frontDye: MTLTexture!
@@ -136,8 +139,12 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         depthPipeline = try pipeline(vertex: "labParticleVertex", fragment: "labBoardParticleDepth", format: .r32Float, depth: true)
         thicknessPipeline = try pipeline(vertex: "labParticleVertex", fragment: "labParticleThickness", format: .rgba16Float, additive: true)
         composePipeline = try pipeline(vertex: "labFullscreen", fragment: "labCompose", format: .rgba16Float)
-        glassPipeline = try pipeline(vertex: "labGlassVertex", fragment: "labBoardGlassFragment", format: .bgra8Unorm_srgb, depth: true)
-        copyPipeline = try pipeline(vertex: "labFullscreen", fragment: "labCopy", format: .bgra8Unorm_srgb, depth: true)
+        // Antialias the glass geometry only; fluid reconstruction keeps its
+        // existing resolution and particle workload.
+        glassSampleCount = device.supportsTextureSampleCount(4) ? 4 : (device.supportsTextureSampleCount(2) ? 2 : 1)
+        glassPipeline = try pipeline(vertex: "labGlassVertex", fragment: "labBoardGlassFragment", format: .bgra8Unorm_srgb, depth: true, samples: glassSampleCount)
+        glassCopyPipeline = try pipeline(vertex: "labFullscreen", fragment: "labCopy", format: .bgra8Unorm_srgb, depth: true, samples: glassSampleCount)
+        copyPipeline = try pipeline(vertex: "labFullscreen", fragment: "labCopy", format: .bgra8Unorm_srgb)
         let state = MTLDepthStencilDescriptor()
         state.depthCompareFunction = .lessEqual; state.isDepthWriteEnabled = true
         depthState = device.makeDepthStencilState(descriptor: state)
@@ -151,9 +158,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
 
     private func pipeline(vertex: String, fragment: String, format: MTLPixelFormat,
-                          depth: Bool = false, additive: Bool = false) throws -> MTLRenderPipelineState {
+                          depth: Bool = false, additive: Bool = false, samples: Int = 1) throws -> MTLRenderPipelineState {
         let d = MTLRenderPipelineDescriptor()
         d.label = fragment
+        d.rasterSampleCount = samples
         d.vertexFunction = library.makeFunction(name: vertex)
         d.fragmentFunction = library.makeFunction(name: fragment)
         d.colorAttachments[0].pixelFormat = format
@@ -415,9 +423,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         e.dispatchThreads(MTLSize(width:particleCount,height:1,depth:1),threadsPerThreadgroup:MTLSize(width:128,height:1,depth:1))
         e.endEncoding()
     }
-    private func texture(_ format: MTLPixelFormat, width: Int, height: Int, usage: MTLTextureUsage) -> MTLTexture {
+    private func texture(_ format: MTLPixelFormat, width: Int, height: Int, usage: MTLTextureUsage, samples: Int = 1) -> MTLTexture {
         let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat:format,width:width,height:height,mipmapped:false)
         d.storageMode = .private; d.usage = usage
+        if samples > 1 { d.textureType = .type2DMultisample; d.sampleCount = samples }
         return device.makeTexture(descriptor:d)!
     }
 
@@ -434,7 +443,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         depthTest = texture(.depth32Float,width:width,height:height,usage:.renderTarget)
         thickness = texture(.rgba16Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
         scene = texture(.rgba16Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
-        glassDepth = texture(.depth32Float,width:width,height:height,usage:.renderTarget)
+        // Retain multisample depth across overlapping glass batches so the
+        // front/back ordering is evaluated at the same coverage samples.
+        glassDepth = texture(.depth32Float,width:width,height:height,usage:.renderTarget,samples:glassSampleCount)
+        glassMultisampleColor = glassSampleCount > 1 ? texture(.bgra8Unorm_srgb,width:width,height:height,usage:.renderTarget,samples:glassSampleCount) : nil
         glassA = texture(.bgra8Unorm_srgb,width:width,height:height,usage:[.shaderRead,.renderTarget])
         glassB = texture(.bgra8Unorm_srgb,width:width,height:height,usage:[.shaderRead,.renderTarget])
     }
@@ -768,12 +780,16 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         var rear:MTLTexture=scene
         for (index,batch) in batches.enumerated() {
             let output:MTLTexture=index%2==0 ? glassA:glassB
-            let descriptor=pass(color:output,depth:glassDepth)
+            let descriptor=pass(color:glassMultisampleColor ?? output,depth:glassDepth)
+            if glassSampleCount > 1 {
+                descriptor.colorAttachments[0].resolveTexture=output
+                descriptor.colorAttachments[0].storeAction = .multisampleResolve
+            }
             descriptor.depthAttachment.loadAction=index==0 ? .clear:.load
             descriptor.depthAttachment.storeAction = .store
             let glass=command.makeRenderCommandEncoder(descriptor:descriptor)!
             glass.label="Depth-ordered glass layer"
-            glass.setRenderPipelineState(copyPipeline);glass.setFragmentTexture(rear,index:0)
+            glass.setRenderPipelineState(glassCopyPipeline);glass.setFragmentTexture(rear,index:0)
             glass.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3)
             glass.setRenderPipelineState(glassPipeline);glass.setDepthStencilState(depthState);glass.setCullMode(.none)
             glass.setVertexBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:1)
@@ -790,7 +806,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             }
             glass.endEncoding();rear=output
         }
-        let final=command.makeRenderCommandEncoder(descriptor:pass(color:target,depth:glassDepth))!
+        let final=command.makeRenderCommandEncoder(descriptor:pass(color:target))!
         final.setRenderPipelineState(copyPipeline);final.setFragmentTexture(rear,index:0)
         final.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3);final.endEncoding()
         if let present { command.present(present) }

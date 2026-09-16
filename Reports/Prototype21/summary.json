@@ -1,0 +1,75 @@
+{
+  "device" : "Apple M4",
+  "glassSamples" : 4,
+  "results" : [
+    {
+      "afterSurfaceGPUMs" : {
+        "maximum" : 2.1925416658632457,
+        "median" : 0.97000005189329386,
+        "p95" : 2.1234999876469374,
+        "samples" : 40
+      },
+      "beforeSurfaceGPUMs" : {
+        "maximum" : 2.3808749974705279,
+        "median" : 0.94474997604265809,
+        "p95" : 2.0122499554418027,
+        "samples" : 40
+      },
+      "fixture" : "landscape",
+      "height" : 450,
+      "width" : 1000
+    },
+    {
+      "afterSurfaceGPUMs" : {
+        "maximum" : 1.81200000224635,
+        "median" : 0.75645832112058997,
+        "p95" : 1.6951250145211816,
+        "samples" : 40
+      },
+      "beforeSurfaceGPUMs" : {
+        "maximum" : 2.0195000106468797,
+        "median" : 0.72787498356774449,
+        "p95" : 1.341458351816982,
+        "samples" : 40
+      },
+      "fixture" : "portrait",
+      "height" : 1000,
+      "width" : 600
+    },
+    {
+      "afterSurfaceGPUMs" : {
+        "maximum" : 1.9736250396817923,
+        "median" : 0.9397916728630662,
+        "p95" : 1.3557916972786188,
+        "samples" : 40
+      },
+      "beforeSurfaceGPUMs" : {
+        "maximum" : 2.4468749761581421,
+        "median" : 0.78129163011908531,
+        "p95" : 1.6821249737404287,
+        "samples" : 40
+      },
+      "fixture" : "left",
+      "height" : 600,
+      "width" : 1000
+    },
+    {
+      "afterSurfaceGPUMs" : {
+        "maximum" : 2.0296250004321337,
+        "median" : 1.0338333668187261,
+        "p95" : 1.932083279825747,
+        "samples" : 40
+      },
+      "beforeSurfaceGPUMs" : {
+        "maximum" : 1.7670000088401139,
+        "median" : 0.80962502397596836,
+        "p95" : 1.3315000105649233,
+        "samples" : 40
+      },
+      "fixture" : "right",
+      "height" : 600,
+      "width" : 1000
+    }
+  ],
+  "scope" : "Alternating same-process fixed-state Confluence rendering on Mac; no simulation advancement or compositor. 40 warmed samples per variant per view. Resize and orbit changes included."
+}
