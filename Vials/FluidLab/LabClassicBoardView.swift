@@ -65,7 +65,8 @@ struct LabClassicBoardView:View {
         if let pour=pours.first(where:{$0.move.source==index}) { let transform=pose(pour,layout:layout);base=transform.base;angle=transform.angle }
         ctx.translateBy(x:base.x,y:base.y);ctx.rotate(by:.radians(angle))
         let cavity=shape(profile,scale:scale),radius=CGFloat(profile.radii.max() ?? 0.6)*scale
-        ctx.fill(cavity,with:.color(.white.opacity(0.035)))
+        ctx.fill(cavity,with:.color(Color(red:0.025,green:0.045,blue:0.06).opacity(0.82)))
+        ctx.stroke(cavity,with:.color(.black.opacity(0.28)),lineWidth:5)
         var liquid=ctx;liquid.clip(to:cavity)
         var amounts=state.stacks[index].map { (state.colors[$0],Float(1)) }
         for pour in pours {
@@ -85,7 +86,7 @@ struct LabClassicBoardView:View {
             let upper=CGFloat(profile.height(for:profile.usableVolume*units/4))*scale
             let color=FluidBoardSession.color(colorID)
             let band=CGRect(x:-radius,y:-upper,width:radius*2,height:max(0,upper-lower))
-            liquid.fill(Path(band),with:.linearGradient(Gradient(colors:[color.opacity(0.85),color,color.opacity(0.82)]),startPoint:CGPoint(x:-radius,y:0),endPoint:CGPoint(x:radius,y:0)))
+            liquid.fill(Path(band),with:.linearGradient(Gradient(colors:[color.opacity(0.96),color,color.opacity(0.95)]),startPoint:CGPoint(x:-radius,y:0),endPoint:CGPoint(x:radius,y:0)))
             if amount>0.001 {
                 let r=CGFloat(profile.radius(at:Float(upper/scale)))*scale
                 liquid.fill(Path(ellipseIn:CGRect(x:-r,y:-upper-2,width:r*2,height:4)),with:.color(color.opacity(0.9)))
@@ -106,12 +107,13 @@ struct LabClassicBoardView:View {
     }
     private func pose(_ pour:LabClassicPour,layout:LabClassicLayout) -> (base:CGPoint,angle:CGFloat) {
         let source=layout.base(pour.move.source),dest=layout.base(pour.move.destination),scale=layout.scale
-        let direction:CGFloat=dest.x>=source.x ? 1:-1
+        let direction:CGFloat=pour.approach==0 ? (dest.x>=source.x ? 1:-1):CGFloat(pour.approach)
         let h=CGFloat(profiles[pour.move.source].height)*scale
         let receiverH=CGFloat(profiles[pour.move.destination].height)*scale
         let t=pour.time
         let tilt=CGFloat(labSmooth((t-0.95)/0.65))*(1-CGFloat(labSmooth((t-5.2)/0.75)))*1.28*direction
-        let mouth=CGPoint(x:dest.x-direction*0.18*scale,y:dest.y-receiverH-0.35*scale)
+        let separation=pour.approach==0 ? 0.18:0.46+0.70*(1-CGFloat(labSmooth(Float(abs(tilt)))))
+        let mouth=CGPoint(x:dest.x-direction*separation*scale,y:dest.y-receiverH-0.35*scale)
         let positioned=CGPoint(x:mouth.x-sin(tilt)*h,y:mouth.y+cos(tilt)*h)
         let lift=CGPoint(x:source.x,y:source.y-2.6*scale)
         func mix(_ a:CGPoint,_ b:CGPoint,_ value:Float) -> CGPoint {

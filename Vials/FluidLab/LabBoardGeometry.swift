@@ -37,12 +37,12 @@ struct LabBoardLayout {
                 shape("Pear flask",[(0,0.25),(0.06,0.48),(0.27,0.69),(0.49,0.59),(0.73,0.32),(0.91,0.32),(1,0.54)])]
         return (0..<count).map { shapes[$0 % shapes.count] }
     }
-    static func vessels(profiles:[LabVesselProfile],move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?) -> [LabVesselUniform] {
+    static func vessels(profiles:[LabVesselProfile],move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?,approach:Float=0) -> [LabVesselUniform] {
         let homes=homes(count:profiles.count)
         var positions=homes,rotations=[simd_float4x4](repeating:matrix_identity_float4x4,count:profiles.count)
         if let move {
             let home=homes[move.source], receiver=homes[move.destination]
-            let sign:Float=receiver.x >= home.x ? 1:-1
+            let sign:Float=approach==0 ? (receiver.x >= home.x ? 1:-1):approach
             let direction=SIMD3<Float>(sign*0.7,0,-sqrt(0.51))
             let yaw=atan2(-direction.z,direction.x)
             let cy=cos(yaw),sy=sin(yaw)
@@ -50,8 +50,9 @@ struct LabBoardLayout {
             func rotation(_ tilt:Float) -> simd_float4x4 { orient*labRotation(-tilt) }
             let h=profiles[move.source].height
             let highHome=home+SIMD3<Float>(0,2.65,0)
-            let highLip=receiver-direction*0.22+SIMD3<Float>(0,highHome.y+h-receiver.y,0)
-            let pouringLip=SIMD3<Float>(highLip.x,receiver.y+profiles[move.destination].height+0.59,highLip.z)
+            let separation:Float=approach==0 ? 0.22:1.2
+            let highLip=receiver-direction*separation+SIMD3<Float>(0,highHome.y+h-receiver.y,0)
+            let pouringLip=receiver-direction*(approach==0 ? 0.22:0.65)+SIMD3<Float>(0,profiles[move.destination].height+0.59,0)
             var position=simd_mix(home,highHome,SIMD3(repeating:labLiftProgress(time/LabBoardTiming.lift)))
             if time>=LabBoardTiming.lift { position=simd_mix(highHome,highLip-SIMD3(0,h,0),SIMD3(repeating:labSmooth((time-LabBoardTiming.lift)/LabBoardTiming.travel))) }
             func lip(_ tilt:Float) -> SIMD3<Float> {

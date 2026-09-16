@@ -13,7 +13,7 @@ struct LabPlanarSurface:View {
         ZStack {
             LabFluid2DView(engine:display.snapshot,points:points,frame:display.frame,selected:selected,destinations:destinations,rejected:rejected)
             if !points {
-                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,excluded:Set((display.snapshot.displayMoves+[display.snapshot.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] }))
+                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,occluding:display.snapshot,excluded:Set((display.snapshot.displayMoves+[display.snapshot.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] }))
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
         }
@@ -34,6 +34,7 @@ private struct LabIdleFluidDetail:View {
     let state:LabBoardState
     let profiles:[Lab2DProfile]
     let enabled:Bool
+    let occluding:LabFluid2D
     let excluded:Set<Int>
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var economical=ProcessInfo.processInfo.isLowPowerModeEnabled || ProcessInfo.processInfo.thermalState != .nominal
@@ -45,6 +46,17 @@ private struct LabIdleFluidDetail:View {
             let t=Float(clock.elapsed(at:ProcessInfo.processInfo.systemUptime).truncatingRemainder(dividingBy:120))*Float.pi/60
             Canvas { context,size in
                 let layout=LabClassicLayout(size:size,vesselCount:profiles.count),scale=layout.scale
+                var visible=context
+                for source in Set((occluding.displayMoves+[occluding.game.pending].compactMap {$0}).map(\.source)) {
+                    let pose=occluding.pose(source),profile=profiles[source]
+                    var mask=Path(CGRect(origin:.zero,size:size)),silhouette=Path()
+                    for side:Float in [1,-1] {for k in 0...32 {
+                        let y=Float(side>0 ? k:32-k)/32*profile.height,p=pose.world(SIMD2(side*profile.radius(y),y))
+                        let point=CGPoint(x:size.width/2+CGFloat(p.x)*scale,y:layout.base(0).y-CGFloat(p.y)*scale)
+                        if side==1 && k==0 {silhouette.move(to:point)} else {silhouette.addLine(to:point)}
+                    }}
+                    silhouette.closeSubpath();mask.addPath(silhouette);visible.clip(to:mask,style:FillStyle(eoFill:true))
+                }
                 for index in state.stacks.indices where !excluded.contains(index) {
                     let stack=state.stacks[index],profile=profiles[index],base=layout.base(index)
                     func screen(_ x:Float,_ y:Float)->CGPoint { CGPoint(x:base.x+CGFloat(x)*scale,y:base.y-CGFloat(y)*scale) }
@@ -65,7 +77,7 @@ private struct LabIdleFluidDetail:View {
                             }
                         }
                         region.closeSubpath()
-                        var detail=context;detail.clip(to:region)
+                        var detail=visible;detail.clip(to:region)
                         let phase=t+Float(index)*0.9+Float(start)*0.7
                         for n in 0..<3 {
                             let seed=Float(n),f=0.20+seed*0.27+sin(phase*3+seed)*0.045

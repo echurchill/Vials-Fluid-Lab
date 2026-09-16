@@ -39,6 +39,16 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     }
     func applying(_ move:LabBoardMove) -> LabBoardState? {
         guard self.move(from:move.source,to:move.destination) == move else { return nil }
+        return applyingReserved(move)
+    }
+    /// Accepted amounts remain exact when a different incoming pour finishes first.
+    func applyingReserved(_ move:LabBoardMove) -> LabBoardState? {
+        guard stacks.indices.contains(move.source),stacks.indices.contains(move.destination),move.source != move.destination,
+              move.amount>0,move.amount<=stacks[move.source].count,
+              Array(stacks[move.source].suffix(move.amount))==move.parcels,
+              move.parcels.allSatisfy({ colors[$0]==move.color }),
+              stacks[move.destination].count+move.amount<=capacity,
+              stacks[move.destination].last.map({colors[$0]==move.color}) ?? true else { return nil }
         var next=self
         next.stacks[move.source].removeLast(move.amount)
         next.stacks[move.destination] += move.parcels
@@ -81,7 +91,7 @@ nonisolated struct LabBoardGame: Sendable, Codable {
     }
     /// A previously reserved independent move may finish while another is active.
     mutating func commitReserved(_ move:LabBoardMove)->Bool {
-        guard pending == nil,let next=state.applying(move) else { return false }
+        guard pending == nil,let next=state.applyingReserved(move) else { return false }
         history.append(state);state=next;return true
     }
     mutating func cancel() { pending=nil }
@@ -95,10 +105,11 @@ nonisolated struct LabPourReservation:Identifiable,Sendable {
     let id:Int
     let move:LabBoardMove
     var started=false
+    var approach:Float=0 // Stable tilt direction / receiver approach slot.
     var vessels:Set<Int> { [move.source,move.destination] }
 }
 /// Reservations are made against the projected board, never against empty space
-/// that another accepted move already owns. Shared receivers are served in order.
+/// that another accepted move already owns. Sources are exclusive; receivers may be shared.
 nonisolated struct LabPourQueue:Sendable {
     private(set) var items:[LabPourReservation]=[]
     private var nextID=0
@@ -107,7 +118,7 @@ nonisolated struct LabPourQueue:Sendable {
     var lockedSources:Set<Int> { Set(items.flatMap { [$0.move.source,$0.move.destination] }) }
     var movingSources:Set<Int> { Set(items.map { $0.move.source }) }
     func projected(_ state:LabBoardState)->LabBoardState {
-        items.reduce(state) { current,item in current.applying(item.move) ?? current }
+        items.reduce(state) { current,item in current.applyingReserved(item.move) ?? current }
     }
     func move(from:Int,to:Int,state:LabBoardState)->LabBoardMove? {
         guard !lockedSources.contains(from),!movingSources.contains(to) else { return nil }
@@ -118,13 +129,17 @@ nonisolated struct LabPourQueue:Sendable {
         items.append(LabPourReservation(id:nextID,move:move));nextID+=1;return true
     }
     mutating func startReady(limit:Int=2)->[LabPourReservation] {
-        var occupied=Set(active.flatMap { Array($0.vessels) }),count=active.count,result:[LabPourReservation]=[]
+        var count=active.count,result:[LabPourReservation]=[]
         for i in items.indices where !items[i].started {
             guard count<limit else { break }
-            if !occupied.isDisjoint(with:items[i].vessels) { continue }
-            // Do not let a later move bypass an earlier reservation on its ports.
-            if items[..<i].contains(where:{ !$0.started && !$0.vessels.isDisjoint(with:items[i].vessels) }) { continue }
-            items[i].started=true;result.append(items[i]);occupied.formUnion(items[i].vessels);count+=1
+            let move=items[i].move
+            let running=active
+            guard !running.contains(where: { $0.move.source==move.source || $0.move.destination==move.source || $0.move.source==move.destination }) else { continue }
+            let preferred:Float=move.destination>move.source ? 1:-1
+            let used=Set(running.filter { $0.move.destination==move.destination }.map(\.approach))
+            guard used.count<2 else { continue }
+            items[i].approach=used.contains(preferred) ? -preferred:preferred
+            items[i].started=true;result.append(items[i]);count+=1
         }
         return result
     }

@@ -1,0 +1,74 @@
+[
+  {
+    "puzzle": "confluence",
+    "solved": true,
+    "moves": 13,
+    "failures": 0
+  },
+  {
+    "puzzle": "crossCurrents",
+    "solved": true,
+    "moves": 7,
+    "failures": 0
+  },
+  {
+    "puzzle": "crossingPaths",
+    "solved": true,
+    "moves": 13,
+    "failures": 0
+  },
+  {
+    "puzzle": "deepCurrent",
+    "solved": true,
+    "moves": 11,
+    "failures": 0
+  },
+  {
+    "puzzle": "estuary",
+    "solved": true,
+    "moves": 10,
+    "failures": 0
+  },
+  {
+    "puzzle": "firstSort",
+    "solved": true,
+    "moves": 5,
+    "failures": 0
+  },
+  {
+    "puzzle": "glassGarden",
+    "solved": true,
+    "moves": 15,
+    "failures": 0
+  },
+  {
+    "puzzle": "greenArrival",
+    "solved": true,
+    "moves": 11,
+    "failures": 0
+  },
+  {
+    "puzzle": "lastDrops",
+    "solved": true,
+    "moves": 4,
+    "failures": 0
+  },
+  {
+    "puzzle": "orchard",
+    "solved": true,
+    "moves": 14,
+    "failures": 0
+  },
+  {
+    "puzzle": "switchback",
+    "solved": true,
+    "moves": 11,
+    "failures": 0
+  },
+  {
+    "puzzle": "tidalPool",
+    "solved": true,
+    "moves": 11,
+    "failures": 0
+  }
+]

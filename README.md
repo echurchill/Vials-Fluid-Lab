@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Shared receivers and clearer overlapping vials](Reports/Prototype18/README.md) add simultaneous streams into one receiver and fix stale particle inventory during rapid consecutive pours.
+
 [Pause-aware motion and concurrent pours](Reports/Prototype17/README.md) add two overlapping pours in all three views, capacity reservations, and device measurements.
 
 [Stable idle detail and the latest iPad check](Reports/Prototype16/README.md) address the extra lines at pour boundaries and record the latest device trial.

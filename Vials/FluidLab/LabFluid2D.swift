@@ -72,7 +72,24 @@ nonisolated struct Lab2DSplash:Sendable,Equatable {
     var age:Float=0
     var position:SIMD2<Float> { origin+velocity*age+SIMD2(0,-4.9*age*age) }
 }
+nonisolated struct Lab2DTransfer:Sendable {
+    let item:LabPourReservation
+    let sourceParcels:Set<Int>
+    let before:[Lab2DParticle]
+    var time:Float=0
+    var cutoff:Float?
+    var angle:Float=0
+    var arrived=0,departed=0
+    var cleanup:Float=0
+    var targets:[Int:Lab2DParticle]=[:]
+    var cleanupStart:Float?
+}
+
 nonisolated struct LabFluid2D:Sendable {
+    private var transfers:[Lab2DTransfer]=[]
+    private var groupMode=false
+    private(set) var groupResults:[LabLaneResult]=[]
+    var groupMoves:[LabBoardMove] { transfers.map { $0.item.move } }
     static let particlesPerUnit=96
     static let step:Float=1/120
     var quickMotion=false
@@ -115,7 +132,7 @@ nonisolated struct LabFluid2D:Sendable {
     private var links:[Int]=[]
     private var selected:Set<Int>=[]
     private var bulkUnits:[Float]=[]
-    var busy:Bool { game.pending != nil || !displayMoves.isEmpty }
+    var busy:Bool { game.pending != nil || !displayMoves.isEmpty || !transfers.isEmpty }
     var phase:String {
         if targets != nil { return "Final settling" }
         if cutoff != nil { return "Returning the vial" }
@@ -128,14 +145,22 @@ nonisolated struct LabFluid2D:Sendable {
     func pose(_ i:Int)->Lab2DPose {
         if let displayed=displayPoses[i] { return displayed }
         let home=home(i)
+        if groupMode {
+            guard let transfer=transfers.first(where:{$0.item.move.source==i}) else { return Lab2DPose(base:home) }
+            return pourPose(i,move:transfer.item.move,time:transfer.time,cutoff:transfer.cutoff,stopAngle:transfer.angle,approach:transfer.item.approach)
+        }
         guard let move=game.pending,i==move.source else { return Lab2DPose(base:home) }
+        return pourPose(i,move:move,time:time,cutoff:cutoff,stopAngle:stopAngle,approach:0)
+    }
+    private func pourPose(_ i:Int,move:LabBoardMove,time:Float,cutoff:Float?,stopAngle:Float,approach:Float)->Lab2DPose {
+        let home=home(i)
         let destination=self.home(move.destination),h=profiles[i].height
-        let direction:Float=destination.x>home.x ? 1:-1
+        let direction:Float=approach==0 ? (destination.x>home.x ? 1:-1):approach
         let tilt:Float
         if let cutoff { tilt=stopAngle*(1-labSmooth((time-cutoff)/motion.upright)) }
         else { tilt=min(2.25,max(0,time-motion.tiltStart)*motion.tiltRate)*direction }
-        let lowLip=destination+SIMD2(-direction*0.10,profiles[move.destination].height+1.10)
-        let highLip=SIMD2(lowLip.x,2.65+h)
+        let lowLip=destination+SIMD2(-direction*(approach==0 ? 0.10:0.46),profiles[move.destination].height+1.10)
+        let highLip=SIMD2(approach==0 ? lowLip.x:destination.x-direction*1.05,2.65+h)
         let lip:SIMD2<Float>
         if let cutoff {
             let stoppedLip=simd_mix(highLip,lowLip,SIMD2(repeating:labSmooth((abs(stopAngle)-0.55)/0.95)))
@@ -166,6 +191,7 @@ nonisolated struct LabFluid2D:Sendable {
     mutating func install(_ game:LabBoardGame) {
         let preserve = !busy && self.game.state==game.state && !particles.isEmpty
         displayPoses=[:];displayMoves=[];displayEnvelope=nil;displayStreamActive=nil
+        transfers=[];groupMode=false;groupResults=[]
         self.game=game;self.game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
         cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
         if preserve { return }
@@ -204,6 +230,104 @@ nonisolated struct LabFluid2D:Sendable {
             }
         }
     }
+    mutating func joinGroup(_ item:LabPourReservation,game:LabBoardGame,display:LabFluid2D)->Bool {
+        guard game.state.applyingReserved(item.move) != nil else { return false }
+        self.game=game;groupMode=true;displayPoses=[:];displayMoves=[]
+        refreshForeignParticles(game,joining:item.move)
+        let ids=Set(game.state.stacks[item.move.source])
+        for i in particles.indices where ids.contains(particles[i].parcel) { particles[i]=display.particles[i] }
+        transfers.append(Lab2DTransfer(item:item,sourceParcels:ids,before:particles))
+        selected=Set(groupMoves.flatMap(\.parcels));return true
+    }
+    private mutating func refreshForeignParticles(_ game:LabBoardGame,joining:LabBoardMove?=nil) {
+        let moves=groupMoves+[joining].compactMap {$0}
+        let owners=Set(moves.flatMap {[$0.source,$0.destination]})
+        let owned=Set(owners.flatMap {game.state.stacks[$0]}+moves.flatMap(\.parcels)),stable=seed(game.state)
+        for i in particles.indices where !owned.contains(particles[i].parcel) {particles[i]=stable[i]}
+    }
+    mutating func synchronizeGroup(_ game:LabBoardGame) {
+        if self.game.state != game.state {refreshForeignParticles(game)}
+        self.game=game;groupResults=[]
+    }
+    mutating func composeGroups(_ engines:[LabFluid2D],game:LabBoardGame) {
+        self.game=game;displayPoses=[:];displayMoves=[];displayEnvelope=0;displayStreamActive=false;splashes=[]
+        cpuMilliseconds=0;arrived=0;departed=0;cleanupPercent=0
+        for engine in engines {
+            // Every receiver has one owner, including its newly arrived parcels.
+            let owners=Set(engine.groupMoves.flatMap { [$0.source,$0.destination] }+engine.groupResults.flatMap { $0.vessels })
+            let ids=Set(owners.flatMap { engine.game.state.stacks[$0] }+engine.groupMoves.flatMap(\.parcels))
+            for i in particles.indices where ids.contains(particles[i].parcel) { particles[i]=engine.particles[i] }
+            for owner in owners { materialTimes[owner]=engine.materialTimes[owner];surfaces[owner]=engine.surfaces[owner] }
+            splashes+=engine.splashes;cpuMilliseconds+=engine.cpuMilliseconds;arrived+=engine.arrived;departed+=engine.departed
+            cleanupPercent=max(cleanupPercent,engine.cleanupPercent)
+            for move in engine.groupMoves { displayMoves.append(move);displayPoses[move.source]=engine.pose(move.source) }
+            displayStreamActive=(displayStreamActive ?? false) || engine.streamActive
+            displayEnvelope=max(displayEnvelope ?? 0,engine.surfaceEnvelope)
+        }
+    }
+    private mutating func tickGroup() {
+        let old=profiles.indices.map { pose($0) };time+=Self.step
+        for i in transfers.indices { transfers[i].time+=Self.step }
+        let poses=profiles.indices.map { pose($0) }
+        let sources=Set(groupMoves.map(\.source)),receivers=Set(groupMoves.map(\.destination))
+        var active=sources
+        for receiver in receivers where transfers.contains(where:{$0.item.move.destination==receiver && $0.arrived>0}) { active.insert(receiver) }
+        for owner in active {
+            materialTimes[owner]+=Self.step
+            let material=Lab2DMaterial.forColor(surfaces[owner].color)
+            surfaces[owner].phase+=Self.step*material.frequency;surfaces[owner].energy*=exp(-material.damping*Self.step)
+        }
+        for i in splashes.indices { splashes[i].age+=Self.step };splashes.removeAll {$0.age>0.42}
+        for i in particles.indices where sources.contains(particles[i].owner) {
+            let owner=particles[i].owner
+            particles[i].position=poses[owner].world(old[owner].local(particles[i].position))
+        }
+        solve(active:active,dt:Self.step,poses:poses)
+        var finished:[Int]=[]
+        for j in transfers.indices {
+            var job=transfers[j];let move=job.item.move,count=move.amount*Self.particlesPerUnit,ids=Set(move.parcels)
+            job.arrived=particles.filter {ids.contains($0.parcel) && $0.owner==move.destination}.count
+            job.departed=particles.filter {ids.contains($0.parcel) && $0.owner != move.source}.count
+            if job.cutoff==nil,job.arrived>=count-Int(Float(count)*0.05),job.departed>=count-1 {
+                job.cutoff=job.time;job.angle=poses[move.source].angle
+            }
+            var success:Bool?
+            if job.cutoff==nil,job.time>12 { success=false }
+            if let start=job.cleanupStart {
+                let f=labSmooth((job.time-start)/motion.cleanup)
+                for (i,target) in job.targets {
+                    particles[i].position=simd_mix(job.before[i].position,target.position,SIMD2(repeating:f))
+                    if f>=1 { particles[i]=target }
+                }
+                if f>=1 { success=true }
+            } else if let cutoff=job.cutoff,job.time-cutoff>motion.returned+motion.settle {
+                let missing=count-job.arrived;job.cleanup=100*Float(missing)/Float(count)
+                if missing<0 || missing>Int(Float(count)*0.05) { success=false }
+                else if let next=game.state.applyingReserved(move) {
+                    let packed=seed(next)
+                    // Correct only this transfer's missing parcels. Other arrivals keep moving.
+                    for i in particles.indices where ids.contains(particles[i].parcel) && particles[i].owner != move.destination { job.targets[i]=packed[i] }
+                    job.cleanupStart=job.time
+                    // Only corrected indices use this pre-cleanup snapshot.
+                    job=Lab2DTransfer(item:job.item,sourceParcels:job.sourceParcels,before:particles,time:job.time,cutoff:job.cutoff,angle:job.angle,arrived:job.arrived,departed:job.departed,cleanup:job.cleanup,targets:job.targets,cleanupStart:job.cleanupStart)
+                } else { success=false }
+            }
+            if let success {
+                let committed=success && game.commitReserved(move)
+                if !committed { for i in particles.indices where job.sourceParcels.contains(particles[i].parcel) { particles[i]=job.before[i] } }
+                for i in particles.indices where particles[i].owner==move.source { particles[i].velocity = .zero }
+                groupResults.append(LabLaneResult(id:job.item.id,committed:committed,cleanup:job.cleanup,vessels:[move.source,move.destination],diagnostic:"arrived=\(job.arrived)/\(count) departed=\(job.departed) time=\(job.time)"))
+                finished.append(j);cleanupPercent=job.cleanup
+            }
+            transfers[j]=job
+        }
+        for i in finished.reversed() { transfers.remove(at:i) }
+        selected=Set(groupMoves.flatMap(\.parcels))
+        arrived=transfers.reduce(0){$0+$1.arrived};departed=transfers.reduce(0){$0+$1.departed}
+        displayStreamActive=transfers.contains {$0.departed>0 && $0.cutoff==nil}
+        displayEnvelope=transfers.map { job in job.cutoff.map {1-labSmooth((job.time-$0)/max(0.01,motion.returned+motion.settle))} ?? 1 }.max() ?? 0
+        if transfers.isEmpty { for owner in receivers { surfaces[owner].energy=0 };splashes=[] }
+    }
     private func seed(_ state:LabBoardState)->[Lab2DParticle] {
         var result:[Lab2DParticle]=[]
         for owner in state.stacks.indices {
@@ -230,7 +354,7 @@ nonisolated struct LabFluid2D:Sendable {
         // Retain delayed frame time; bound worker batches without dropping debt.
         accumulator+=max(0,deltaTime)*max(0,speed)
         var steps=0
-        while accumulator>=Self.step,busy,steps<12 { tick();accumulator-=Self.step;steps+=1 }
+        while accumulator>=Self.step,busy,steps<12 { if groupMode { tickGroup() } else { tick() };accumulator-=Self.step;steps+=1 }
         cpuMilliseconds=(ProcessInfo.processInfo.systemUptime-start)*1000
     }
     private mutating func tick() {
@@ -293,7 +417,7 @@ nonisolated struct LabFluid2D:Sendable {
         }
     }
     private mutating func registerImpact(owner:Int,color:Int,point:SIMD2<Float>,velocity:SIMD2<Float>) {
-        guard game.pending?.destination==owner else { return }
+        guard groupMode ? transfers.contains(where:{$0.item.move.destination==owner}):game.pending?.destination==owner else { return }
         if surfaces[owner].energy<0.003 { surfaces[owner].phase=0 }
         surfaces[owner].color=color
         surfaces[owner].impactX=surfaces[owner].impactX*0.75+point.x*0.25
@@ -339,7 +463,7 @@ nonisolated struct LabFluid2D:Sendable {
                                 var correction:Float=0
                                 if l<separation { correction=(separation-l)*0.48 }
                                 else if particles[i].color==particles[j].color {
-                                    let releasing = !particles[i].inBulk || !particles[j].inBulk || (game.pending?.source==particles[i].owner && (selected.contains(particles[i].parcel) || selected.contains(particles[j].parcel)))
+                                    let releasing = !particles[i].inBulk || !particles[j].inBulk || ((game.pending?.source==particles[i].owner || transfers.contains(where:{$0.item.move.source==particles[i].owner})) && (selected.contains(particles[i].parcel) || selected.contains(particles[j].parcel)))
                                     correction = -(releasing ? 0.00005:0.0015)*(1-l/0.15)
                                 }
                                 particles[i].position+=n*correction;particles[j].position-=n*correction
@@ -358,8 +482,10 @@ nonisolated struct LabFluid2D:Sendable {
     }
     private mutating func constrain(_ i:Int,poses:[Lab2DPose]) {
         var p=particles[i]
+        let transfer=groupMode ? transfers.first(where:{$0.item.move.source==p.owner || $0.item.move.parcels.contains(p.parcel)}):nil
+        let move=groupMode ? transfer?.item.move:game.pending
         if p.owner<0 {
-            if let move=game.pending {
+            if let move {
                 let destination=move.destination,profile=profiles[destination]
                 var q=poses[destination].local(p.position)
                 let above=q.y-profile.height
@@ -375,7 +501,7 @@ nonisolated struct LabFluid2D:Sendable {
         }
         let owner=p.owner,profile=profiles[owner],pose=poses[owner]
         var q=pose.local(p.position)
-        let outgoing=game.pending?.source==owner && selected.contains(p.parcel) && cutoff==nil && time>motion.tiltStart
+        let outgoing=move?.source==owner && selected.contains(p.parcel) && (groupMode ? transfer?.cutoff==nil:cutoff==nil) && (transfer?.time ?? time)>motion.tiltStart
         if outgoing,q.y>profile.height,abs(q.x)<=profile.radius(profile.height)+radius {
             p.owner = -1;p.inBulk=false;bulkUnits[owner]-=1/Float(Self.particlesPerUnit);particles[i]=p;return
         }
@@ -394,9 +520,9 @@ nonisolated struct LabFluid2D:Sendable {
         }
         var lower:Float=radius,upper=profile.height-radius
         var stack=game.state.stacks[owner]
-        if let move=game.pending {
-            if owner==move.destination { stack += move.parcels }
-            if owner==move.source,!selected.contains(p.parcel) { stack.removeAll { selected.contains($0) } }
+        for incoming in groupMode ? groupMoves:[game.pending].compactMap({$0}) {
+            if owner==incoming.destination { stack += incoming.parcels }
+            if owner==incoming.source,!selected.contains(p.parcel) { stack.removeAll { selected.contains($0) } }
         }
         if let layer=stack.firstIndex(of:p.parcel) {
             // Same-color units share a band. Unlike dyes remain readable puzzle layers.
@@ -405,14 +531,14 @@ nonisolated struct LabFluid2D:Sendable {
             while hi<stack.count,game.state.colors[stack[hi]]==p.color { hi+=1 }
             // A partial pour owns the top units, even when the retained fluid
             // has the same color. Keep that outgoing band above the remainder.
-            if outgoing,let move=game.pending { lo=max(lo,stack.count-move.amount) }
+            if outgoing,let move { lo=max(lo,stack.count-move.amount) }
             lower=max(radius,profile.level(Float(lo))+radius*0.75)
             if !outgoing {
                 var units=Float(hi)
-                if game.pending?.source != owner { units=min(units,bulkUnits[owner]) }
+                if move?.source != owner { units=min(units,bulkUnits[owner]) }
                 upper=max(lower,min(upper,profile.level(units)-radius))
             }
-        } else if let move=game.pending,owner==move.destination {
+        } else if let move,owner==move.destination {
             let stack=game.state.stacks[owner]
             var lo=stack.count
             while lo>0,game.state.colors[stack[lo-1]]==p.color { lo-=1 }
@@ -445,6 +571,8 @@ nonisolated struct Lab2DLane:Sendable {
 }
 nonisolated struct LabLaneResult:Sendable {
     let id:Int,committed:Bool,cleanup:Float
+    var vessels:[Int]=[]
+    var diagnostic:String=""
 }
 nonisolated struct Lab2DConcurrentFrame:Sendable {
     var display:LabFluid2D
@@ -452,24 +580,26 @@ nonisolated struct Lab2DConcurrentFrame:Sendable {
 }
 actor LabConcurrent2DWorker {
     private var display:LabFluid2D
-    private var lanes:[Lab2DLane]=[]
-    private var previous: (LabFluid2D,[Lab2DLane])?
+    private var groups:[Int:LabFluid2D]=[:]
+    private var previous:(LabFluid2D,[Int:LabFluid2D])?
     init(_ display:LabFluid2D) { self.display=display }
     func advance(game:LabBoardGame,starts:[LabPourReservation],deltaTime:Float,speed:Float)->Lab2DConcurrentFrame {
-        previous=(display,lanes)
+        previous=(display,groups)
+        for receiver in groups.keys { groups[receiver]!.synchronizeGroup(game) }
         var failed:[LabLaneResult]=[]
         for item in starts {
-            var engine=display;engine.adoptConcurrent(game,vessels:item.vessels)
-            guard engine.begin(item.move,reserved:true) else { failed.append(LabLaneResult(id:item.id,committed:false,cleanup:0));continue }
-            let ids=Set(game.state.stacks[item.move.source]+game.state.stacks[item.move.destination])
-            lanes.append(Lab2DLane(item:item,parcels:ids,engine:engine,initialMoves:game.moveCount))
+            let receiver=item.move.destination
+            if groups[receiver]==nil {
+                var engine=display;engine.adoptConcurrent(game,vessels:item.vessels);engine.synchronizeGroup(game)
+                groups[receiver]=engine
+            }
+            if !groups[receiver]!.joinGroup(item,game:game,display:display) { failed.append(LabLaneResult(id:item.id,committed:false,cleanup:0)) }
         }
-        for i in lanes.indices { lanes[i].engine.advance(deltaTime:deltaTime,speed:speed) }
-        display.compose(lanes,game:game)
-        let done=lanes.filter { !$0.engine.busy }.map { LabLaneResult(id:$0.item.id,committed:$0.engine.game.moveCount==$0.initialMoves+1,cleanup:$0.engine.cleanupPercent) }
-        lanes.removeAll { !$0.engine.busy }
+        for receiver in groups.keys { groups[receiver]!.advance(deltaTime:deltaTime,speed:speed) }
+        display.composeGroups(groups.keys.sorted().compactMap {groups[$0]},game:game)
+        let done=groups.values.flatMap(\.groupResults)
+        groups=groups.filter {!$0.value.groupMoves.isEmpty}
         return Lab2DConcurrentFrame(display:display,finished:failed+done)
     }
-    func replace(display:LabFluid2D,lanes:[Lab2DLane]) { self.display=display;self.lanes=lanes }
-    func rollbackLastAdvance() { if let previous { display=previous.0;lanes=previous.1 };previous=nil }
+    func rollbackLastAdvance() { if let previous { display=previous.0;groups=previous.1 };previous=nil }
 }

@@ -9,15 +9,16 @@ struct Uniforms {
 };
 struct Vessel { float4x4 world, inverseWorld, previousWorld; float4 dimensions, marks; };
 struct Vertex { float4 position, normal; };
-constant uint gridCount = 64*48*32;
+// Include sources approaching the outside of either edge receiver.
+constant uint gridCount = 96*48*32;
 
 float radiusAt(float y, constant Vessel &v, device const float *profiles) {
     float f = clamp(y / v.dimensions.x, 0.0f, 1.0f) * 127;
     uint i = min(uint(f),126u), offset = uint(v.dimensions.y)*128;
     return mix(profiles[offset+i], profiles[offset+i+1], f-float(i));
 }
-int3 gridCell(float3 p, float h) { return int3(floor((p+float3(6.4,0.4,2.6))/0.20f)); }
-uint gridIndex(int3 c) { c=clamp(c,int3(0),int3(63,47,31)); return uint(c.x+64*(c.y+48*c.z)); }
+int3 gridCell(float3 p, float h) { return int3(floor((p+float3(9.6,0.4,2.6))/0.20f)); }
+uint gridIndex(int3 c) { c=clamp(c,int3(0),int3(95,47,31)); return uint(c.x+96*(c.y+48*c.z)); }
 float poly6(float r2, float h) {
     float q = max(0.0f,1-r2/(h*h));
     return 1.56668147f/(h*h*h)*q*q*q;
@@ -63,7 +64,7 @@ float4 collide(float4 point, constant Vessel *vessels, device const float *profi
         }
     }
     p.y=max(p.y,0.045f);
-    p.xz=clamp(p.xz,float2(board ? -6.35:-3.7,-2.35),float2(board ? 6.35:3.7,board ? 3.3:2.35));
+    p.xz=clamp(p.xz,float2(board ? -9.5:-3.7,-2.35),float2(board ? 9.5:3.7,board ? 3.3:2.35));
     return float4(p,float(owner));
 }
 
@@ -433,6 +434,32 @@ fragment float4 labGlassFragment(GlassOut in [[stage_in]], constant Uniforms &u 
     color+=foot*float3(0.035,0.065,0.075);
     return float4(color,1);
 }
+fragment float4 labBoardGlassFragment(GlassOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel &v [[buffer(2)]],
+                                texture2d<float> scene [[texture(0)]], texture2d<float> liquidDepth [[texture(1)]], constant float &clarity [[buffer(3)]]) {
+    constexpr sampler s(coord::normalized,address::clamp_to_edge,filter::linear);
+    float2 uv=in.position.xy/u.viewport.xy;
+    // A rear glass shell cannot tint liquid already in front of it.
+    if(liquidDepth.sample(s,uv).x+0.00001f<in.position.z) return scene.sample(s,uv);
+    float3 n=normalize(in.normal), eye=normalize(u.camera.xyz-in.world);
+    if(dot(n,eye)<0) n=-n;
+    float fresnel=0.04+0.96*pow(1-max(dot(n,eye),0.0f),5.0f);
+    float3 cameraNormal=(u.view*float4(n,0)).xyz;
+    float path=v.dimensions.z/max(dot(n,eye),0.18f);
+    float2 offset=cameraNormal.xy*float2(1,-1)*min(path*0.10f,0.006f)*clarity;
+    float3 base=scene.sample(s,uv+offset).rgb*exp(-float3(0.38,0.12,0.06)*path);
+    float3 reflected=studio(reflect(-eye,n));
+    float3 color=mix(base*float3(0.96,0.985,1.0),reflected,0.045+fresnel*0.55);
+    float line=0;
+    for(int i=0;i<4;i++) line=max(line,1-smoothstep(0.003f,0.011f,abs(in.local.y-v.marks[i])));
+    // Volume graduations are restrained short strokes on the front of the glass.
+    float front=smoothstep(0.10f,0.3f,in.local.z)*(1-smoothstep(0.06f,0.24f,abs(in.local.x)));
+    color=mix(color,float3(0.59,0.79,0.82),line*front*0.48);
+    float rim=1-smoothstep(0.012f,0.035f,abs(in.local.y-v.dimensions.x));
+    color+=rim*float3(0.15,0.22,0.25);
+    float foot=1-smoothstep(0.005f,0.055f,abs(in.local.y));
+    color+=foot*float3(0.035,0.065,0.075);
+    return float4(color,1);
+}
 fragment float4 labCopy(QuadOut in [[stage_in]], texture2d<float> scene [[texture(0)]]) {
     constexpr sampler s(coord::normalized,address::clamp_to_edge,filter::linear);
     return scene.sample(s,in.uv);
@@ -454,4 +481,27 @@ kernel void labBoardConstrain(device Particle *p [[buffer(0)]], constant Uniform
     local.y=clamp(local.y,band.x+0.005f,band.y-0.005f);
     p[i].predicted.xyz=(v[owner].world*float4(local,1)).xyz;
     p[i].predicted=collide(p[i].predicted,v,profiles,u.options.z,true,p[i].visual.z>0.5f);
+}
+
+// Two-dimensional optical styling only: sample the rear scene through the moving
+// cavity. The foreground particles and hit targets are never displaced.
+#include <SwiftUI/SwiftUI_Metal.h>
+[[ stitchable ]] half4 labVialLens(float2 position, SwiftUI::Layer layer, float2 base,
+                                  float scale, float height, float angle,
+                                  device const float *radii, int count) {
+    half4 original=layer.sample(position);
+    float2 d=(position-base)/max(scale,1.0f);d.y=-d.y;
+    float c=cos(angle),s=sin(angle);
+    float2 q=float2(c*d.x-s*d.y,s*d.x+c*d.y);
+    if(q.y<=0 || q.y>=height || count<2) return original;
+    float index=clamp(q.y/height*float(count-1),0.0f,float(count-1));
+    int lo=min(count-2,int(index));float radius=mix(radii[lo],radii[lo+1],index-float(lo));
+    float edge=abs(q.x)/max(radius,0.01f);
+    if(edge>=1) return original;
+    float coverage=(1-smoothstep(0.93f,1.0f,edge))*smoothstep(0.0f,0.06f,q.y)*smoothstep(0.0f,0.06f,height-q.y);
+    float bend=sign(q.x)*pow(edge,2.0f)*(1-edge)*16.0f;
+    float2 offset=float2(c,s)*bend;
+    half4 bent=layer.sample(position+offset);
+    half4 soft=(bent*half(2)+layer.sample(position+offset+float2(0.7,0))+layer.sample(position+offset-float2(0.7,0)))*half(0.25);
+    return mix(original,soft,half(coverage));
 }

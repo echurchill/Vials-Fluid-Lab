@@ -1,0 +1,1 @@
+PASS: exact replay across all three modes, matched duration, busy guards, stop/pause, normal pace, feedback, saved game isolation and no-Metal fallback

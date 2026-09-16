@@ -1,15 +1,51 @@
 import SwiftUI
 
-/// A planar surface reconstructed from particles; layered glass follows the same interior profile.
+/// Complete vial layers preserve front-to-back ordering; only moving glass lenses the rear image.
 struct LabFluid2DView:View {
+    let engine:LabFluid2D
+    var points=false
+    var frame:Int=0
+    var selected:Int?
+    var destinations:Set<Int>=[]
+    var rejected:Int?
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    private var economy:Bool { ProcessInfo.processInfo.isLowPowerModeEnabled || ProcessInfo.processInfo.thermalState != .nominal }
+    var body:some View { GeometryReader { proxy in scene(size:proxy.size) }.accessibilityHidden(true) }
+    private func layer(_ owners:Set<Int>,floor:Bool=false)->some View {
+        LabFluid2DLayer(engine:engine,points:points,frame:frame,selected:selected,destinations:destinations,rejected:rejected,owners:owners,drawFloor:floor,opaqueGlass:reduceTransparency)
+    }
+    private func scene(size:CGSize)->AnyView {
+        let moves=engine.displayMoves+[engine.game.pending].compactMap {$0}
+        let moving=Array(Set(moves.map(\.source))).sorted()
+        let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count),scale=Float(layout.scale)
+        var result=AnyView(layer(Set(engine.profiles.indices).subtracting(moving),floor:true))
+        for source in moving {
+            let rear=result,pose=engine.pose(source),profile=engine.profiles[source]
+            let base=SIMD2<Float>(Float(size.width/2)+pose.base.x*scale,Float(layout.base(0).y)-pose.base.y*scale)
+            let shader=ShaderLibrary.labVialLens(.float2(base.x,base.y),.float(scale),.float(profile.height),.float(pose.angle),.floatArray(profile.source.radii.map {$0*profile.scale}))
+            result=AnyView(ZStack {
+                rear.layerEffect(shader,maxSampleOffset:CGSize(width:6,height:6),isEnabled:!points && !reduceTransparency && !economy)
+                layer([source])
+            })
+        }
+        return AnyView(ZStack { result;layer([-1]) })
+    }
+}
+
+
+/// A planar surface reconstructed from particles; layered glass follows the same interior profile.
+private struct LabFluid2DLayer:View {
     let engine:LabFluid2D
     var points=false
     var frame:Int=0 // Publish each completed value snapshot.
     var selected:Int?
     var destinations:Set<Int>=[]
     var rejected:Int?
+    var owners:Set<Int>
+    var drawFloor=false
+    var opaqueGlass=false
     var body:some View {
-        Canvas(rendersAsynchronously:true) { context,size in
+        Canvas(rendersAsynchronously:false) { context,size in
             let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count)
             let scale=layout.scale,origin=CGPoint(x:size.width/2,y:layout.base(0).y)
             func screen(_ p:SIMD2<Float>)->CGPoint { CGPoint(x:origin.x+CGFloat(p.x)*scale,y:origin.y-CGFloat(p.y)*scale) }
@@ -32,14 +68,24 @@ struct LabFluid2DView:View {
             for p in engine.particles where p.owner>=0 && p.inBulk {
                 bulkTops[p.owner]=max(bulkTops[p.owner],poses[p.owner].local(p.position).y+engine.radius)
             }
-            var baseline=Path();baseline.move(to:CGPoint(x:size.width*0.06,y:origin.y+7));baseline.addLine(to:CGPoint(x:size.width*0.94,y:origin.y+7))
-            context.stroke(baseline,with:.color(.white.opacity(0.08)),lineWidth:1)
-            for index in engine.profiles.indices {
-                let base=screen(engine.home(index)),width=CGFloat(engine.profiles[index].radius(0.3))*scale*2.4
-                context.fill(Path(ellipseIn:CGRect(x:base.x-width/2,y:base.y+3,width:width,height:7)),with:.color(.black.opacity(0.30)))
-                context.fill(cavity(index),with:.linearGradient(Gradient(colors:[Color.cyan.opacity(0.045),.white.opacity(0.012),Color.cyan.opacity(0.02)]),startPoint:CGPoint(x:base.x-width/2,y:base.y),endPoint:CGPoint(x:base.x+width/2,y:base.y)))
+            if drawFloor {
+                var baseline=Path();baseline.move(to:CGPoint(x:size.width*0.06,y:origin.y+7));baseline.addLine(to:CGPoint(x:size.width*0.94,y:origin.y+7))
+                context.stroke(baseline,with:.color(.white.opacity(0.08)),lineWidth:1)
+                for index in engine.profiles.indices {
+                    let base=screen(engine.home(index)),width=CGFloat(engine.profiles[index].radius(0.3))*scale*2.4
+                    context.fill(Path(ellipseIn:CGRect(x:base.x-width/2,y:base.y+3,width:width,height:7)),with:.color(.black.opacity(0.30)))
+                }
             }
-            for owner in -1..<engine.profiles.count {
+            for owner in Array(engine.profiles.indices)+[-1] where owners.contains(owner) {
+                if owner>=0 {
+                    context.fill(cavity(owner),with:.color(Color(red:0.025,green:0.05,blue:0.065).opacity(opaqueGlass ? 1:0.25)))
+                }
+                defer {
+                    if owner>=0 {
+                        let cue:Color?=rejected==owner ? .orange:(selected==owner ? .cyan:(destinations.contains(owner) ? Color(red:0.28,green:0.85,blue:0.79):nil))
+                        drawGlass(owner,context:context,scale:scale,base:screen(engine.pose(owner).base),cue:cue)
+                    }
+                }
                 let owned=engine.particles.filter { $0.owner==owner }
                 guard !owned.isEmpty else { continue }
                 var liquid=context
@@ -92,6 +138,10 @@ struct LabFluid2DView:View {
                                 glow.addFilter(.blur(radius:scale*0.06))
                                 glow.fill(blobs,with:.color(Color.cyan.opacity(0.16)))
                             }
+                        }
+                        if owner>=0 {
+                            var separation=liquid;separation.opacity=opaqueGlass ? 1:0.42
+                            separation.drawLayer { surface in mask(&surface,Color(red:0.025,green:0.05,blue:0.065)) }
                         }
                         var body=liquid
                         body.opacity=color==0 ? 0.44:(color==2 ? 0.70:0.78)
@@ -172,7 +222,7 @@ struct LabFluid2DView:View {
                 }
             }
             if !points {
-                for splash in engine.splashes {
+                for splash in engine.splashes where owners.contains(splash.owner) {
                     let owner=splash.owner,profile=engine.profiles[owner],pose=engine.pose(owner)
                     let local=splash.position
                     let currentTop=bulkTops[owner]
@@ -185,10 +235,6 @@ struct LabFluid2DView:View {
                     if splash.color==1 { accent.stroke(dot,with:.color(Color.yellow.opacity(fade*0.65)),lineWidth:0.8) }
                     else { accent.fill(dot,with:.color(FluidBoardSession.color(splash.color).opacity(fade*0.85))) }
                 }
-            }
-            for index in engine.profiles.indices {
-                let cue:Color?=rejected==index ? .orange:(selected==index ? .cyan:(destinations.contains(index) ? Color(red:0.28,green:0.85,blue:0.79):nil))
-                drawGlass(index,context:context,scale:scale,base:screen(engine.pose(index).base),cue:cue)
             }
         }.accessibilityHidden(true)
     }

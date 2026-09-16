@@ -10,6 +10,7 @@ struct FluidBoardView:View {
     @State private var comparison:LabPourExample?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private let ink=Color(red:0.80,green:0.88,blue:0.90)
     private let accent=Color(red:0.28,green:0.85,blue:0.79)
     var body:some View {
@@ -132,6 +133,8 @@ struct FluidBoardView:View {
         }
         .preferredColorScheme(.dark)
         .task { await session.runTrialIfRequested() }
+        .onChange(of:reduceTransparency,initial:true) { _,value in session.renderer?.reduceTransparency=value }
+        .onChange(of:session.presentation) { _,_ in session.renderer?.reduceTransparency=reduceTransparency }
         .onAppear { if reduceMotion { session.paused=true;session.renderer?.paused=true } }
         .onChange(of:sheet) { _,value in session.setSuspended(value != nil || comparison != nil || scenePhase != .active) }
         .onChange(of:scenePhase) { _,value in session.setSuspended(value != .active || sheet != nil || comparison != nil) }

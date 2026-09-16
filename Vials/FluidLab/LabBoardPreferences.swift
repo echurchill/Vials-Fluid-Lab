@@ -55,6 +55,7 @@ struct LabComparisonSave:Codable {
 /// A deterministic nonparticle pour. The animation clock pauses with the game.
 struct LabClassicPour {
     let move:LabBoardMove
+    var approach:Float=0
     var time:Float=0
     static let duration:Float=7.6
     var progress:Float { min(1,max(0,(time-1.6)/3.6)) }

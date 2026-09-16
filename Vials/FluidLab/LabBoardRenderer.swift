@@ -12,6 +12,19 @@ struct LabBoardMetrics {
     var gpuMilliseconds:Double=0
 }
 
+private struct LabMetalTransfer {
+    let item:LabPourReservation
+    let before:[LabParticle]
+    var time:Float = -LabBoardTiming.preparation
+    var tilt:Float=0
+    var cutoff:Float?
+    var cutoffTilt:Float=0
+    var returned:Float?
+    var cleanupStart:Float?
+    var correction=0
+    var arrived=0,departed=0
+}
+
 @MainActor
 final class LabBoardRenderer: NSObject, MTKViewDelegate {
     let device:MTLDevice
@@ -37,10 +50,16 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private(set) var arrivalBeforeCorrection:Float=0
     private(set) var lastOutcome=""
     private var layerBands:[LabBoardBand]=[]
+    private var groupTransfers:[LabMetalTransfer]=[]
+    private(set) var groupResults:[LabLaneResult]=[]
+    private(set) var groupOwnedParcels:Set<Int>=[]
+    var groupMoves:[LabBoardMove] { groupTransfers.map { $0.item.move } }
+    var groupStreamActive:Bool { groupTransfers.contains {$0.departed>20 && $0.cutoff==nil} }
     var quality:LabRenderQuality = .automatic
     var funnelEnabled=true
     var paused=false
     var pointMode=false
+    var reduceTransparency=false
     var orbit:Float=0.12
     var playbackSpeed:Float=1
     var viscosity:Float=0.10
@@ -80,6 +99,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var thickness: MTLTexture!
     private var scene: MTLTexture!
     private var glassDepth: MTLTexture!
+    private var glassA:MTLTexture!
+    private var glassB:MTLTexture!
     private var viewportSize = SIMD2<Int>(0,0)
     private var lastCommand: MTLCommandBuffer?
     var lastGPUWorkMilliseconds:Double {
@@ -111,13 +132,13 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         depthPipeline = try pipeline(vertex: "labParticleVertex", fragment: "labBoardParticleDepth", format: .r32Float, depth: true)
         thicknessPipeline = try pipeline(vertex: "labParticleVertex", fragment: "labParticleThickness", format: .rgba16Float, additive: true)
         composePipeline = try pipeline(vertex: "labFullscreen", fragment: "labCompose", format: .rgba16Float)
-        glassPipeline = try pipeline(vertex: "labGlassVertex", fragment: "labGlassFragment", format: .bgra8Unorm_srgb, depth: true)
+        glassPipeline = try pipeline(vertex: "labGlassVertex", fragment: "labBoardGlassFragment", format: .bgra8Unorm_srgb, depth: true)
         copyPipeline = try pipeline(vertex: "labFullscreen", fragment: "labCopy", format: .bgra8Unorm_srgb, depth: true)
         let state = MTLDepthStencilDescriptor()
         state.depthCompareFunction = .lessEqual; state.isDepthWriteEnabled = true
         depthState = device.makeDepthStencilState(descriptor: state)
         profilesBuffer = makeBuffer(profiles.flatMap(\.radii))
-        heads = device.makeBuffer(length: 64*48*32*MemoryLayout<Int32>.stride, options: .storageModePrivate)
+        heads = device.makeBuffer(length: 96*48*32*MemoryLayout<Int32>.stride, options: .storageModePrivate)
         meshes = profiles.map { profile in
             let vertices = labGlassMesh(profile,rings:48,segments:64)
             return (makeBuffer(vertices), vertices.count)
@@ -150,7 +171,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
 
     private func clearMotion() {
-        compositeVessels=nil
+        compositeVessels=nil;groupTransfers=[];groupResults=[];groupOwnedParcels=[]
         pourTime=nil;tilt=0;cutoffTime=nil;returnStart=nil;cleanupStart=nil
         previousWorlds=[];accumulator=0;lastWallTime=nil;pausedSignature=nil
         correctionCount=0;arrivalBeforeCorrection=0;lastMetrics=LabBoardMetrics();paused=false
@@ -401,6 +422,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         thickness = texture(.rgba16Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
         scene = texture(.rgba16Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
         glassDepth = texture(.depth32Float,width:width,height:height,usage:.renderTarget)
+        glassA = texture(.bgra8Unorm_srgb,width:width,height:height,usage:[.shaderRead,.renderTarget])
+        glassB = texture(.bgra8Unorm_srgb,width:width,height:height,usage:[.shaderRead,.renderTarget])
     }
 
     private func dispatch(_ name: String, count: Int, command: MTLCommandBuffer,
@@ -423,7 +446,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         dispatch("labPredict",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         constrainLayers(command:command,uniforms:uniforms,vessels:vessels)
         for _ in 0..<5 {
-            dispatch("labClearHeads",count:64*48*32,command:command,buffers:[(0,heads)])
+            dispatch("labClearHeads",count:96*48*32,command:command,buffers:[(0,heads)])
             dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
             dispatch("labLambda",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas)],uniforms:uniforms)
             dispatch("labDelta",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas),(5,deltas)],uniforms:uniforms)
@@ -431,7 +454,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             constrainLayers(command:command,uniforms:uniforms,vessels:vessels)
         }
         // Rebuild after the final corrections, before velocity smoothing.
-        dispatch("labClearHeads",count:64*48*32,command:command,buffers:[(0,heads)])
+        dispatch("labClearHeads",count:96*48*32,command:command,buffers:[(0,heads)])
         dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
         dispatch("labVelocity",count:n,command:command,buffers:[(0,particles),(4,velocities),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         dispatch("labFinish",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,velocities)],uniforms:uniforms)
@@ -491,6 +514,146 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             options:SIMD4(UInt32(particleCount),0,UInt32(profiles.count),1 | (funnelEnabled ? 65536:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
         encodeSimulation(command:command,uniforms:u,deltaTime:deltaTime)
         lastCommand=command;command.commit()
+    }
+    /// One receiver and all its incoming streams share a single particle buffer.
+    func advanceGroup(game:LabBoardGame,starts:[LabPourReservation],samples:[LabParticle],deltaTime:Float) {
+        lastCommand?.waitUntilCompleted();groupResults=[]
+        if self.game.state != game.state || !starts.isEmpty {
+            let moves=groupMoves+starts.map(\.move),owners=Set(moves.flatMap {[$0.source,$0.destination]})
+            let owned=Set(owners.flatMap {game.state.stacks[$0]}+moves.flatMap(\.parcels))
+            let current=particleSamples().filter {owned.contains(Int($0.visual.y))}
+            let stable=seed(state:game.state).filter {!owned.contains(Int($0.visual.y))}
+            particles=makeBuffer(current+stable)
+        }
+        self.game=game
+        for item in starts {
+            guard game.state.applyingReserved(item.move) != nil else { groupResults.append(LabLaneResult(id:item.id,committed:false,cleanup:0));continue }
+            let sourceIDs=Set(game.state.stacks[item.move.source])
+            let local=particleSamples().filter {!sourceIDs.contains(Int($0.visual.y))}+samples.filter {sourceIDs.contains(Int($0.visual.y))}
+            particles=makeBuffer(local)
+            groupOwnedParcels.formUnion(sourceIDs);groupOwnedParcels.formUnion(game.state.stacks[item.move.destination])
+            groupTransfers.append(LabMetalTransfer(item:item,before:local.filter {sourceIDs.contains(Int($0.visual.y))}))
+        }
+        updateGroupTransfers()
+        let owners=Set(groupMoves.flatMap {[$0.source,$0.destination]}+groupResults.flatMap(\.vessels))
+        groupOwnedParcels=Set(owners.flatMap {self.game.state.stacks[$0]}+groupMoves.flatMap(\.parcels))
+        guard !groupTransfers.isEmpty else { return }
+        let selected=Set(groupMoves.flatMap(\.parcels))
+        let pointer=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+        for i in 0..<particleCount { pointer[i].visual.z=selected.contains(Int(pointer[i].visual.y)) ? 1:0 }
+        let command=queue.makeCommandBuffer()!;command.label="Shared receiver physics"
+        accumulator=min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
+        let active=Set(groupMoves.flatMap {[$0.source,$0.destination]})
+        let flags=active.reduce(UInt32(1 | (funnelEnabled ? 65536:0))) { $0 | (1 << ($1+1)) }
+        let (vp,view,eye)=LabBoardLayout.camera(aspect:1,azimuth:orbit,vesselCount:profiles.count)
+        var u=LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
+            viewport:SIMD4(1,1,spacing*1.16,simulationTime),physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),0,UInt32(profiles.count),flags))
+        var steps=0
+        while accumulator>=timeStep,steps<12 {
+            simulationTime+=timeStep
+            for i in groupTransfers.indices {
+                groupTransfers[i].time+=timeStep
+                let t=groupTransfers[i].time
+                if let stop=groupTransfers[i].cutoff {
+                    let elapsed=t-stop,initial=groupTransfers[i].cutoffTilt
+                    if elapsed<LabBoardTiming.stop { groupTransfers[i].tilt=initial-min(0.45,initial)*labSmooth(elapsed/LabBoardTiming.stop) }
+                    else { groupTransfers[i].tilt=max(0,initial-0.45)*(1-labSmooth((elapsed-LabBoardTiming.stop)/LabBoardTiming.upright)) }
+                    if elapsed>=LabBoardTiming.untilted,groupTransfers[i].returned==nil { groupTransfers[i].returned=t }
+                } else if t>=LabBoardTiming.tiltStart {
+                    let rate=groupTransfers[i].departed<20 ? LabBoardTiming.approachRate:LabBoardTiming.pouringRate
+                    groupTransfers[i].tilt=min(2.15,groupTransfers[i].tilt+rate*labSmooth((t-LabBoardTiming.tiltStart)/0.25)*timeStep)
+                    if t>LabBoardTiming.timeout { groupTransfers[i].cutoff=t;groupTransfers[i].cutoffTilt=groupTransfers[i].tilt }
+                }
+            }
+            var vessels=groupVessels()
+            for i in vessels.indices { vessels[i].previousWorld=previousWorlds.count==vessels.count ? previousWorlds[i]:vessels[i].world }
+            previousWorlds=vessels.map(\.world);compositeVessels=vessels
+            layerBands=groupBands();u.viewport.w=simulationTime
+            simulate(command:command,uniforms:u,vessels:vessels)
+            accumulator-=timeStep;steps+=1
+        }
+        lastCommand=command;command.commit()
+    }
+    private func groupVessels()->[LabVesselUniform] {
+        var result=LabBoardLayout.vessels(profiles:profiles,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+        for job in groupTransfers {
+            let move=job.item.move
+            let poses=LabBoardLayout.vessels(profiles:profiles,move:move,time:job.time,tilt:job.tilt,cutoffTilt:job.cutoff==nil ? nil:job.cutoffTilt,cutoffElapsed:job.time-(job.cutoff ?? 0),returnElapsed:job.returned.map {job.time-$0},approach:job.item.approach)
+            result[move.source]=poses[move.source];result[move.destination]=poses[move.destination]
+        }
+        return result
+    }
+    private func groupBands()->[LabBoardBand] {
+        let state=game.state,count=state.colors.count
+        var bands=[LabBoardBand](repeating:LabBoardBand(range:SIMD4(-100,100,0,0)),count:count*profiles.count)
+        for (owner,original) in state.stacks.enumerated() {
+            let outgoing=groupMoves.first {$0.source==owner}
+            let selected=Set(outgoing?.parcels ?? [])
+            let stack=original+groupMoves.filter {$0.destination==owner}.flatMap(\.parcels)
+            let profile=profiles[owner]
+            func level(_ unit:Int)->Float { unit==0 ? -100:profile.height(for:profile.usableVolume*Float(unit)/4) }
+            for (layer,id) in stack.enumerated() {
+                var first=layer,last=layer+1
+                while first>0,state.colors[stack[first-1]]==state.colors[id],!selected.contains(stack[first-1]) {first-=1}
+                while last<stack.count,state.colors[stack[last]]==state.colors[id],!selected.contains(stack[last]) {last+=1}
+                let moving=selected.contains(id)
+                let lower=moving ? level(original.count-(outgoing?.amount ?? 0)):level(first)
+                let upper:Float=moving || last==stack.count ? 100:level(last)
+                bands[owner*count+id]=LabBoardBand(range:SIMD4(lower,upper,1,1))
+            }
+        }
+        return bands
+    }
+    private func updateGroupTransfers() {
+        let values=particleSamples();var finished:[Int]=[];lastMetrics=LabBoardMetrics()
+        let moves=groupMoves,owners=Set(moves.flatMap {[$0.source,$0.destination]})
+        let selected=Set(moves.flatMap(\.parcels))
+        let originalOwners=Dictionary(uniqueKeysWithValues:game.state.stacks.enumerated().flatMap { owner,stack in stack.map {($0,owner)} })
+        for particle in values {
+            guard [particle.position.x,particle.position.y,particle.position.z,particle.position.w,particle.visual.y].allSatisfy(\.isFinite) else {lastMetrics.nonFinite+=1;continue}
+            let id=Int(particle.visual.y),owner=Int(particle.position.w)
+            guard selected.contains(id) || originalOwners[id].map({owners.contains($0)}) == true else {continue}
+            if owner<0 {lastMetrics.outside+=1}
+            if !selected.contains(id),originalOwners[id] != owner {lastMetrics.wrongParcel+=1}
+        }
+        for j in groupTransfers.indices {
+            var job=groupTransfers[j];let move=job.item.move,ids=Set(move.parcels),target=move.amount*Self.particlesPerUnit
+            let moving=values.filter {ids.contains(Int($0.visual.y))}
+            job.arrived=moving.filter {Int($0.position.w)==move.destination}.count
+            job.departed=moving.filter {Int($0.position.w) != move.source}.count
+            lastMetrics.arrived+=job.arrived;lastMetrics.departed+=job.departed
+            lastMetrics.guided+=moving.filter {$0.visual.w>0.5}.count
+            if job.cutoff==nil,job.departed>=Int(Float(target)*0.99),job.arrived>=target-Int(Float(target)*0.05) {job.cutoff=job.time;job.cutoffTilt=job.tilt}
+            var success:Bool?
+            if let start=job.cleanupStart,job.time-start>=LabBoardTiming.cleanup { success=true }
+            else if job.cleanupStart==nil,let back=job.returned,job.time-back>LabBoardTiming.returned+LabBoardTiming.settling {
+                let missing=target-job.arrived
+                if missing>=0,missing<=Int(Float(target)*0.05),lastMetrics.wrongParcel==0,lastMetrics.nonFinite==0,moving.allSatisfy({$0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite}) {
+                    let pointer=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+                    let slots=(0..<particleCount).filter {ids.contains(Int(pointer[$0].visual.y)) && Int(pointer[$0].position.w) != move.destination}
+                    let receiverCount=values.filter {Int($0.position.w)==move.destination}.count+missing
+                    let profile=profiles[move.destination],height=profile.height(for:profile.usableVolume*Float(receiverCount)/Float(4*Self.particlesPerUnit))
+                    for (n,i) in slots.enumerated() {
+                        let y=max(0.055,height-0.06),r=max(0.02,profile.radius(at:y)-0.10)*sqrt((Float(n)+0.5)/Float(max(1,slots.count))),a=Float(n)*2.3999632
+                        let position=SIMD4(homes[move.destination]+SIMD3(r*cos(a),y,r*sin(a)),Float(move.destination))
+                        pointer[i].position=position;pointer[i].predicted=position;pointer[i].velocity=SIMD4(0,0,0,pointer[i].velocity.w);pointer[i].visual.x=simulationTime
+                    }
+                    job.correction=missing;job.cleanupStart=job.time
+                } else { success=false }
+            }
+            if let success {
+                let committed=success && self.game.commitReserved(move)
+                if !committed {
+                    let sourceIDs=Set(job.before.map {Int($0.visual.y)})
+                    particles=makeBuffer(particleSamples().filter {!sourceIDs.contains(Int($0.visual.y))}+job.before)
+                }
+                groupResults.append(LabLaneResult(id:job.item.id,committed:committed,cleanup:100*Float(job.correction)/Float(target),vessels:[move.source,move.destination],diagnostic:"arrived=\(job.arrived)/\(target) departed=\(job.departed) time=\(job.time)"));finished.append(j)
+            }
+            groupTransfers[j]=job
+        }
+        for i in finished.reversed() {groupTransfers.remove(at:i)}
+        compositeVessels=groupVessels()
+        if groupTransfers.isEmpty,!finished.isEmpty {normalizeOrder(state:self.game.state)}
     }
     func displayComposite(game:LabBoardGame,samples:[LabParticle],vessels:[LabVesselUniform]) {
         lastCommand?.waitUntilCompleted()
@@ -563,23 +726,55 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         compose.setFragmentTexture(dyeB,index:2)
         compose.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3)
         compose.endEncoding()
-        let final=command.makeRenderCommandEncoder(descriptor:pass(color:target,depth:glassDepth))!
-        final.label = "Glass vessels and graduations"
-        final.setRenderPipelineState(copyPipeline)
-        final.setFragmentTexture(scene,index:0)
-        final.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3)
-        final.setRenderPipelineState(glassPipeline); final.setDepthStencilState(depthState)
-        final.setCullMode(.none)
-        final.setVertexBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:1)
-        final.setFragmentBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:1)
-        for i in profiles.indices {
-            var vessel=vessels[i]
-            final.setVertexBuffer(meshes[i].0,offset:0,index:0)
-            final.setVertexBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
-            final.setFragmentBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
-            final.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:meshes[i].1)
+        // Batch non-overlapping shells. Only overlapping silhouettes require
+        // another sampled layer; a normal resting board is usually one batch.
+        func bounds(_ i:Int)->CGRect {
+            let radius=profiles[i].radii.max() ?? 0.6,height=profiles[i].height
+            var x:[CGFloat]=[],y:[CGFloat]=[]
+            for a:Float in [-radius,radius] {for b:Float in [0,height] {for c:Float in [-radius,radius] {
+                let clip=vp*vessels[i].world*SIMD4(a,b,c,1)
+                x.append(CGFloat(clip.x/clip.w));y.append(CGFloat(clip.y/clip.w))
+            }}}
+            return CGRect(x:x.min()!,y:y.min()!,width:x.max()!-x.min()!,height:y.max()!-y.min()!).insetBy(dx:-0.025,dy:-0.025)
         }
-        final.endEncoding()
+        let ordered=profiles.indices.sorted {
+            (view*vessels[$0].world*SIMD4<Float>(0,profiles[$0].height/2,0,1)).z < (view*vessels[$1].world*SIMD4<Float>(0,profiles[$1].height/2,0,1)).z
+        }
+        var batches:[[Int]]=[],current:[Int]=[]
+        let rects=profiles.indices.map {bounds($0)}
+        for i in ordered {
+            if current.contains(where:{rects[$0].intersects(rects[i])}) {batches.append(current);current=[]}
+            current.append(i)
+        }
+        if !current.isEmpty {batches.append(current)}
+        var rear:MTLTexture=scene
+        for (index,batch) in batches.enumerated() {
+            let output:MTLTexture=index%2==0 ? glassA:glassB
+            let descriptor=pass(color:output,depth:glassDepth)
+            descriptor.depthAttachment.loadAction=index==0 ? .clear:.load
+            descriptor.depthAttachment.storeAction = .store
+            let glass=command.makeRenderCommandEncoder(descriptor:descriptor)!
+            glass.label="Depth-ordered glass layer"
+            glass.setRenderPipelineState(copyPipeline);glass.setFragmentTexture(rear,index:0)
+            glass.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3)
+            glass.setRenderPipelineState(glassPipeline);glass.setDepthStencilState(depthState);glass.setCullMode(.none)
+            glass.setVertexBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:1)
+            glass.setFragmentBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:1)
+            glass.setFragmentTexture(rear,index:0);glass.setFragmentTexture(depth,index:1)
+            var clarity:Float=reduceTransparency ? 0:1
+            glass.setFragmentBytes(&clarity,length:MemoryLayout<Float>.stride,index:3)
+            for i in batch {
+                var vessel=vessels[i]
+                glass.setVertexBuffer(meshes[i].0,offset:0,index:0)
+                glass.setVertexBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
+                glass.setFragmentBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
+                glass.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:meshes[i].1)
+            }
+            glass.endEncoding();rear=output
+        }
+        let final=command.makeRenderCommandEncoder(descriptor:pass(color:target,depth:glassDepth))!
+        final.setRenderPipelineState(copyPipeline);final.setFragmentTexture(rear,index:0)
+        final.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3);final.endEncoding()
         if let present { command.present(present) }
         lastCommand=command
         if let completion { command.addCompletedHandler(completion) }

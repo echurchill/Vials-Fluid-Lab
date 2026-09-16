@@ -11,4 +11,5 @@ xcrun swiftc -O -parse-as-library Vials/FluidLab/LabGeometry.swift Vials/FluidLa
  Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabBoardFeedback.swift Vials/FluidLab/LabBoardSession.swift \
  Vials/FluidLab/LabFluid2D.swift Vials/FluidLab/LabPerformance.swift Vials/FluidLab/LabClassicBoardView.swift \
  Vials/FluidLab/LabFluid2DView.swift Vials/FluidLab/LabPlanarSurface.swift Scripts/validate_concurrent.swift -o "$lab_output/validate"
+cp "$lab_library" "$lab_output/default.metallib"
 "$lab_output/validate" "$lab_library" "$lab_output"

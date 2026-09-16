@@ -24,7 +24,7 @@ import Combine
     @Published private(set) var concurrentClassicPours:[LabClassicPour]=[]
     private var concurrentExamples:[Int:LabPourExample]=[:]
     private var classicLanes:[Int:LabClassicPour]=[:]
-    private var metalLanes:[Int:LabMetalLane]=[:]
+    private var metalGroups:[Int:LabBoardRenderer]=[:]
     private var metalPool:[LabBoardRenderer]=[]
     private var compositeSamples:[LabParticle]=[]
     private var concurrentFrame=0
@@ -399,7 +399,7 @@ import Combine
             switch presentation {
             case .classic: visibleStream=concurrentClassicPours.contains { $0.progress>0 && $0.progress<1 }
             case .fluid2D: visibleStream=fluid2D.streamActive
-            case .fluid: visibleStream=metalLanes.values.contains { $0.engine.lastMetrics.departed>20 && $0.engine.cutoffTime==nil }
+            case .fluid: visibleStream=metalGroups.values.contains { $0.groupStreamActive }
             }
         } else if let pour=classicPour { visibleStream=pour.progress>0 && pour.progress<1 }
         else if presentation == .fluid2D { visibleStream=busy && fluid2D.departed>0 && fluid2D.cutoff==nil }
@@ -482,7 +482,10 @@ import Combine
                 if solved { reset() }
                 if pourQueue.items.count<2 {
                     let projected=pourQueue.projected(state)
-                    let options=state.stacks.indices.flatMap { a in state.stacks.indices.compactMap { b in availableMove(from:a,to:b) } }
+                    let options=state.stacks.indices.flatMap { a in state.stacks.indices.compactMap { b in availableMove(from:a,to:b) } }.sorted { a,b in
+                        let receivers=Set(pourQueue.active.map {$0.move.destination})
+                        return receivers.contains(a.destination) && !receivers.contains(b.destination)
+                    }
                     if let next=options.first(where:{ move in
                         !(projected.stacks[move.destination].isEmpty && Set(projected.stacks[move.source].map { projected.colors[$0] }).count==1) && projected.applying(move)?.solution() != nil
                     }) { _=begin(next) }
@@ -494,9 +497,25 @@ import Combine
             try? await Task.sleep(for:.milliseconds(100))
         }
         if Task.isCancelled { reason="cancelled" }
-        // Do not count an unfinished move as a successful transfer.
+        // Stop accepting work, then let the final visible pours return home.
+        // If the app was suspended, retain the measured interval and restore its
+        // committed board instead of leaving the diagnostic app frozen mid-pour.
+        if reason=="completed" {
+            performance.context["requestedDurationSeconds"]=trial.seconds
+            let drainStart=ProcessInfo.processInfo.systemUptime
+            while busy && !suspended && !Task.isCancelled && ProcessInfo.processInfo.systemUptime-drainStart<20 {
+                try? await Task.sleep(for:.milliseconds(50))
+            }
+            performance.context["drainSeconds"]=ProcessInfo.processInfo.systemUptime-drainStart
+        }
         paused=true;updatePause()
         finishMeasurement(filename:"trial-\(trial.puzzle.rawValue)-\(trial.presentation.rawValue)-\(trial.pace.rawValue)-\(trial.quality.rawValue)",reason:reason)
+        if busy {
+            cancelConcurrent();game.cancel();classicPour=nil
+            if presentation == .fluid2D {fluid2D.install(game);planarDisplay.publish(fluid2D)}
+            if presentation == .fluid {renderer?.install(game:game);renderer?.paused=true}
+        }
+        refresh()
         notice="Measurement saved. Reset to play again."
         #if os(macOS)
         if ProcessInfo.processInfo.arguments.contains("--exit-after-trial") { NSApplication.shared.terminate(nil) }
@@ -510,13 +529,6 @@ import Combine
         let layers=state.stacks[index].reversed().map { Self.name(state.colors[$0]) }.joined(separator:", ")
         return "Vial \(Self.letter(index)), \(state.stacks[index].count) of 4 units. \(layers.isEmpty ? "Empty":"Top to bottom: "+layers)."
     }
-}
-
-@MainActor private struct LabMetalLane {
-    let item:LabPourReservation
-    let parcels:Set<Int>
-    let engine:LabBoardRenderer
-    let initialMoves:Int
 }
 
 extension FluidBoardSession {
@@ -575,10 +587,10 @@ extension FluidBoardSession {
             performance.recordFrame(interval:Double(deltaTime),cpuMS:fluid2D.cpuMilliseconds,gpuMS:nil)
         } else if presentation == .classic {
             for item in starts {
-                guard state.move(from:item.move.source,to:item.move.destination)==item.move else {
+                guard state.applyingReserved(item.move) != nil else {
                     finishConcurrent(LabLaneResult(id:item.id,committed:false,cleanup:0));continue
                 }
-                classicLanes[item.id]=LabClassicPour(move:item.move)
+                classicLanes[item.id]=LabClassicPour(move:item.move,approach:item.approach)
             }
             var finished:[Int]=[]
             for id in classicLanes.keys.sorted() {
@@ -589,34 +601,29 @@ extension FluidBoardSession {
             concurrentClassicPours=classicLanes.keys.sorted().compactMap { classicLanes[$0] }
             performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:nil)
         } else if let renderer {
-            for item in starts {
+            for item in starts where metalGroups[item.move.destination]==nil {
                 guard let engine=metalPool.popLast() else { finishConcurrent(LabLaneResult(id:item.id,committed:false,cleanup:0));continue }
-                engine.installSimulation(game:game,samples:compositeSamples,vessels:item.vessels);engine.playbackSpeed=effectiveSpeed
-                guard engine.begin(from:item.move.source,to:item.move.destination,reserved:true),engine.game.pending==item.move else {
-                    metalPool.append(engine);finishConcurrent(LabLaneResult(id:item.id,committed:false,cleanup:0));continue
-                }
-                metalLanes[item.id]=LabMetalLane(item:item,parcels:Set(state.stacks[item.move.source]+state.stacks[item.move.destination]),engine:engine,initialMoves:game.moveCount)
+                engine.installSimulation(game:game,samples:compositeSamples,vessels:item.vessels)
+                metalGroups[item.move.destination]=engine
             }
             var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
-            var results:[LabLaneResult]=[],aggregate=LabBoardMetrics()
-            aggregate.gpuMilliseconds=renderer.lastGPUWorkMilliseconds
-            for id in metalLanes.keys.sorted() {
-                let lane=metalLanes[id]!,engine=lane.engine
-                engine.playbackSpeed=effectiveSpeed;engine.advanceSimulation(deltaTime:deltaTime)
-                let samples=engine.particleSamples()
+            var aggregate=LabBoardMetrics();aggregate.gpuMilliseconds=renderer.lastGPUWorkMilliseconds
+            var completed:[LabLaneResult]=[],empty:[Int]=[]
+            for receiver in metalGroups.keys.sorted() {
+                let engine=metalGroups[receiver]!
+                engine.playbackSpeed=effectiveSpeed
+                engine.advanceGroup(game:game,starts:starts.filter {$0.move.destination==receiver},samples:compositeSamples,deltaTime:deltaTime)
+                let samples=engine.particleSamples(),ids=engine.groupOwnedParcels
                 aggregate.gpuMilliseconds+=engine.lastGPUWorkMilliseconds
-                aggregate.arrived+=engine.lastMetrics.arrived;aggregate.departed+=engine.lastMetrics.departed
-                aggregate.guided+=engine.lastMetrics.guided;aggregate.outside+=engine.lastMetrics.outside
-                aggregate.wrongParcel+=engine.lastMetrics.wrongParcel;aggregate.nonFinite+=engine.lastMetrics.nonFinite
-                compositeSamples.removeAll { lane.parcels.contains(Int($0.visual.y)) }
-                compositeSamples+=samples.filter { lane.parcels.contains(Int($0.visual.y)) }
-                for owner in [lane.item.move.source,lane.item.move.destination] { vessels[owner]=engine.currentVessels[owner] }
-                if engine.resting { results.append(LabLaneResult(id:id,committed:engine.game.moveCount==lane.initialMoves+1,cleanup:Float(engine.correctionCount)/Float(lane.item.move.amount*LabBoardRenderer.particlesPerUnit)*100)) }
+                aggregate.arrived+=engine.lastMetrics.arrived;aggregate.departed+=engine.lastMetrics.departed;aggregate.guided+=engine.lastMetrics.guided
+                aggregate.outside+=engine.lastMetrics.outside;aggregate.wrongParcel+=engine.lastMetrics.wrongParcel;aggregate.nonFinite+=engine.lastMetrics.nonFinite
+                compositeSamples.removeAll {ids.contains(Int($0.visual.y))};compositeSamples+=samples.filter {ids.contains(Int($0.visual.y))}
+                for owner in Set(engine.groupMoves.flatMap {[$0.source,$0.destination]}+engine.groupResults.flatMap(\.vessels)) {vessels[owner]=engine.currentVessels[owner]}
+                completed+=engine.groupResults
+                if engine.groupMoves.isEmpty {empty.append(receiver)}
             }
-            for result in results {
-                if let lane=metalLanes.removeValue(forKey:result.id) { metalPool.append(lane.engine) }
-                finishConcurrent(result)
-            }
+            for result in completed { finishConcurrent(result) }
+            for receiver in empty {if let engine=metalGroups.removeValue(forKey:receiver) {metalPool.append(engine)}}
             concurrentFrame+=1
             if concurrentFrame%15==0 || !busy { metrics=aggregate }
             renderer.displayComposite(game:game,samples:compositeSamples,vessels:vessels)
@@ -625,6 +632,8 @@ extension FluidBoardSession {
         }
         if measurementActive {
             performance.context["maximumConcurrentPours"]=max(performance.context["maximumConcurrentPours"] as? Int ?? 0,pourQueue.active.count)
+            let shared=Dictionary(grouping:pourQueue.active,by:{$0.move.destination}).values.map(\.count).max() ?? 0
+            performance.context["maximumSharedReceiverPours"]=max(performance.context["maximumSharedReceiverPours"] as? Int ?? 0,shared)
         }
         refresh()
     }
@@ -636,15 +645,18 @@ extension FluidBoardSession {
             undoParticles.append(nil);lastPour=concurrentExamples[result.id]
             if presentation != .fluid { settledParticles=nil }
             feedback.completed(solved:solved)
-        } else { notice="A pour could not finish. Its source has been restored.";feedback.stop() }
+        } else {
+            notice="A pour could not finish. Its source has been restored.";feedback.stop()
+            performance.context["lastRejectedPour"]="\(presentation.rawValue) \(item.move.source)→\(item.move.destination) units=\(item.move.amount) approach=\(item.approach) \(result.diagnostic)"
+        }
         concurrentExamples[result.id]=nil
         performance.endConcurrentMove(id:result.id,committed:committed,correctionPercent:Double(result.cleanup))
         checkpoint()
     }
     private func cancelConcurrent() {
         classicTask?.cancel();classicTask=nil;clockRevision+=1
-        for lane in metalLanes.values { lane.engine.paused=true;metalPool.append(lane.engine) }
-        metalLanes=[:];classicLanes=[:];concurrentClassicPours=[];concurrentWorker=nil
+        for engine in metalGroups.values { engine.paused=true;metalPool.append(engine) }
+        metalGroups=[:];classicLanes=[:];concurrentClassicPours=[];concurrentWorker=nil
         pourQueue.cancelAll();concurrentExamples=[:];compositeSamples=[]
     }
 }
