@@ -1,0 +1,34 @@
+diff --git a/Vials/Game/VialLevelGenerator.swift b/Vials/Game/VialLevelGenerator.swift
+index 3fc7dc3..daa95d9 100644
+--- a/Vials/Game/VialLevelGenerator.swift
++++ b/Vials/Game/VialLevelGenerator.swift
+@@ -596,18 +596,28 @@ private struct LevelSolver {
+     nonisolated private func moves(for state: [[Int]]) -> [SolverMove] {
+         var moves: [SolverMove] = []
+ 
++        // A "complete" vial is only truly finished when no units of its
++        // fluid remain anywhere else on the board.
++        var fluidTotals: [Int: Int] = [:]
++        for vial in state {
++            for unit in vial { fluidTotals[unit, default: 0] += 1 }
++        }
++
+         for source in state.indices {
+             guard rules[source] == .normal else { continue }
+             guard let fluid = state[source].last else { continue }
+             let runLength = topRunLength(in: state[source])
+             let sourceIsComplete = isComplete(state[source], capacity: capacities[source])
++            // Complete vials are homogeneous, so count == units of `fluid`.
++            let sourceHoldsAllOfFluid = fluidTotals[fluid, default: 0] == state[source].count
+ 
+             for destination in state.indices where source != destination {
+                 guard state[destination].count < capacities[destination] else { continue }
+ 
+                 if let destinationFluid = state[destination].last {
+                     guard destinationFluid == fluid else { continue }
+-                } else if sourceIsComplete {
++                } else if sourceIsComplete && sourceHoldsAllOfFluid {
++                    // Relocating a finished color to an empty vial can never help.
+                     continue
+                 }
+ 
