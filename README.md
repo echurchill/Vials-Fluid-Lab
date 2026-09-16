@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Unequal-capacity solver pruning](Reports/Prototype24/README.md) fixes a false dead end in the bundled Original game and adds generated-level, receive-only, helper and four-move counterexample coverage.
+
 [Depth-ordered completion caps](Reports/Prototype23/README.md) keep a rear completed stopper behind crossing vials in Classic, 2D and 3D. Mac regressions and signed iPad portrait/landscape checks pass.
 
 [Reset all progress](Reports/Prototype22/README.md) adds a confirmed fresh start from the Board options menu, clearing all saved levels and bundled Original game progress. Mac UI and state checks pass.

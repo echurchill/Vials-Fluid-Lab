@@ -741,18 +741,26 @@ private struct LevelSolver {
     nonisolated private func moves(for state: [[Int]]) -> [SolverMove] {
         var moves: [SolverMove] = []
 
+        // A full homogeneous vial is only a finished color when no more units
+        // of that color remain elsewhere on the board. With unequal capacities,
+        // relocating it can be necessary to consolidate the color in a larger
+        // vial and reuse the smaller container.
+        var fluidTotals:[Int:Int]=[:]
+        for vial in state { for unit in vial { fluidTotals[unit,default:0] += 1 } }
+
         for source in state.indices {
             guard rules[source] == .normal else { continue }
             guard let fluid = state[source].last else { continue }
             let runLength = topRunLength(in: state[source])
             let sourceIsComplete = isComplete(state[source], capacity: capacities[source])
+            let sourceHoldsAllOfFluid = fluidTotals[fluid,default:0] == state[source].count
 
             for destination in state.indices where source != destination {
                 guard state[destination].count < capacities[destination] else { continue }
 
                 if let destinationFluid = state[destination].last {
                     guard destinationFluid == fluid else { continue }
-                } else if sourceIsComplete {
+                } else if sourceIsComplete && sourceHoldsAllOfFluid {
                     continue
                 }
 

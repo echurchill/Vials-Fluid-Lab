@@ -100,6 +100,27 @@ struct GeneratedLevelValidation {
             failures.append("hint solver: expected a solution-preserving move")
         }
 
+        // A full capacity-two Ember vial must move into the larger empty vial
+        // so the remaining Ember can join it and free the small vial for Tide.
+        // Pruning every homogeneous-full-to-empty move falsely reports a dead end.
+        let unequalCapacityState = [
+            Vial(fluids:[.ember,.ember],capacity:2),
+            Vial(fluids:[],capacity:3),
+            Vial(fluids:[.tide,.ember,.tide],capacity:3)
+        ]
+        if !VialLevelGenerator.canSolve(unequalCapacityState,nodeLimit:10_000,depthLimit:30) {
+            failures.append("solver pruning: unequal-capacity duplicate color reported as a dead end")
+        }
+        if VialLevelGenerator.minimumMoveCount(unequalCapacityState,nodeLimit:10_000) != 4 {
+            failures.append("solver pruning: expected four-move unequal-capacity solution")
+        }
+        switch VialLevelGenerator.hint(vials:unequalCapacityState,helperBeaker:nil,nodeLimit:10_000) {
+        case .move(let move) where move.sourceIndex==0 && move.destinationIndex==1 && move.fluid == .ember && move.amount==2:
+            break
+        default:
+            failures.append("solver pruning: expected the full Ember vial to move into the larger empty vial")
+        }
+
         let deadEndState = [
             Vial(fluids: [.ember, .tide], capacity: 2),
             Vial(fluids: [], capacity: 2)

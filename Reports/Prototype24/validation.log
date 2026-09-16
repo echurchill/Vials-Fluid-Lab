@@ -1,0 +1,14 @@
+Before patch (optimized full generated-level suite):
+Generated level validation passed
+real 1.91
+user 1.45
+sys 0.02
+
+After patch plus unequal-capacity canSolve/minimum/hint checks:
+Generated level validation passed
+real 2.25
+user 1.94
+sys 0.01
+
+macOS Release build: passed
+signed iOS Release build: passed
