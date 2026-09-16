@@ -59,14 +59,12 @@ struct FluidBoardView:View {
                     Text("\(session.moveCount) \(session.moveCount == 1 ? "move":"moves")").font(.system(size:12,design:.monospaced)).foregroundStyle(ink.opacity(0.6))
                 }.padding(.horizontal,compact ? 20:32).frame(height:38)
                 GeometryReader { board in
+                    let capExclusions=Set([session.selected].compactMap { $0 }+session.activeMoves.flatMap { [$0.source,$0.destination] })
                     ZStack {
-                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours) }
-                        else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial) }
-                        else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer).accessibilityHidden(true) }
+                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions) }
+                        else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial,capExclusions:capExclusions) }
+                        else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer,capExclusions:capExclusions).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
-                        LabVialCaps(state:session.state,planarProfiles:session.fluid2D.profiles,presentation:session.presentation,orbit:Float(session.orbit),
-                            uncapped:Set([session.selected].compactMap { $0 }+session.activeMoves.flatMap { [$0.source,$0.destination] }))
-                            .allowsHitTesting(false).accessibilityHidden(true)
                         ForEach(session.state.stacks.indices,id:\.self) { index in
                             let rect=hitRect(index,size:board.size)
                             Button { session.select(index) } label: {
@@ -226,91 +224,26 @@ struct FluidBoardView:View {
 #if os(macOS)
 struct BoardMetalSurface:NSViewRepresentable {
     let renderer:LabBoardRenderer
-    func makeNSView(context:Context) -> MTKView { makeBoardView(renderer) }
-    func updateNSView(_ view:MTKView,context:Context) {}
+    var capExclusions:Set<Int>=[]
+    func makeNSView(context:Context) -> MTKView { makeBoardView(renderer,capExclusions:capExclusions) }
+    func updateNSView(_ view:MTKView,context:Context) { renderer.capExclusions=capExclusions }
     static func dismantleNSView(_ view:MTKView,coordinator:()) { view.isPaused=true;view.delegate=nil }
 }
 #else
 struct BoardMetalSurface:UIViewRepresentable {
     let renderer:LabBoardRenderer
-    func makeUIView(context:Context) -> MTKView { makeBoardView(renderer) }
-    func updateUIView(_ view:MTKView,context:Context) {}
+    var capExclusions:Set<Int>=[]
+    func makeUIView(context:Context) -> MTKView { makeBoardView(renderer,capExclusions:capExclusions) }
+    func updateUIView(_ view:MTKView,context:Context) { renderer.capExclusions=capExclusions }
     static func dismantleUIView(_ view:MTKView,coordinator:()) { view.isPaused=true;view.delegate=nil }
 }
 #endif
-@MainActor private func makeBoardView(_ renderer:LabBoardRenderer) -> MTKView {
+@MainActor private func makeBoardView(_ renderer:LabBoardRenderer,capExclusions:Set<Int>) -> MTKView {
+    renderer.capExclusions=capExclusions
     let view=MTKView(frame:.zero,device:renderer.device)
     view.colorPixelFormat = .bgra8Unorm_srgb;view.preferredFramesPerSecond=60
     view.autoResizeDrawable=false;view.delegate=renderer
     return view
-}
-
-/// Completion is a physical-looking closure, separate from interactive pour hints.
-/// This static overlay shares the board camera and never observes particle frames.
-private struct LabVialCaps:View {
-    let state:LabBoardState
-    let planarProfiles:[Lab2DProfile]
-    let presentation:LabBoardPresentation
-    let orbit:Float
-    let uncapped:Set<Int>
-    var body:some View {
-        Canvas { context,size in
-            let profiles=LabBoardLayout.profiles(count:state.stacks.count)
-            let homes=LabBoardLayout.homes(count:state.stacks.count)
-            let layout=LabClassicLayout(size:size,vesselCount:profiles.count)
-            let camera=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:orbit,vesselCount:profiles.count)
-            for index in state.stacks.indices {
-                let stack=state.stacks[index]
-                guard !uncapped.contains(index),stack.count==state.capacity,let first=stack.first,
-                      stack.allSatisfy({state.colors[$0]==state.colors[first]}) else { continue }
-                let profile=profiles[index]
-                // Planar vessels are rescaled to preserve area per unit.
-                let height=profile.height
-                let radius=(presentation == .fluid2D ? planarProfiles[index].radius(height):profile.radii.last!)+0.065
-                let color=FluidBoardSession.color(state.colors[first])
-                func project(_ point:SIMD3<Float>)->CGPoint {
-                    if presentation == .fluid {
-                        let p=camera.0*SIMD4(homes[index]+point,1)
-                        return CGPoint(x:CGFloat(p.x/p.w+1)*size.width/2,y:CGFloat(1-p.y/p.w)*size.height/2)
-                    }
-                    let base=layout.base(index)
-                    return CGPoint(x:base.x+CGFloat(point.x)*layout.scale,y:base.y-CGFloat(point.y-point.z*0.23)*layout.scale)
-                }
-                func ring(_ y:Float,_ r:Float)->[SIMD3<Float>] {
-                    (0..<48).map { n in let a=Float(n)*2*Float.pi/48;return SIMD3(cos(a)*r,y,sin(a)*r) }
-                }
-                func path(_ points:[SIMD3<Float>])->Path {
-                    Path { p in
-                        for (n,point) in points.enumerated() {
-                            if n==0 { p.move(to:project(point)) } else { p.addLine(to:project(point)) }
-                        }
-                        p.closeSubpath()
-                    }
-                }
-                let bottom=ring(height-0.015,radius),top=ring(height+0.18,radius)
-                let eye=presentation == .fluid ? camera.2-homes[index]:SIMD3<Float>(0,5,20)
-                // Paint the far side first so the cap retains the board perspective.
-                let sides=(0..<48).sorted { simd_dot(bottom[$0],eye)<simd_dot(bottom[$1],eye) }
-                for n in sides {
-                    let next=(n+1)%48,face=path([bottom[n],bottom[next],top[next],top[n]])
-                    let angle=(Float(n)+0.5)*2*Float.pi/48
-                    let light=max(0,-cos(angle)*0.55+sin(angle)*0.45)
-                    context.fill(face,with:.color(color))
-                    context.fill(face,with:.color(.black.opacity(Double(0.48-light*0.40))))
-                    // Fine grip grooves suggest a sealed metal stopper rather than a glow.
-                    if n%2==0,simd_dot(SIMD3(cos(angle),0,sin(angle)),eye)>0 {
-                        var groove=Path();groove.move(to:project(bottom[n]));groove.addLine(to:project(top[n]))
-                        context.stroke(groove,with:.color(.white.opacity(0.14)),lineWidth:0.6)
-                    }
-                }
-                let lid=path(top),left=project(SIMD3(-radius,height+0.18,0)),right=project(SIMD3(radius,height+0.18,0))
-                context.fill(lid,with:.color(color))
-                context.fill(lid,with:.linearGradient(Gradient(colors:[.white.opacity(0.5),.white.opacity(0.12),.black.opacity(0.15)]),startPoint:left,endPoint:right))
-                context.stroke(lid,with:.color(.white.opacity(0.55)),lineWidth:0.8)
-                context.stroke(path(ring(height+0.182,radius*0.79)),with:.color(.black.opacity(0.20)),lineWidth:0.7)
-            }
-        }
-    }
 }
 
 /// Touch-down feedback does not wait for the button action on release.

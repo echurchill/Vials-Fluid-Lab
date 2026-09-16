@@ -1,4 +1,5 @@
 import SwiftUI
+import simd
 
 struct LabClassicLayout {
     let size:CGSize
@@ -18,6 +19,7 @@ struct LabClassicBoardView:View {
     let state:LabBoardState
     let pour:LabClassicPour?
     var additionalPours:[LabClassicPour]=[]
+    var capExclusions:Set<Int>=[]
     private var pours:[LabClassicPour] { [pour].compactMap { $0 }+additionalPours }
     private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(count:state.stacks.count) }
     var body:some View {
@@ -106,6 +108,11 @@ struct LabClassicBoardView:View {
             var mark=Path();mark.move(to:CGPoint(x:r*0.53,y:-CGFloat(y)*scale));mark.addLine(to:CGPoint(x:r*0.90,y:-CGFloat(y)*scale))
             ctx.stroke(mark,with:.color(.white.opacity(0.23)),lineWidth:1)
         }
+        let excluded=capExclusions.union(pours.flatMap { [$0.move.source,$0.move.destination] })
+        if !excluded.contains(index),state.isComplete(index),let first=state.stacks[index].first {
+            drawLabPlanarCap(context:&ctx,height:profile.height,radius:profile.radii.last!+0.065,
+                scale:scale,color:FluidBoardSession.color(state.colors[first]))
+        }
     }
     private func pose(_ pour:LabClassicPour,layout:LabClassicLayout) -> (base:CGPoint,angle:CGFloat) {
         let source=layout.base(pour.move.source),dest=layout.base(pour.move.destination),scale=layout.scale
@@ -132,4 +139,40 @@ struct LabClassicBoardView:View {
         }
         return (point,tilt)
     }
+}
+
+/// Draw a sealed stopper in a vial-local coordinate system. Keeping it in the
+/// same graphics layer as its glass lets later, foreground vials occlude it.
+func drawLabPlanarCap(context:inout GraphicsContext,height:Float,radius:Float,scale:CGFloat,color:Color) {
+    func project(_ point:SIMD3<Float>)->CGPoint {
+        CGPoint(x:CGFloat(point.x)*scale,y:-CGFloat(point.y-point.z*0.23)*scale)
+    }
+    func ring(_ y:Float,_ r:Float)->[SIMD3<Float>] {
+        (0..<48).map { n in let a=Float(n)*2*Float.pi/48;return SIMD3(cos(a)*r,y,sin(a)*r) }
+    }
+    func path(_ points:[SIMD3<Float>])->Path {
+        Path { p in
+            for (n,point) in points.enumerated() {
+                if n==0 { p.move(to:project(point)) } else { p.addLine(to:project(point)) }
+            }
+            p.closeSubpath()
+        }
+    }
+    let bottom=ring(height-0.015,radius),top=ring(height+0.18,radius),eye=SIMD3<Float>(0,5,20)
+    let sides=(0..<48).sorted { simd_dot(bottom[$0],eye)<simd_dot(bottom[$1],eye) }
+    for n in sides {
+        let next=(n+1)%48,face=path([bottom[n],bottom[next],top[next],top[n]])
+        let angle=(Float(n)+0.5)*2*Float.pi/48,light=max(0,-cos(angle)*0.55+sin(angle)*0.45)
+        context.fill(face,with:.color(color))
+        context.fill(face,with:.color(.black.opacity(Double(0.48-light*0.40))))
+        if n%2==0,simd_dot(SIMD3(cos(angle),0,sin(angle)),eye)>0 {
+            var groove=Path();groove.move(to:project(bottom[n]));groove.addLine(to:project(top[n]))
+            context.stroke(groove,with:.color(.white.opacity(0.14)),lineWidth:0.6)
+        }
+    }
+    let lid=path(top),left=project(SIMD3(-radius,height+0.18,0)),right=project(SIMD3(radius,height+0.18,0))
+    context.fill(lid,with:.color(color))
+    context.fill(lid,with:.linearGradient(Gradient(colors:[.white.opacity(0.5),.white.opacity(0.12),.black.opacity(0.15)]),startPoint:left,endPoint:right))
+    context.stroke(lid,with:.color(.white.opacity(0.55)),lineWidth:0.8)
+    context.stroke(path(ring(height+0.182,radius*0.79)),with:.color(.black.opacity(0.20)),lineWidth:0.7)
 }

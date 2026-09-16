@@ -10,6 +10,7 @@ import simd
   let output=URL(fileURLWithPath:CommandLine.arguments[2]);try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
   struct Fixture {let name:String;let layers:[[Int]];let a:(Int,Int);let b:(Int,Int);let delay:Int}
   let fixtures=[
+   Fixture(name:"cap-crossing",layers:[[2,2],[0,0,0,0],[],[1],[1],[]],a:(0,2),b:(3,5),delay:40),
    Fixture(name:"near-full",layers:[[0,0,0],[0,0,0],[],[],[1],[2]],a:(0,2),b:(1,2),delay:0),
    Fixture(name:"crossing",layers:[[2,0,0],[],[1],[],[2,1,1],[]],a:(0,5),b:(4,1),delay:40),
    Fixture(name:"shared-left",layers:[[],[1],[],[2],[1,0,0],[2,0,0]],a:(4,0),b:(5,0),delay:90),

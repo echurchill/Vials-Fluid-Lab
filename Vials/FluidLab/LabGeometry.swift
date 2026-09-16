@@ -256,6 +256,29 @@ func labGlassMesh(_ profile: LabVesselProfile, rings:Int = 96, segments:Int = 96
     return vertices
 }
 
+/// Opaque completion stopper. It shares the vial transform and depth buffer so
+/// foreground moving glass can correctly pass in front of a completed vial.
+func labCapMesh(_ profile:LabVesselProfile,segments:Int=64) -> [LabVertex] {
+    let bottom=profile.height-0.015,top=profile.height+0.18,radius=profile.radii.last!+0.065
+    var vertices:[LabVertex]=[]
+    for segment in 0..<segments {
+        let a=Float(segment)/Float(segments)*2*Float.pi,b=Float(segment+1)/Float(segments)*2*Float.pi
+        let na=SIMD4<Float>(cos(a),0,sin(a),0),nb=SIMD4<Float>(cos(b),0,sin(b),0)
+        let lowerA=LabVertex(position:SIMD4(radius*cos(a),bottom,radius*sin(a),1),normal:na)
+        let lowerB=LabVertex(position:SIMD4(radius*cos(b),bottom,radius*sin(b),1),normal:nb)
+        let upperA=LabVertex(position:SIMD4(radius*cos(a),top,radius*sin(a),1),normal:na)
+        let upperB=LabVertex(position:SIMD4(radius*cos(b),top,radius*sin(b),1),normal:nb)
+        vertices += [lowerA,lowerB,upperB,lowerA,upperB,upperA]
+        for (y,normal) in [(top,SIMD4<Float>(0,1,0,0)),(bottom,SIMD4<Float>(0,-1,0,0))] {
+            let center=LabVertex(position:SIMD4(0,y,0,1),normal:normal)
+            let edgeA=LabVertex(position:SIMD4(radius*cos(a),y,radius*sin(a),1),normal:normal)
+            let edgeB=LabVertex(position:SIMD4(radius*cos(b),y,radius*sin(b),1),normal:normal)
+            vertices += y==top ? [center,edgeA,edgeB]:[center,edgeB,edgeA]
+        }
+    }
+    return vertices
+}
+
 extension SIMD4 where Scalar == Float {
     var xyz: SIMD3<Float> { SIMD3(x,y,z) }
 }

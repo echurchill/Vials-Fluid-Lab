@@ -25,8 +25,13 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         self.colors=colors; self.stacks=stacks
     }
     nonisolated static let firstSort = LabBoardState(layers:[[0,1,1],[1,0,0],[0,1],[]])
+    func isComplete(_ index:Int) -> Bool {
+        guard stacks.indices.contains(index) else { return false }
+        let stack=stacks[index]
+        return stack.count==capacity && Set(stack.map { colors[$0] }).count==1
+    }
     var solved: Bool {
-        stacks.allSatisfy { $0.isEmpty || ($0.count == capacity && Set($0.map { colors[$0] }).count == 1) }
+        stacks.indices.allSatisfy { stacks[$0].isEmpty || isComplete($0) }
     }
     func move(from source:Int,to destination:Int) -> LabBoardMove? {
         guard stacks.indices.contains(source), stacks.indices.contains(destination), source != destination,

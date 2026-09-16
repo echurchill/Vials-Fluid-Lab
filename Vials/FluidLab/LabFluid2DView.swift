@@ -8,11 +8,12 @@ struct LabFluid2DView:View {
     var selected:Int?
     var destinations:Set<Int>=[]
     var rejected:Int?
+    var capExclusions:Set<Int>=[]
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private var economy:Bool { ProcessInfo.processInfo.isLowPowerModeEnabled || ProcessInfo.processInfo.thermalState != .nominal }
     var body:some View { GeometryReader { proxy in scene(size:proxy.size) }.accessibilityHidden(true) }
     private func layer(_ owners:Set<Int>,floor:Bool=false)->some View {
-        LabFluid2DLayer(engine:engine,points:points,frame:frame,selected:selected,destinations:destinations,rejected:rejected,owners:owners,drawFloor:floor,opaqueGlass:reduceTransparency)
+        LabFluid2DLayer(engine:engine,points:points,frame:frame,selected:selected,destinations:destinations,rejected:rejected,capExclusions:capExclusions,owners:owners,drawFloor:floor,opaqueGlass:reduceTransparency)
     }
     private func scene(size:CGSize)->AnyView {
         let moves=engine.displayMoves+[engine.game.pending].compactMap {$0}
@@ -41,6 +42,7 @@ private struct LabFluid2DLayer:View {
     var selected:Int?
     var destinations:Set<Int>=[]
     var rejected:Int?
+    var capExclusions:Set<Int>=[]
     var owners:Set<Int>
     var drawFloor=false
     var opaqueGlass=false
@@ -84,6 +86,13 @@ private struct LabFluid2DLayer:View {
                     if owner>=0 {
                         let cue:Color?=rejected==owner ? .orange:(selected==owner ? .cyan:(destinations.contains(owner) ? Color(red:0.28,green:0.85,blue:0.79):nil))
                         drawGlass(owner,context:context,scale:scale,base:screen(engine.pose(owner).base),cue:cue)
+                        let active=Set((engine.displayMoves+[engine.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] })
+                        if !capExclusions.union(active).contains(owner),engine.game.state.isComplete(owner),let first=engine.game.state.stacks[owner].first {
+                            let profile=engine.profiles[owner],pose=engine.pose(owner)
+                            var cap=context;cap.translateBy(x:screen(pose.base).x,y:screen(pose.base).y);cap.rotate(by:.radians(Double(pose.angle)))
+                            drawLabPlanarCap(context:&cap,height:profile.height,radius:profile.radius(profile.height)+0.065,
+                                scale:scale,color:FluidBoardSession.color(engine.game.state.colors[first]))
+                        }
                     }
                 }
                 let owned=engine.particles.filter { $0.owner==owner }

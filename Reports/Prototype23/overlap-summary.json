@@ -1,0 +1,164 @@
+[
+  {
+    "completed" : 2,
+    "fixture" : "cap-crossing",
+    "maximumPenetration" : 0,
+    "mode" : "classic",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "near-full",
+    "maximumPenetration" : 0,
+    "mode" : "classic",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "crossing",
+    "maximumPenetration" : 0,
+    "mode" : "classic",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "shared-left",
+    "maximumPenetration" : 0,
+    "mode" : "classic",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "shared-right",
+    "maximumPenetration" : 0,
+    "mode" : "classic",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "return-crossing",
+    "maximumPenetration" : 0,
+    "mode" : "classic",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "cap-crossing",
+    "maximumPenetration" : 0,
+    "mode" : "fluid2D",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "near-full",
+    "maximumPenetration" : 0,
+    "mode" : "fluid2D",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "crossing",
+    "maximumPenetration" : 0,
+    "mode" : "fluid2D",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "shared-left",
+    "maximumPenetration" : 0,
+    "mode" : "fluid2D",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "shared-right",
+    "maximumPenetration" : 0,
+    "mode" : "fluid2D",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "return-crossing",
+    "maximumPenetration" : 0,
+    "mode" : "fluid2D",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "cap-crossing",
+    "maximumPenetration" : 0,
+    "mode" : "fluid",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "near-full",
+    "maximumPenetration" : 0,
+    "mode" : "fluid",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "crossing",
+    "maximumPenetration" : 0,
+    "mode" : "fluid",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "shared-left",
+    "maximumPenetration" : 0,
+    "mode" : "fluid",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "shared-right",
+    "maximumPenetration" : 0,
+    "mode" : "fluid",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  },
+  {
+    "completed" : 2,
+    "fixture" : "return-crossing",
+    "maximumPenetration" : 0,
+    "mode" : "fluid",
+    "penetratingFrames" : 0,
+    "planarClippedFrames" : 0,
+    "spatialClippedFrames" : 0
+  }
+]

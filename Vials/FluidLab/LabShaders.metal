@@ -469,6 +469,19 @@ fragment float4 labBoardGlassFragment(GlassOut in [[stage_in]], constant Uniform
     color=mix(color,float3(0.40,0.49,0.53),foot*0.65f);
     return float4(color,1);
 }
+fragment float4 labBoardCapFragment(GlassOut in [[stage_in]], constant Uniforms &u [[buffer(1)]],
+                                    constant float4 &capColor [[buffer(3)]]) {
+    float3 n=normalize(in.normal),eye=normalize(u.camera.xyz-in.world);
+    if(dot(n,eye)<0) n=-n;
+    float diffuse=0.52+0.48*max(dot(n,normalize(float3(-0.55,0.85,0.75))),0.0f);
+    float fresnel=pow(1-max(dot(n,eye),0.0f),4.0f);
+    float side=1-smoothstep(0.35f,0.75f,abs(n.y));
+    float grooves=0.5f+0.5f*cos(atan2(in.local.z,in.local.x)*48.0f);
+    float3 color=capColor.rgb*diffuse*(1-side*grooves*0.12f);
+    color+=studio(reflect(-eye,n))*(0.08f+fresnel*0.20f);
+    color+=float3(0.30,0.38,0.42)*pow(max(dot(reflect(-normalize(float3(-0.6,1,1)),n),eye),0.0f),70.0f);
+    return float4(color,1);
+}
 fragment float4 labCopy(QuadOut in [[stage_in]], texture2d<float> scene [[texture(0)]]) {
     constexpr sampler s(coord::normalized,address::clamp_to_edge,filter::linear);
     return scene.sample(s,in.uv);

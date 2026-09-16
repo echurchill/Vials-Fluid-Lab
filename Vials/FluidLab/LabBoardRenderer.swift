@@ -60,6 +60,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     var paused=false
     var pointMode=false
     var reduceTransparency=false
+    var capExclusions:Set<Int>=[]
     var orbit:Float=0.12
     var playbackSpeed:Float=1
     var viscosity:Float=0.10
@@ -82,11 +83,13 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var deltas: MTLBuffer!
     private var velocities: MTLBuffer!
     private var meshes: [(MTLBuffer,Int)] = []
+    private var capMeshes:[(MTLBuffer,Int)]=[]
     private var kernels: [String: MTLComputePipelineState] = [:]
     private var depthPipeline: MTLRenderPipelineState!
     private var thicknessPipeline: MTLRenderPipelineState!
     private var composePipeline: MTLRenderPipelineState!
     private var glassPipeline: MTLRenderPipelineState!
+    private var capPipeline:MTLRenderPipelineState!
     private var copyPipeline: MTLRenderPipelineState!
     private var glassCopyPipeline: MTLRenderPipelineState!
     private(set) var glassSampleCount = 1
@@ -143,6 +146,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         // existing resolution and particle workload.
         glassSampleCount = device.supportsTextureSampleCount(4) ? 4 : (device.supportsTextureSampleCount(2) ? 2 : 1)
         glassPipeline = try pipeline(vertex: "labGlassVertex", fragment: "labBoardGlassFragment", format: .bgra8Unorm_srgb, depth: true, samples: glassSampleCount)
+        capPipeline = try pipeline(vertex: "labGlassVertex", fragment: "labBoardCapFragment", format: .bgra8Unorm_srgb, depth: true, samples: glassSampleCount)
         glassCopyPipeline = try pipeline(vertex: "labFullscreen", fragment: "labCopy", format: .bgra8Unorm_srgb, depth: true, samples: glassSampleCount)
         copyPipeline = try pipeline(vertex: "labFullscreen", fragment: "labCopy", format: .bgra8Unorm_srgb)
         let state = MTLDepthStencilDescriptor()
@@ -154,6 +158,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let vertices = labGlassMesh(profile,rings:48,segments:64)
             return (makeBuffer(vertices), vertices.count)
         }
+        capMeshes=profiles.map { let vertices=labCapMesh($0);return (makeBuffer(vertices),vertices.count) }
         reset()
     }
 
@@ -195,6 +200,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             profiles=LabBoardLayout.profiles(count:state.stacks.count);seedPositions=[]
             profilesBuffer=makeBuffer(profiles.flatMap(\.radii))
             meshes=profiles.map { let vertices=labGlassMesh($0,rings:48,segments:64);return (makeBuffer(vertices),vertices.count) }
+            capMeshes=profiles.map { let vertices=labCapMesh($0);return (makeBuffer(vertices),vertices.count) }
         }
         let values=seed(state:state)
         particleCount=values.count;particleVolume=profiles[0].usableVolume/4/Float(Self.particlesPerUnit)
@@ -758,8 +764,19 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         compose.endEncoding()
         // Batch non-overlapping shells. Only overlapping silhouettes require
         // another sampled layer; a normal resting board is usually one batch.
+        let movingCaps=Set(groupMoves.flatMap { [$0.source,$0.destination] }+(game.pending.map { [$0.source,$0.destination] } ?? []))
+        let excludedCaps=capExclusions.union(movingCaps)
+        func capColor(_ index:Int)->SIMD4<Float>? {
+            guard !excludedCaps.contains(index),game.state.isComplete(index),let parcel=game.state.stacks[index].first else { return nil }
+            switch game.state.colors[parcel] {
+            case 0:return SIMD4(0.05,0.58,0.86,1)
+            case 1:return SIMD4(0.96,0.34,0.07,1)
+            default:return SIMD4(0.20,0.76,0.36,1)
+            }
+        }
         func bounds(_ i:Int)->CGRect {
-            let radius=profiles[i].radii.max() ?? 0.6,height=profiles[i].height
+            let capRadius=capColor(i)==nil ? Float(0):(profiles[i].radii.last!+0.065)
+            let radius=max(profiles[i].radii.max() ?? 0.6,capRadius),height=profiles[i].height+(capRadius>0 ? 0.18:0)
             var x:[CGFloat]=[],y:[CGFloat]=[]
             for a:Float in [-radius,radius] {for b:Float in [0,height] {for c:Float in [-radius,radius] {
                 let clip=vp*vessels[i].world*SIMD4(a,b,c,1)
@@ -803,6 +820,15 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 glass.setVertexBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
                 glass.setFragmentBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
                 glass.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:meshes[i].1)
+            }
+            glass.setRenderPipelineState(capPipeline)
+            for i in batch {
+                guard var color=capColor(i) else { continue }
+                var vessel=vessels[i]
+                glass.setVertexBuffer(capMeshes[i].0,offset:0,index:0)
+                glass.setVertexBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
+                glass.setFragmentBytes(&color,length:MemoryLayout<SIMD4<Float>>.stride,index:3)
+                glass.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:capMeshes[i].1)
             }
             glass.endEncoding();rear=output
         }

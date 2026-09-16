@@ -90,8 +90,7 @@ import Combine
         return Set(state.stacks.indices.filter { availableMove(from:selected,to:$0) != nil })
     }
     func vialComplete(_ index:Int)->Bool {
-        let stack=state.stacks[index]
-        return stack.count==state.capacity && Set(stack.map { state.colors[$0] }).count==1
+        state.isComplete(index)
     }
     // Menu availability must not run a puzzle search on every board redraw.
     var canComparePour:Bool {
