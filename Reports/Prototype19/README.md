@@ -30,7 +30,31 @@ Before the travel/framing changes, the [whole-puzzle offscreen comparisons](mac-
 
 Mac Instruments failed to finalize usable Game Performance traces both when launching and when attaching; export reported “Document Missing Template Error.” Those captures are rejected. `caffeinate -di` was active throughout testing. Displayed-frame timing therefore remains unverified for this build.
 
-The final macOS and signed iOS Release builds pass. No iPad operation or installation was performed during this work. The user is testing the prior stuck-pour fix and has reserved the device until later. Next device checks: verify the new motion/framing by touch, then collect a separate USB display/GPU profile. Keep an unplugged sustained-play check separate; neither offscreen Mac timing nor charging measurements establish battery life.
+The final macOS and signed iOS Release builds pass. Build `70d8f8b` was installed on the M4 iPad Pro on September 16. The user authorized resetting development sessions as needed, so these checks used the normal development app directly.
+
+## iPad validation
+
+Two clean 120-second Quick / Green arrival trials ran without Instruments, screen recording or screenshot capture. Both exercised two concurrent sources and two sources sharing one receiver. Every pause, suspension, resume, reset, commit, undo and save/reload check passed. Both reports ended normally and drained the final pours before stopping.
+
+| Check | 3D Fluid | 2D Fluid |
+| --- | ---: | ---: |
+| Successful / attempted transfers | 48 / 48 | 59 / 59 |
+| Actual duration including drain | 121.565 s | 122.603 s |
+| Largest cleanup | 0.781% | 1.042% |
+| Controller interval median / p95 | 17.827 / 22.333 ms | 17.769 / 17.935 ms |
+| Maximum controller interval | 79.369 ms | 20.607 ms |
+| Controller intervals over 25 ms | 186 / 6,561 | 0 / 6,828 |
+| Thermal state throughout | Nominal | Nominal |
+
+[3D report](ipad-3d.json), [2D report](ipad-2d.json). These are controller timings, not displayed frames. The prior Prototype18 3D run had a 20.016 ms p95 and 63.267 ms maximum, so this sample does **not** establish smoother overall playback. It completed 48 pours versus the prior run's 50; differing physical routes and unplugged versus charging conditions prevent attributing the difference solely to the cache change. The faster isolated setup benchmark remains valid for setup only.
+
+Both trials reported unplugged power and Low Power Mode off. The app battery reading went from 80% to 75% during 3D, then stayed at 75% during 2D. Subsequent screenshots showed 77% and 76% in the status bar while the app reported 75%. The app gauge is therefore too coarse to treat the five-point change as exact consumption. These short sequential samples do not establish battery life or relative energy use; a longer controlled unplugged comparison remains appropriate.
+
+Separate visual runs used device screenshots and programmatic orientation changes. Active vials and controls remained in frame in the sampled [3D landscape](ipad-3d-landscape-active.png), [3D portrait](ipad-3d-portrait-pour.png), [2D landscape](ipad-2d-landscape.png), [2D portrait](ipad-2d-portrait.png), [Classic landscape](ipad-classic-landscape.png) and [Classic portrait](ipad-classic-portrait.png) views. These are actual iPad app captures, not touch-driven automation or exhaustive checks of every trajectory. One initial capture caught the system rotation animation and was excluded. The device was returned to its original landscape-left orientation.
+
+The [Classic visual/control run](ipad-classic-visual.json) completed 20/20 pours, including shared receivers, and passed all control checks. Its timing is not used as a clean performance sample because screenshots and rotation occurred during the run. Visual inspection exposed a remaining cosmetic issue: the blue completed-vial cap in the Classic portrait capture draws over a moving green source passing in front of it. Caps currently live in a separate overlay above the board; that ordering needs a follow-up correction. This is separate from rejected or stuck pours.
+
+A USB display/GPU profile is pending confirmation of wired transport. CoreDevice still reported local-network transport during these checks. The prior failed wireless traces are not reused as evidence. A touch-based assessment of the new motion remains a user check.
 
 ## Reproduction
 
