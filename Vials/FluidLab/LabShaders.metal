@@ -440,6 +440,8 @@ fragment float4 labBoardGlassFragment(GlassOut in [[stage_in]], constant Uniform
                                 texture2d<float> scene [[texture(0)]], texture2d<float> liquidDepth [[texture(1)]], constant float &clarity [[buffer(3)]]) {
     constexpr sampler s(coord::normalized,address::clamp_to_edge,filter::linear);
     float2 uv=in.position.xy/u.viewport.xy;
+    // Evaluate derivatives before the depth-dependent early return.
+    float rimWidth=clamp(fwidth(in.local.y)*1.25f,0.035f,0.08f);
     // A rear glass shell cannot tint liquid already in front of it.
     if(liquidDepth.sample(s,uv).x+0.00001f<in.position.z) return scene.sample(s,uv);
     float3 n=normalize(in.normal), eye=normalize(u.camera.xyz-in.world);
@@ -456,10 +458,15 @@ fragment float4 labBoardGlassFragment(GlassOut in [[stage_in]], constant Uniform
     // Volume graduations are restrained short strokes on the front of the glass.
     float front=smoothstep(0.10f,0.3f,in.local.z)*(1-smoothstep(0.06f,0.24f,abs(in.local.x)));
     color=mix(color,float3(0.59,0.79,0.82),line*front*0.48);
-    float rim=1-smoothstep(0.012f,0.035f,abs(in.local.y-v.dimensions.x));
-    color+=rim*float3(0.15,0.22,0.25);
-    float foot=1-smoothstep(0.005f,0.055f,abs(in.local.y));
-    color+=foot*float3(0.035,0.065,0.075);
+    // A broad, neutral edge remains legible without a selection-colored glow.
+    // Screen derivatives keep the rim from collapsing into a subpixel hairline.
+    float facing=abs(dot(n,eye));
+    float silhouette=1-smoothstep(0.12f,0.50f,facing);
+    color=mix(color,float3(0.46,0.56,0.60),silhouette*0.72f);
+    float rim=1-smoothstep(rimWidth,rimWidth*2,abs(in.local.y-v.dimensions.x));
+    color=mix(color,float3(0.64,0.72,0.75),rim*0.78f);
+    float foot=1-smoothstep(0.018f,0.085f,abs(in.local.y));
+    color=mix(color,float3(0.40,0.49,0.53),foot*0.65f);
     return float4(color,1);
 }
 fragment float4 labCopy(QuadOut in [[stage_in]], texture2d<float> scene [[texture(0)]]) {

@@ -1,6 +1,8 @@
 # Vials Fluid Lab
 
-[Cached pour setup and separated 3D travel](Reports/Prototype19/README.md) reduce repeated preparation work, separate crossing paths and keep edge pours in frame. The iPad passes concurrent-pour and control checks; display profiling and a cap-overlap follow-up remain.
+[Stronger 3D glass edges and USB profiles](Reports/Prototype20/README.md) improve vial visibility and record actual iPad frame timing. The updated app is installed on the iPad.
+
+[Cached pour setup and separated 3D travel](Reports/Prototype19/README.md) reduce repeated preparation work, separate crossing paths and keep edge pours in frame. The iPad passes concurrent-pour and control checks; the completed-cap overlap follow-up remains.
 
 [Shared receivers and clearer overlapping vials](Reports/Prototype18/README.md) add simultaneous streams into one receiver and fix stale particle inventory during rapid consecutive pours.
 

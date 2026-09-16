@@ -54,7 +54,7 @@ Separate visual runs used device screenshots and programmatic orientation change
 
 The [Classic visual/control run](ipad-classic-visual.json) completed 20/20 pours, including shared receivers, and passed all control checks. Its timing is not used as a clean performance sample because screenshots and rotation occurred during the run. Visual inspection exposed a remaining cosmetic issue: the blue completed-vial cap in the Classic portrait capture draws over a moving green source passing in front of it. Caps currently live in a separate overlay above the board; that ordering needs a follow-up correction. This is separate from rejected or stuck pours.
 
-A USB display/GPU profile is pending confirmation of wired transport. CoreDevice still reported local-network transport during these checks. The prior failed wireless traces are not reused as evidence. A touch-based assessment of the new motion remains a user check.
+The later USB session confirmed wired transport and produced valid short display/GPU traces after one longer recording failed. See [Prototype20](../Prototype20/README.md) for the measurements and the subsequent glass-readability change. The prior failed wireless traces are not reused as evidence. A touch-based assessment of the new motion remains a user check.
 
 ## Reproduction
 
