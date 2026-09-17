@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Variable-capacity and receive-only Lab boards](Reports/Prototype25/README.md) extend the shared progression to 16 levels, with visibly height-scaled 3–6-unit vessels, up to 10 vials and 6 colors, two fill-only valves, stable multi-step hints, and dependency-constrained pours beyond two simultaneous sources. Complete Classic/2D/3D regressions and iPad-simulator layout checks pass; physical-iPad performance remains deferred.
+
 [Unequal-capacity solver pruning](Reports/Prototype24/README.md) fixes a false dead end in the bundled Original game and adds generated-level, receive-only, helper and four-move counterexample coverage.
 
 [Depth-ordered completion caps](Reports/Prototype23/README.md) keep a rear completed stopper behind crossing vials in Classic, 2D and 3D. Mac regressions and signed iPad portrait/landscape checks pass.
@@ -26,7 +28,7 @@ The latest [highlight and 3D surface fixes](Reports/Prototype13/README.md) stren
 
 The latest [2D redraw optimization and display-gap investigation](Reports/Prototype12/README.md) includes measured iPad CPU results and a [checklist for tonight’s testing](Reports/Prototype12/TestingTonight.md).
 
-Independent native Swift + Metal investigation of liquid pouring. Prototype 06 adds a true **2D Fluid** particle experiment alongside **Classic / 3D Fluid**. All three presentations share the 12-puzzle progression, progress, hints, undo and **Relaxed / Quick** pacing. The 2D mode uses equal-area particles, shape-dependent fill heights and smooth flat liquid silhouettes. Prototype 07 adds more fluid single-unit streams, quicker 2D turns and distinct blue, orange and green materials. The existing 3D mode retains its equal-volume simulation. The teal pouring-vial icon distinguishes this Lab from the original game.
+Independent native Swift + Metal investigation of liquid pouring. Prototype 06 adds a true **2D Fluid** particle experiment alongside **Classic / 3D Fluid**. All three presentations share the 16-puzzle progression, per-vial capacities and rules, progress, hints, undo and **Relaxed / Quick** pacing. The 2D mode uses equal-area particles, shape-dependent fill heights and smooth flat liquid silhouettes. The 3D mode retains its equal-volume simulation. The teal pouring-vial icon distinguishes this Lab from the original game.
 
 Start with **Green arrival → 2D Fluid → Quick**, then switch presentations between moves. Use **Board options → Compare last pour** to replay a completed transfer across all three views at a matched duration. Board diagnostics can reveal the particles. Sound is unchanged. Fluid detail controls apply to 3D; the 2D Canvas currently draws at native view resolution.
 

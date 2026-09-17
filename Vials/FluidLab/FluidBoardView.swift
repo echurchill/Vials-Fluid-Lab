@@ -75,6 +75,13 @@ struct FluidBoardView:View {
                                             .fixedSize().padding(.horizontal,7).padding(.vertical,4).background(.black.opacity(0.75),in:Capsule())
                                             .foregroundStyle(cueColor(index) == .clear ? ink.opacity(0.75):cueColor(index)).opacity(cueLabel(index).isEmpty ? 0:1).offset(y:17)
                                     }
+                                    .overlay(alignment:.top) {
+                                        if session.state.rules[index] == .receiveOnly {
+                                            Label("FILL",systemImage:"arrow.down").font(.system(size:8,weight:.bold,design:.monospaced))
+                                                .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
+                                                .foregroundStyle(Color.cyan).offset(y:-13)
+                                        }
+                                    }
                                     .overlay {
                                         let target=session.validDestinations.contains(index)
                                         let outline=RoundedRectangle(cornerRadius:20)
@@ -94,16 +101,17 @@ struct FluidBoardView:View {
                     }
                 }.frame(minHeight:220)
                 VStack(spacing:14) {
-                    LazyVGrid(columns:Array(repeating:GridItem(.flexible(),spacing:8),count:compact && session.state.stacks.count>4 ? 3:session.state.stacks.count),spacing:8) {
+                    LazyVGrid(columns:Array(repeating:GridItem(.flexible(),spacing:8),count:compact && session.state.stacks.count>4 ? 3:min(6,session.state.stacks.count)),spacing:8) {
                         ForEach(session.state.stacks.indices,id:\.self) { index in
                             Button { session.select(index) } label: {
                                 VStack(spacing:5) {
                                     HStack(spacing:5) {
                                         Text(FluidBoardSession.letter(index)).font(.system(size:13,weight:.semibold,design:.monospaced))
-                                        Text(session.vialComplete(index) ? "✓":"\(session.state.stacks[index].count) / 4").font(.system(size:11,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
+                                        Text(session.vialComplete(index) ? "✓":"\(session.state.stacks[index].count) / \(session.state.capacity(index))").font(.system(size:11,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
+                                        if session.state.rules[index] == .receiveOnly { Image(systemName:"arrow.down").font(.system(size:9,weight:.bold)).foregroundStyle(Color.cyan) }
                                     }
                                     HStack(spacing:3) {
-                                        ForEach(0..<4,id:\.self) { layer in
+                                        ForEach(0..<session.state.capacity(index),id:\.self) { layer in
                                             Capsule().fill(layer<session.state.stacks[index].count ? FluidBoardSession.color(session.state.colors[session.state.stacks[index][layer]]):ink.opacity(0.09)).frame(height:4)
                                         }
                                     }
@@ -124,7 +132,7 @@ struct FluidBoardView:View {
                     Text(session.notice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity,minHeight:30).multilineTextAlignment(.center)
                     HStack(spacing:12) {
                         Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || session.moveCount == 0)
-                        Button("Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved)
+                        Button(session.findingHint ? "Finding…":"Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved || session.findingHint)
                         Spacer(minLength:0)
                         Button { session.togglePause() } label: { Image(systemName:session.paused ? "play.fill":"pause.fill") }.accessibilityLabel(session.paused ? "Resume board":"Pause board")
                         Button(session.solved ? "Play again":"Reset",systemImage:"arrow.counterclockwise") { session.reset() }
@@ -203,7 +211,7 @@ struct FluidBoardView:View {
         }.font(.system(size:10,design:.monospaced)).padding(12).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:12))
     }
     private func hitRect(_ index:Int,size:CGSize) -> CGRect {
-        let profiles=LabBoardLayout.profiles(count:session.state.stacks.count)
+        let profiles=LabBoardLayout.profiles(capacities:session.state.capacities)
         if session.presentation == .fluid2D {
             let layout=LabClassicLayout(size:size,vesselCount:profiles.count),profile=session.fluid2D.profiles[index]
             let base=layout.base(index),radius=CGFloat((profile.source.radii.max() ?? 0.6)*profile.scale)*layout.scale

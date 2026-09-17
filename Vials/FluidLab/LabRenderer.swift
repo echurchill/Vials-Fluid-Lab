@@ -97,7 +97,7 @@ final class LabRenderer: NSObject, MTKViewDelegate {
         state.depthCompareFunction = .lessEqual; state.isDepthWriteEnabled = true
         depthState = device.makeDepthStencilState(descriptor: state)
         profilesBuffer = makeBuffer(profiles.flatMap(\.radii))
-        heads = device.makeBuffer(length: 96*48*40*MemoryLayout<Int32>.stride, options: .storageModePrivate)
+        heads = device.makeBuffer(length: 128*48*40*MemoryLayout<Int32>.stride, options: .storageModePrivate)
         meshes = profiles.map { profile in
             let vertices = labGlassMesh(profile)
             return (makeBuffer(vertices), vertices.count)
@@ -309,14 +309,14 @@ final class LabRenderer: NSObject, MTKViewDelegate {
         let n = particleCount
         dispatch("labPredict",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         for _ in 0..<3 {
-            dispatch("labClearHeads",count:96*48*40,command:command,buffers:[(0,heads)])
+            dispatch("labClearHeads",count:128*48*40,command:command,buffers:[(0,heads)])
             dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
             dispatch("labLambda",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas)],uniforms:uniforms)
             dispatch("labDelta",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas),(5,deltas)],uniforms:uniforms)
             dispatch("labApply",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer),(4,deltas)],uniforms:uniforms,vessels:vessels)
         }
         // Rebuild after the final corrections, before velocity smoothing.
-        dispatch("labClearHeads",count:96*48*40,command:command,buffers:[(0,heads)])
+        dispatch("labClearHeads",count:128*48*40,command:command,buffers:[(0,heads)])
         dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
         dispatch("labVelocity",count:n,command:command,buffers:[(0,particles),(4,velocities),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         dispatch("labFinish",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,velocities)],uniforms:uniforms)

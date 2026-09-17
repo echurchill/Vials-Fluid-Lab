@@ -1,5 +1,21 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 17 tester follow-up — supersedes stale status below
+
+Eddie approved implementing the previously proposed items 1–4 while the physical iPad was unavailable: per-vial capacities, receive-only valves, larger authored levels, and Mac/Xcode-simulator validation. That work is now implemented locally and documented in `Reports/Prototype25/README.md`.
+
+- The shared Lab progression now has 16 levels. The four new fixed puzzles cover 8–10 vials, 5–6 colors, capacities 3–6, pours up to five units, and two fill-only valves.
+- `LabBoardState` carries per-vial capacities/rules with migration for old scalar-capacity saves. Moves, completion, solver canonicalization, reservations, hints, UI and all three renderers use the metadata.
+- Full Release validation passes all 175 new-route pours in both 3D and 2D. Reset/progress, concurrent/shared-receiver and overlap regressions also pass in Classic, 2D and 3D.
+- A generic unsigned iOS Release build and iOS-simulator build pass. Xcode simulator checks on iPad Pro 13-inch (M5) and iPad mini (A17 Pro) found and verified a ten-vial portrait camera fix. Simulator checks are functional/layout evidence only, not hardware performance evidence.
+- Real-iPad screenshots drove three follow-up fixes: Classic/2D no longer draw the confusing extra cyan line inside fill-only vials; hints retain and advance one solved route rather than oscillating between inverse moves; and identical vessel shapes scale vertically from 75% at three units to 150% at six units while preserving per-unit volume.
+- Concurrent play no longer has a global two-pour ceiling. Every dependency-independent reservation may start; a source still cannot be an existing source/destination and a moving source cannot become a destination. The regression suite verifies three simultaneous pours in Classic, 2D and 3D plus the existing shared receiver behavior.
+- A signed Release build containing these changes was installed and launched on the physical M4 iPad Pro. `Reports/Prototype25/ipad-valve-height-and-marker-fix.png` is a direct device screenshot verifying the 2D Valve Circuit height silhouettes and simplified fill-only marker. It is not a touch or performance test.
+- Density remains deferred. Real iPad performance/thermal/energy testing remains the next device-dependent step when hardware is available.
+- Current branch is `codex/fluid-lab`; current committed HEAD and origin are both `493cb48`. The Prototype25 implementation/report is uncommitted at the time of this addendum. Inspect `git status` before committing.
+
+The older snapshot below remains useful historical context, but its statements that Lab capacities are uniform, there are 12 levels, the Original solver patch is unapplied, or six commits are unpushed are obsolete. Prototype24 already contains the Original-game solver correction, and Prototype25 contains the new Lab work.
+
 Prepared September 16, 2026 for Eddie. This is a context snapshot, not an instruction to implement every idea below. Read the new chat's actual request first, then inspect the current checkout. No implementation work was started as part of creating this handoff.
 
 ## Start here: correct project and current state

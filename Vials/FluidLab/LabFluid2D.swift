@@ -7,21 +7,23 @@ nonisolated struct Lab2DProfile:Sendable {
     let source:LabVesselProfile
     let scale:Float
     let areas:[Float]
+    let capacity:Int
     var height:Float { source.height }
     var area:Float { areas.last! }
-    init(_ source:LabVesselProfile,area:Float) {
-        self.source=source
-        let dy=(source.height-0.20)/128
+    init(_ source:LabVesselProfile,capacity:Int,area:Float) {
+        self.source=source;self.capacity=capacity
+        let usableHeight=source.height*LabVesselProfile.usableHeightFraction
+        let dy=usableHeight/128
         var raw:[Float]=[0]
         for i in 1...128 { raw.append(raw.last!+(source.radius(at:Float(i-1)*dy)+source.radius(at:Float(i)*dy))*dy) }
         let factor=area/raw.last!;scale=factor;areas=raw.map { $0*factor }
     }
     func radius(_ y:Float)->Float { source.radius(at:y)*scale }
     func level(_ units:Float)->Float {
-        let target=min(area,max(0,units*area/4))
+        let target=min(area,max(0,units*area/Float(capacity)))
         let i=min(127,max(0,(areas.firstIndex { $0>=target } ?? 128)-1))
         let fraction=(target-areas[i])/max(0.00001,areas[i+1]-areas[i])
-        return (Float(i)+fraction)*(height-0.20)/128
+        return (Float(i)+fraction)*(height*LabVesselProfile.usableHeightFraction)/128
     }
 }
 nonisolated struct Lab2DPose:Sendable {
@@ -156,17 +158,20 @@ nonisolated struct LabFluid2D:Sendable {
         let home=home(i)
         let destination=self.home(move.destination),h=profiles[i].height
         let direction:Float=approach==0 ? (destination.x>home.x ? 1:-1):approach
+        let extraCapacity=Float(max(0,max(profiles[move.source].capacity,profiles[move.destination].capacity)-4))
+        let standardSeparation:Float=0.10+0.18*extraCapacity
+        let travelClearance=(profiles.map(\.height).max() ?? 2.35)+0.35
         let tilt:Float
         if let cutoff { tilt=stopAngle*(1-labSmooth((time-cutoff)/motion.upright)) }
         else { tilt=min(2.25,max(0,time-motion.tiltStart)*motion.tiltRate)*direction }
-        let lowLip=destination+SIMD2(-direction*(approach==0 ? 0.10:0.46),profiles[move.destination].height+1.10)
-        let highLip=SIMD2(approach==0 ? lowLip.x:destination.x-direction*1.05,2.65+h)
+        let lowLip=destination+SIMD2(-direction*(approach==0 ? standardSeparation:max(0.46,standardSeparation)),profiles[move.destination].height+1.10)
+        let highLip=SIMD2(approach==0 ? lowLip.x:destination.x-direction*1.05,travelClearance+h)
         let lip:SIMD2<Float>
         if let cutoff {
             let stoppedLip=simd_mix(highLip,lowLip,SIMD2(repeating:labSmooth((abs(stopAngle)-0.55)/0.95)))
             lip=simd_mix(stoppedLip,highLip,SIMD2(repeating:labSmooth((time-cutoff)/motion.upright)))
         } else { lip=simd_mix(highLip,lowLip,SIMD2(repeating:labSmooth((abs(tilt)-0.55)/0.95))) }
-        let raised=home+SIMD2(0,2.65)
+        let raised=home+SIMD2(0,travelClearance)
         let rotation=Lab2DPose(base:.zero,angle:tilt)
         let positioned=lip-rotation.rotate(SIMD2(0,h))
         var base=simd_mix(home,raised,SIMD2(repeating:labLiftProgress(time/motion.lift)))
@@ -184,7 +189,7 @@ nonisolated struct LabFluid2D:Sendable {
                 let y=Float(k)/32*h
                 bottom=min(bottom,cos(tilt)*y-abs(sin(tilt))*profiles[i].radius(y))
             }
-            base.y=max(base.y,2.35+0.14-bottom)
+            base.y=max(base.y,(profiles.map(\.height).max() ?? 2.35)+0.14-bottom)
         }
         return Lab2DPose(base:base,angle:tilt)
     }
@@ -195,7 +200,9 @@ nonisolated struct LabFluid2D:Sendable {
         self.game=game;self.game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
         cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
         if preserve { return }
-        profiles=LabBoardLayout.profiles(count:game.state.stacks.count).map { Lab2DProfile($0,area:2.12) }
+        profiles=zip(LabBoardLayout.profiles(capacities:game.state.capacities),game.state.capacities).map {
+            Lab2DProfile($0.0,capacity:$0.1,area:2.12*Float($0.1)/4)
+        }
         materialTimes=Array(repeating:0,count:profiles.count)
         surfaces=Array(repeating:Lab2DSurfaceState(),count:profiles.count);splashes=[]
         particles=seed(game.state);links=Array(repeating:-1,count:particles.count)
@@ -305,8 +312,13 @@ nonisolated struct LabFluid2D:Sendable {
                 if missing<0 || missing>Int(Float(count)*0.05) { success=false }
                 else if let next=game.state.applyingReserved(move) {
                     let packed=seed(next)
+                    let visibleTop=particles.lazy.filter { $0.owner==move.destination && $0.inBulk }.map(\.position.y).max()
                     // Correct only this transfer's missing parcels. Other arrivals keep moving.
-                    for i in particles.indices where ids.contains(particles[i].parcel) && particles[i].owner != move.destination { job.targets[i]=packed[i] }
+                    for i in particles.indices where ids.contains(particles[i].parcel) && particles[i].owner != move.destination {
+                        var target=packed[i]
+                        if let visibleTop { target.position.y=min(target.position.y,visibleTop) }
+                        job.targets[i]=target
+                    }
                     job.cleanupStart=job.time
                     // Only corrected indices use this pre-cleanup snapshot.
                     job=Lab2DTransfer(item:job.item,sourceParcels:job.sourceParcels,before:particles,time:job.time,cutoff:job.cutoff,angle:job.angle,arrived:job.arrived,departed:job.departed,cleanup:job.cleanup,targets:job.targets,cleanupStart:job.cleanupStart)
@@ -407,10 +419,14 @@ nonisolated struct LabFluid2D:Sendable {
             let packed=seed(next)
             var byParcel:[Int:[Lab2DParticle]]=[:]
             for p in packed { byParcel[p.parcel,default:[]].append(p) }
+            let visibleTop=particles.lazy.filter { $0.owner==move.destination && $0.inBulk }.map(\.position.y).max()
             var offsets:[Int:Int]=[:],final=particles
             for i in particles.indices {
                 let p=particles[i],offset=offsets[p.parcel,default:0];offsets[p.parcel]=offset+1
-                if selected.contains(p.parcel),p.owner != move.destination { final[i]=byParcel[p.parcel]![offset] }
+                if selected.contains(p.parcel),p.owner != move.destination {
+                    final[i]=byParcel[p.parcel]![offset]
+                    if let visibleTop { final[i].position.y=min(final[i].position.y,visibleTop) }
+                }
                 final[i].velocity = .zero
             }
             before=particles;targets=final;targetStart=time

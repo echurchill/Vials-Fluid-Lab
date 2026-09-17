@@ -22,12 +22,20 @@ enum LabRenderQuality:String,CaseIterable,Codable {
 }
 enum LabBoardPuzzle:String,CaseIterable,Codable {
     case firstSort,crossCurrents,lastDrops,greenArrival,tidalPool,glassGarden,switchback,estuary,crossingPaths,deepCurrent,orchard,confluence
+    case fiveStreams,tallOrder,sixfold,valveCircuit
     var title:String {
-        switch self { case .firstSort:"First sort";case .crossCurrents:"Cross currents";case .lastDrops:"Last drops";case .greenArrival:"Green arrival";case .tidalPool:"Tidal pool";case .glassGarden:"Glass garden";case .switchback:"Switchback";case .estuary:"Estuary";case .crossingPaths:"Crossing paths";case .deepCurrent:"Deep current";case .orchard:"Orchard";case .confluence:"Confluence" }
+        switch self { case .firstSort:"First sort";case .crossCurrents:"Cross currents";case .lastDrops:"Last drops";case .greenArrival:"Green arrival";case .tidalPool:"Tidal pool";case .glassGarden:"Glass garden";case .switchback:"Switchback";case .estuary:"Estuary";case .crossingPaths:"Crossing paths";case .deepCurrent:"Deep current";case .orchard:"Orchard";case .confluence:"Confluence";case .fiveStreams:"Five streams";case .tallOrder:"Tall order";case .sixfold:"Sixfold";case .valveCircuit:"Valve circuit" }
     }
     var number:Int { Self.allCases.firstIndex(of:self)!+1 }
     var next:Self? { number<Self.allCases.count ? Self.allCases[number]:nil }
-    var detail:String { "Level \(number) / \(Self.allCases.count) · \(initial.stacks.count) vials · \(Set(initial.colors).count) colors" }
+    var detail:String {
+        let state=initial,range=(state.capacities.min() ?? 0)...(state.capacities.max() ?? 0)
+        var parts=["Level \(number) / \(Self.allCases.count)","\(state.stacks.count) vials","\(Set(state.colors).count) colors"]
+        if range.lowerBound != 4 || range.upperBound != 4 { parts.append(range.lowerBound==range.upperBound ? "\(range.lowerBound) units":"\(range.lowerBound)–\(range.upperBound) units") }
+        let valves=state.rules.filter {$0 == .receiveOnly}.count
+        if valves>0 { parts.append("\(valves) fill-only") }
+        return parts.joined(separator:" · ")
+    }
     var initial:LabBoardState {
         switch self {
         case .firstSort: .firstSort
@@ -42,6 +50,21 @@ enum LabBoardPuzzle:String,CaseIterable,Codable {
         case .deepCurrent: LabBoardState(layers:[[0,2,0,2],[],[1,2,0,1],[],[1,1,2,0],[]])
         case .orchard: LabBoardState(layers:[[],[0,1,2,1],[],[1,2,0,1],[],[0,2,2,0]])
         case .confluence: LabBoardState(layers:[[2,0,0,1],[],[1,2,1,0],[],[2,0,2,1],[]])
+        // Fixed outputs from the Original game's deterministic Hard curriculum.
+        case .fiveStreams: LabBoardState(
+            layers:[[1,0,3,3],[2,1,1],[4,3,4,2],[1,0,2,2,3],[2,1,3,3,0],[4,0,4],[],[]],
+            capacities:[4,3,4,5,5,3,5,4])
+        case .tallOrder: LabBoardState(
+            layers:[[3,1,0,3,4,3],[4,1,2,1,3],[0,3,4,0,2,4],[3,4,3,0],[1,3,3],[3,1,1,2],[],[]],
+            capacities:[6,5,6,4,3,4,4,5])
+        case .sixfold: LabBoardState(
+            layers:[[0,5,4,2],[2,4,4,3,2,5],[2,1,0,5],[5,2,2,5,0],[1,5,2,1,4],[5,3,3],[5,1,1],[2,3,4,5,2],[],[]],
+            capacities:[4,6,4,5,5,3,3,5,3,6])
+        // Original Hard 14 with two integrated receive-only valve targets.
+        case .valveCircuit: LabBoardState(
+            layers:[[1,3,3,0,0],[3],[0,3,3],[4,1,3,2,2,2],[1],[3,1,0,4,3,0],[3],[2,4,3,2,0]],
+            capacities:[5,6,3,6,4,6,4,5],
+            rules:[.normal,.normal,.normal,.normal,.receiveOnly,.normal,.receiveOnly,.normal])
         }
     }
 }

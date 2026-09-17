@@ -5,6 +5,7 @@ import simd
 /// All volume calculations use the interior profile, never the outside silhouette.
 nonisolated struct LabVesselProfile:Sendable {
     static let sampleCount = 128
+    static let usableHeightFraction:Float = 2.15/2.35
     let name: String
     let height: Float
     let radii: [Float]
@@ -30,7 +31,9 @@ nonisolated struct LabVesselProfile:Sendable {
             volumes.append(volumes[i - 1] + .pi * dy * (a*a + a*b + b*b) / 3)
         }
         cumulativeVolumes = volumes
-        usableVolume = Self.volume(at: height - 0.20, height: height, radii: radii, cumulative: volumes)
+        // Headspace scales with the vessel. This keeps a unit's volume and an
+        // identical shape's width constant when capacity changes its height.
+        usableVolume = Self.volume(at: height*Self.usableHeightFraction, height: height, radii: radii, cumulative: volumes)
     }
 
     func radius(at y: Float) -> Float {

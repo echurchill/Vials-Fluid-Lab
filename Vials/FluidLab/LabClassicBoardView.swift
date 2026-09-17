@@ -21,7 +21,7 @@ struct LabClassicBoardView:View {
     var additionalPours:[LabClassicPour]=[]
     var capExclusions:Set<Int>=[]
     private var pours:[LabClassicPour] { [pour].compactMap { $0 }+additionalPours }
-    private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(count:state.stacks.count) }
+    private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(capacities:state.capacities) }
     var body:some View {
         Canvas { context,size in
             let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count),scale=layout.scale
@@ -85,9 +85,10 @@ struct LabClassicBoardView:View {
             let colorID=amounts[run].0
             var amount=amounts[run].1,end=run+1
             while end<amounts.count && amounts[end].0 == colorID { amount+=amounts[end].1;end+=1 }
-            let lower=CGFloat(profile.height(for:profile.usableVolume*units/4))*scale
+            let capacity=Float(state.capacities[index])
+            let lower=CGFloat(profile.height(for:profile.usableVolume*units/capacity))*scale
             units+=amount
-            let upper=CGFloat(profile.height(for:profile.usableVolume*units/4))*scale
+            let upper=CGFloat(profile.height(for:profile.usableVolume*units/capacity))*scale
             let color=FluidBoardSession.color(colorID)
             let band=CGRect(x:-radius,y:-upper,width:radius*2,height:max(0,upper-lower))
             liquid.fill(Path(band),with:.linearGradient(Gradient(colors:[color.opacity(0.96),color,color.opacity(0.95)]),startPoint:CGPoint(x:-radius,y:0),endPoint:CGPoint(x:radius,y:0)))
@@ -103,8 +104,8 @@ struct LabClassicBoardView:View {
         var rim=Path();let topRadius=CGFloat(profile.radii.last!)*scale,top = -CGFloat(profile.height)*scale
         rim.move(to:CGPoint(x:-topRadius,y:top));rim.addLine(to:CGPoint(x:topRadius,y:top))
         ctx.stroke(rim,with:.color(.white.opacity(0.48)),style:StrokeStyle(lineWidth:3,lineCap:.round))
-        for unit in 1...4 {
-            let y=profile.height(for:profile.usableVolume*Float(unit)/4),r=CGFloat(profile.radius(at:y))*scale
+        for unit in 1...state.capacities[index] {
+            let y=profile.height(for:profile.usableVolume*Float(unit)/Float(state.capacities[index])),r=CGFloat(profile.radius(at:y))*scale
             var mark=Path();mark.move(to:CGPoint(x:r*0.53,y:-CGFloat(y)*scale));mark.addLine(to:CGPoint(x:r*0.90,y:-CGFloat(y)*scale))
             ctx.stroke(mark,with:.color(.white.opacity(0.23)),lineWidth:1)
         }
@@ -121,10 +122,13 @@ struct LabClassicBoardView:View {
         let receiverH=CGFloat(profiles[pour.move.destination].height)*scale
         let t=pour.time
         let tilt=CGFloat(labSmooth((t-0.95)/0.65))*(1-CGFloat(labSmooth((t-5.2)/0.75)))*1.28*direction
-        let separation=pour.approach==0 ? 0.18:0.46+0.70*(1-CGFloat(labSmooth(Float(abs(tilt)))))
+        let extraCapacity=CGFloat(max(0,max(state.capacity(pour.move.source),state.capacity(pour.move.destination))-4))
+        let standardSeparation=0.18+0.18*extraCapacity
+        let separation=pour.approach==0 ? standardSeparation:max(0.46,standardSeparation)+0.70*(1-CGFloat(labSmooth(Float(abs(tilt)))))
         let mouth=CGPoint(x:dest.x-direction*separation*scale,y:dest.y-receiverH-0.35*scale)
         let positioned=CGPoint(x:mouth.x-sin(tilt)*h,y:mouth.y+cos(tilt)*h)
-        let lift=CGPoint(x:source.x,y:source.y-2.6*scale)
+        let travelClearance=CGFloat((profiles.map(\.height).max() ?? 2.35)+0.35)
+        let lift=CGPoint(x:source.x,y:source.y-travelClearance*scale)
         func mix(_ a:CGPoint,_ b:CGPoint,_ value:Float) -> CGPoint {
             let f=CGFloat(labSmooth(value));return CGPoint(x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f)
         }

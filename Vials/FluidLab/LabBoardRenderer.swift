@@ -29,6 +29,7 @@ private struct LabMetalTransfer {
 final class LabBoardRenderer: NSObject, MTKViewDelegate {
     let device:MTLDevice
     private(set) var profiles=LabBoardLayout.profiles()
+    private(set) var profileCapacities=[4,4,4,4]
     var homes:[SIMD3<Float>] { LabBoardLayout.homes(count:profiles.count) }
     let queue:MTLCommandQueue
     let library:MTLLibrary
@@ -71,7 +72,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var compositeVessels:[LabVesselUniform]?
     var currentVessels:[LabVesselUniform] {
         if let compositeVessels { return compositeVessels }
-        return LabBoardLayout.vessels(profiles:profiles,move:game.pending,time:pourTime ?? 0,tilt:tilt,
+        return LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,rules:game.state.rules,move:game.pending,time:pourTime ?? 0,tilt:tilt,
             cutoffTilt:cutoffTime == nil ? nil:cutoffTilt,cutoffElapsed:(pourTime ?? 0)-(cutoffTime ?? 0),
             returnElapsed:returnStart.map { (pourTime ?? 0)-$0 })
     }
@@ -153,7 +154,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         state.depthCompareFunction = .lessEqual; state.isDepthWriteEnabled = true
         depthState = device.makeDepthStencilState(descriptor: state)
         profilesBuffer = makeBuffer(profiles.flatMap(\.radii))
-        heads = device.makeBuffer(length: 96*48*40*MemoryLayout<Int32>.stride, options: .storageModePrivate)
+        heads = device.makeBuffer(length: 128*48*40*MemoryLayout<Int32>.stride, options: .storageModePrivate)
         meshes = profiles.map { profile in
             let vertices = labGlassMesh(profile,rings:48,segments:64)
             return (makeBuffer(vertices), vertices.count)
@@ -196,14 +197,15 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     func reset(state:LabBoardState = .firstSort) {
         lastCommand?.waitUntilCompleted()
         game=LabBoardGame(state:state);simulationTime=0;clearMotion();historyParticles=[];beforeParticles=[];lastOutcome=""
-        if profiles.count != state.stacks.count {
-            profiles=LabBoardLayout.profiles(count:state.stacks.count);seedPositions=[]
+        if profileCapacities != state.capacities {
+            profileCapacities=state.capacities;profiles=LabBoardLayout.profiles(capacities:state.capacities);seedPositions=[]
             profilesBuffer=makeBuffer(profiles.flatMap(\.radii))
             meshes=profiles.map { let vertices=labGlassMesh($0,rings:48,segments:64);return (makeBuffer(vertices),vertices.count) }
             capMeshes=profiles.map { let vertices=labCapMesh($0);return (makeBuffer(vertices),vertices.count) }
         }
         let values=seed(state:state)
-        particleCount=values.count;particleVolume=profiles[0].usableVolume/4/Float(Self.particlesPerUnit)
+        particleCount=values.count
+        particleVolume=(profiles.first?.usableVolume ?? 1)/Float(max(1,state.capacities.first ?? 4))/Float(Self.particlesPerUnit)
         particles=makeBuffer(values)
         next=device.makeBuffer(length:particleCount*4,options:.storageModePrivate)
         lambdas=device.makeBuffer(length:particleCount*4,options:.storageModePrivate)
@@ -227,9 +229,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
     private func seed(state:LabBoardState) -> [LabParticle] {
         if seedPositions.count != profiles.count {
-            seedPositions=profiles.map { profile in
-                let unit=profile.usableVolume/4
-                return (0..<(4*Self.particlesPerUnit)).map { slot in
+            seedPositions=profiles.enumerated().map { owner,profile in
+                let capacity=game.state.capacities[owner],unit=profile.usableVolume/Float(capacity)
+                return (0..<(capacity*Self.particlesPerUnit)).map { slot in
                     let layer=slot/Self.particlesPerUnit,i=slot%Self.particlesPerUnit
                     let v=(Float(layer)+(Float(i)+0.5)/Float(Self.particlesPerUnit))*unit
                     let y=max(0.04,profile.height(for:v))
@@ -341,7 +343,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let missing=(0..<particleCount).filter { ids.contains(Int(p[$0].visual.y)) && Int(p[$0].position.w) != move.destination }
         correctionCount=missing.count
         let profile=profiles[move.destination]
-        let targetHeight=profile.height(for:profile.usableVolume*Float(game.state.stacks[move.destination].count+move.amount)/4)
+        let targetHeight=profile.height(for:profile.usableVolume*Float(game.state.stacks[move.destination].count+move.amount)/Float(game.state.capacities[move.destination]))
         for (n,i) in missing.enumerated() {
             let y=max(0.055,targetHeight-0.06)
             let radius=max(0.02,profile.radius(at:y)-0.10)*sqrt((Float(n)+0.5)/Float(max(1,missing.count)))
@@ -376,7 +378,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         for (owner,stack) in state.stacks.enumerated() {
             let profile=profiles[owner]
             var levels:[Float]=[-100]
-            for layer in 1...max(1,stack.count) { levels.append(profile.height(for:profile.usableVolume*Float(layer)/4)) }
+            for layer in 1...max(1,stack.count) { levels.append(profile.height(for:profile.usableVolume*Float(layer)/Float(state.capacities[owner]))) }
             for (layer,id) in stack.enumerated() {
                 let isMoving=selected.contains(id) && cleanupStart == nil
                 var first=layer,last=layer+1
@@ -391,7 +393,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         if let move,cleanupStart == nil {
             let profile=profiles[move.destination]
-            let lower=game.state.stacks[move.destination].isEmpty ? -100:profile.height(for:profile.usableVolume*Float(game.state.stacks[move.destination].count)/4)
+            let lower=game.state.stacks[move.destination].isEmpty ? -100:profile.height(for:profile.usableVolume*Float(game.state.stacks[move.destination].count)/Float(game.state.capacities[move.destination]))
             for id in selected { result[move.destination*count+id]=LabBoardBand(range:SIMD4(lower,100,1,1)) }
         }
         return result
@@ -477,7 +479,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         dispatch("labPredict",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         constrainLayers(command:command,uniforms:uniforms,vessels:vessels)
         for _ in 0..<5 {
-            dispatch("labClearHeads",count:96*48*40,command:command,buffers:[(0,heads)])
+            dispatch("labClearHeads",count:128*48*40,command:command,buffers:[(0,heads)])
             dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
             dispatch("labLambda",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas)],uniforms:uniforms)
             dispatch("labDelta",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas),(5,deltas)],uniforms:uniforms)
@@ -485,7 +487,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             constrainLayers(command:command,uniforms:uniforms,vessels:vessels)
         }
         // Rebuild after the final corrections, before velocity smoothing.
-        dispatch("labClearHeads",count:96*48*40,command:command,buffers:[(0,heads)])
+        dispatch("labClearHeads",count:128*48*40,command:command,buffers:[(0,heads)])
         dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
         dispatch("labVelocity",count:n,command:command,buffers:[(0,particles),(4,velocities),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         dispatch("labFinish",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,velocities)],uniforms:uniforms)
@@ -611,10 +613,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         lastCommand=command;command.commit()
     }
     private func groupVessels()->[LabVesselUniform] {
-        var result=LabBoardLayout.vessels(profiles:profiles,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+        var result=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,rules:game.state.rules,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
         for job in groupTransfers {
             let move=job.item.move
-            let poses=LabBoardLayout.vessels(profiles:profiles,move:move,time:job.time,tilt:job.tilt,cutoffTilt:job.cutoff==nil ? nil:job.cutoffTilt,cutoffElapsed:job.time-(job.cutoff ?? 0),returnElapsed:job.returned.map {job.time-$0},approach:job.item.approach,depthSide:job.item.depthSide)
+            let poses=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,rules:game.state.rules,move:move,time:job.time,tilt:job.tilt,cutoffTilt:job.cutoff==nil ? nil:job.cutoffTilt,cutoffElapsed:job.time-(job.cutoff ?? 0),returnElapsed:job.returned.map {job.time-$0},approach:job.item.approach,depthSide:job.item.depthSide)
             result[move.source]=poses[move.source];result[move.destination]=poses[move.destination]
         }
         return result
@@ -627,7 +629,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let selected=Set(outgoing?.parcels ?? [])
             let stack=original+groupMoves.filter {$0.destination==owner}.flatMap(\.parcels)
             let profile=profiles[owner]
-            func level(_ unit:Int)->Float { unit==0 ? -100:profile.height(for:profile.usableVolume*Float(unit)/4) }
+            func level(_ unit:Int)->Float { unit==0 ? -100:profile.height(for:profile.usableVolume*Float(unit)/Float(game.state.capacities[owner])) }
             for (layer,id) in stack.enumerated() {
                 var first=layer,last=layer+1
                 while first>0,state.colors[stack[first-1]]==state.colors[id],!selected.contains(stack[first-1]) {first-=1}
@@ -768,11 +770,12 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let excludedCaps=capExclusions.union(movingCaps)
         func capColor(_ index:Int)->SIMD4<Float>? {
             guard !excludedCaps.contains(index),game.state.isComplete(index),let parcel=game.state.stacks[index].first else { return nil }
-            switch game.state.colors[parcel] {
-            case 0:return SIMD4(0.05,0.58,0.86,1)
-            case 1:return SIMD4(0.96,0.34,0.07,1)
-            default:return SIMD4(0.20,0.76,0.36,1)
-            }
+            let palette:[SIMD4<Float>]=[
+                SIMD4(0.05,0.58,0.86,1),SIMD4(0.96,0.34,0.07,1),SIMD4(0.20,0.76,0.36,1),SIMD4(0.94,0.34,0.65,1),
+                SIMD4(1.00,0.72,0.08,1),SIMD4(0.98,0.71,0.61,1),SIMD4(0.55,0.30,0.95,1),SIMD4(0.12,0.78,0.62,1),
+                SIMD4(0.72,0.04,0.24,1),SIMD4(0.08,0.24,0.88,1),SIMD4(0.54,0.78,0.06,1),SIMD4(0.82,0.78,0.68,1)]
+            let color=game.state.colors[parcel]
+            return palette[(color % palette.count+palette.count)%palette.count]
         }
         func bounds(_ i:Int)->CGRect {
             let capRadius=capColor(i)==nil ? Float(0):(profiles[i].radii.last!+0.065)

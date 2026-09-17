@@ -33,8 +33,8 @@ import Combine
     var solved:Bool { state.solved && !busy }
     func canTap(_ index:Int)->Bool {
         guard !solved else { return false }
-        if !allowsConcurrentPours { return !busy }
-        return selected == nil ? !pourQueue.lockedSources.contains(index):!pourQueue.movingSources.contains(index)
+        if !allowsConcurrentPours { return !busy && (selected != nil || state.canPourOut(index)) }
+        return selected == nil ? state.canPourOut(index) && !pourQueue.lockedSources.contains(index):!pourQueue.movingSources.contains(index)
     }
     func availableMove(from:Int,to:Int)->LabBoardMove? {
         allowsConcurrentPours ? pourQueue.move(from:from,to:to,state:state):state.move(from:from,to:to)
@@ -45,6 +45,10 @@ import Combine
     @Published private(set) var lastPour:LabPourExample?
     private var pendingExample:LabPourExample?
     private var rejectionTask:Task<Void,Never>?
+    private var hintTask:Task<Void,Never>?
+    private var hintRevision=0
+    private var hintPlan:[LabBoardMove]=[]
+    @Published private(set) var findingHint=false
     // Used only by the disposable comparison session to align playback duration.
     var comparisonSpeed:Float? { didSet { updateSpeed() } }
     @Published var selected:Int?
@@ -107,7 +111,7 @@ import Combine
         if let selected {
             move=state.stacks.indices.compactMap { state.move(from:selected,to:$0) }.first
         } else {
-            move=state.solution()?.first ?? state.stacks.indices.compactMap { source in
+            move=state.stacks.indices.compactMap { source in
                 state.stacks.indices.compactMap { state.move(from:source,to:$0) }.first
             }.first
         }
@@ -121,6 +125,10 @@ import Combine
         }
     }
     private func clearSelectionFeedback() { rejectionTask?.cancel();rejectedVial=nil }
+    private func cancelHint(clearPlan:Bool = true) {
+        hintRevision &+= 1;hintTask?.cancel();hintTask=nil;findingHint=false
+        if clearPlan { hintPlan=[] }
+    }
     private func rememberPour(_ committed:Bool) {
         if committed { lastPour=pendingExample };pendingExample=nil
     }
@@ -162,7 +170,13 @@ import Combine
             renderer?.install(game:game,samples:settledParticles)
             if allowsConcurrentPours,let renderer {
                 compositeSamples=renderer.particleSamples()
-                if metalPool.isEmpty { metalPool=try (0..<2).map { _ in try LabBoardRenderer(simulationCopyOf:renderer) } }
+                // One simulation group per independent receiver. Dependency
+                // rules, rather than a two-pour ceiling, now determine how
+                // many transfers may overlap on larger boards.
+                let required=max(2,game.state.stacks.count/2)
+                while metalPool.count+metalGroups.count<required {
+                    metalPool.append(try LabBoardRenderer(simulationCopyOf:renderer))
+                }
             }
             renderer?.quality=quality;renderer?.pointMode=points;renderer?.orbit=Float(orbit);updateSpeed();updatePause()
         } catch { self.error=error.localizedDescription;presentation = .classic }
@@ -189,6 +203,7 @@ import Combine
     }
     func changePuzzle(_ value:LabBoardPuzzle) {
         guard !busy,value != puzzle else { return }
+        cancelHint()
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         finishMeasurement(reason:"puzzle changed");checkpoint();puzzle=value;game=saved.games[value.rawValue] ?? LabBoardGame(state:value.initial);game.cancel()
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
@@ -220,7 +235,7 @@ import Combine
             let amount=game.pending?.amount ?? 1
             let committed=renderer.game.moveCount == game.moveCount+1
             if committed { undoParticles.append(beforeParticles);game=renderer.game;settledParticles=renderer.particleSamples() }
-            else { game.cancel();notice=renderer.lastOutcome }
+            else { game.cancel();hintPlan=[];notice=renderer.lastOutcome }
             rememberPour(committed)
             performance.endMove(committed:committed,correctionPercent:Double(correction)/Double(amount*640)*100)
             if committed { feedback.completed(solved:state.solved) } else { feedback.stop() }
@@ -235,7 +250,7 @@ import Combine
             guard let move=availableMove(from:source,to:index) else {
                 reject(index)
                 if allowsConcurrentPours,pourQueue.movingSources.contains(index) { notice="That vial is already pouring or queued." }
-                else if pourQueue.projected(state).stacks[index].count == state.capacity { notice="That vial is full or its remaining space is reserved." }
+                else if pourQueue.projected(state).stacks[index].count == state.capacity(index) { notice="That vial is full or its remaining space is reserved." }
                 else { notice="Choose the same top color or an empty vial." }
                 return
             }
@@ -245,22 +260,30 @@ import Combine
             }
         } else {
             guard !allowsConcurrentPours || !pourQueue.lockedSources.contains(index) else { reject(index);notice="That vial is already in use.";return }
+            guard state.canPourOut(index) else { reject(index);notice="That valve is fill only. Choose a vial that can pour out.";return }
             guard !state.stacks[index].isEmpty else { reject(index);notice="Choose a vial that contains liquid first.";return }
             clearSelectionFeedback();feedback.selection();selected=index;hintTarget=nil;notice="Now choose a matching color or an empty vial."
         }
     }
     @discardableResult func begin(_ move:LabBoardMove,automaticClock:Bool = true) -> Bool {
+        // A followed hint advances the route that was already solved. Any
+        // different move invalidates it, so the next hint plans afresh.
+        let followsHintPlan = !allowsConcurrentPours && hintPlan.first == move
+        cancelHint(clearPlan:!followsHintPlan)
         if allowsConcurrentPours { return beginConcurrent(move,automaticClock:automaticClock) }
-        guard !busy,!state.solved,game.state.move(from:move.source,to:move.destination)==move else { return false }
+        guard !busy,!state.solved,game.state.move(from:move.source,to:move.destination)==move else {
+            hintPlan=[];return false
+        }
         performance.traceBegin("Begin pour");defer { performance.traceEnd("Begin pour") }
         beforeParticles=settledParticles
         if presentation == .fluid {
-            guard let renderer else { return false }
+            guard let renderer else { hintPlan=[];return false }
             beforeParticles=renderer.particleSamples()
-            guard renderer.begin(from:move.source,to:move.destination) else { return false }
+            guard renderer.begin(from:move.source,to:move.destination) else { hintPlan=[];return false }
         }
-        if presentation == .fluid2D { guard fluid2D.begin(move) else { return false } }
-        guard game.begin(from:move.source,to:move.destination) != nil else { return false }
+        if presentation == .fluid2D { guard fluid2D.begin(move) else { hintPlan=[];return false } }
+        guard game.begin(from:move.source,to:move.destination) != nil else { hintPlan=[];return false }
+        if followsHintPlan { hintPlan.removeFirst() }
         clearSelectionFeedback();pendingExample=LabPourExample(puzzle:puzzle,state:state,move:move)
         paused=false;metrics=LabBoardMetrics();correction=0;captured=0;updatePause()
         performance.beginMove(presentation:presentation,pace:pace)
@@ -331,7 +354,7 @@ import Combine
             if committed {
                 game=fluid2D.game;undoParticles.append(beforeParticles);settledParticles=nil
                 feedback.completed(solved:state.solved)
-            } else { game.cancel();notice=fluid2D.lastOutcome;feedback.stop() }
+            } else { game.cancel();hintPlan=[];notice=fluid2D.lastOutcome;feedback.stop() }
             rememberPour(committed)
             performance.endMove(committed:committed,correctionPercent:Double(fluid2D.cleanupPercent))
             beforeParticles=nil;classicTask?.cancel();classicTask=nil;checkpoint()
@@ -355,6 +378,7 @@ import Combine
         performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:nil)
     }
     func reset() {
+        cancelHint()
         cancelConcurrent()
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         feedback.stop()
@@ -381,6 +405,7 @@ import Combine
     }
     func undo() {
         guard !busy,game.undo() else { return }
+        cancelHint()
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         settledParticles=undoParticles.isEmpty ? nil:undoParticles.removeLast()
         if presentation == .fluid { prepareFluid() }
@@ -389,12 +414,27 @@ import Combine
         notice="Move undone. Try a different route.";updatePause();checkpoint();refresh()
     }
     func hint() {
-        guard !busy,!state.solved else { return }
+        guard !busy,!state.solved,!findingHint else { return }
         clearSelectionFeedback()
-        if let move=state.solution()?.first {
+        if let move=hintPlan.first,state.move(from:move.source,to:move.destination)==move {
             selected=move.source;hintTarget=move.destination
             notice="Try \(Self.letter(move.source)) → \(Self.letter(move.destination)) · \(move.amount) \(Self.name(move.color)) \(move.amount == 1 ? "unit":"units")"
-        } else { notice="No solution from here. Undo a move to try another route." }
+            return
+        }
+        hintPlan=[];let snapshot=state
+        hintRevision &+= 1;let revision=hintRevision
+        findingHint=true;notice="Finding a route through this larger board…"
+        hintTask=Task { @MainActor [weak self] in
+            let route=await Task.detached(priority:.userInitiated) {snapshot.solution()}.value
+            guard let self,self.hintRevision==revision else {return}
+            self.findingHint=false;self.hintTask=nil
+            guard !Task.isCancelled,!self.busy,self.state==snapshot else {return}
+            if let route,let move=route.first {
+                self.hintPlan=route
+                self.selected=move.source;self.hintTarget=move.destination
+                self.notice="Try \(Self.letter(move.source)) → \(Self.letter(move.destination)) · \(move.amount) \(Self.name(move.color)) \(move.amount == 1 ? "unit":"units")"
+            } else {self.notice="No solution from here. Undo a move to try another route."}
+        }
     }
     // A dismissed preview must release its clock even when it closes mid-pour.
     func discardPreview() {
@@ -429,7 +469,7 @@ import Combine
             performance.context["physicsExecution"]="isolated actor, immutable value snapshots"
         }
         if allowsConcurrentPours {
-            performance.context["concurrentPourLimit"]=2
+            performance.context["concurrentPourLimit"]="dependency constrained"
             performance.context["frameCounter"]="concurrent controller updates, not compositor presents"
             if presentation == .fluid { performance.context["cpuCounter"]="simulation scheduling and GPU waits; excludes surface rendering" }
         }
@@ -536,11 +576,22 @@ import Combine
     }
 
     static func letter(_ index:Int) -> String { String(UnicodeScalar(65+index)!) }
-    static func name(_ color:Int) -> String { color == 0 ? "Tide":(color == 1 ? "Ember":"Leaf") }
-    static func color(_ value:Int) -> Color { value == 0 ? Color(red:0.05,green:0.58,blue:0.86):(value == 1 ? Color(red:0.96,green:0.34,blue:0.07):Color(red:0.20,green:0.76,blue:0.36)) }
+    static func name(_ color:Int) -> String {
+        let names=["Tide","Ember","Leaf","Petal","Sun","Cream","Violet","Mint","Ruby","Cobalt","Lime","Pearl"]
+        return names[(color % names.count+names.count)%names.count]
+    }
+    static func color(_ value:Int) -> Color {
+        let colors:[Color]=[
+            Color(red:0.05,green:0.58,blue:0.86),Color(red:0.96,green:0.34,blue:0.07),Color(red:0.20,green:0.76,blue:0.36),
+            Color(red:0.94,green:0.34,blue:0.65),Color(red:1.00,green:0.72,blue:0.08),Color(red:0.98,green:0.71,blue:0.61),
+            Color(red:0.55,green:0.30,blue:0.95),Color(red:0.12,green:0.78,blue:0.62),Color(red:0.72,green:0.04,blue:0.24),
+            Color(red:0.08,green:0.24,blue:0.88),Color(red:0.54,green:0.78,blue:0.06),Color(red:0.82,green:0.78,blue:0.68)]
+        return colors[(value % colors.count+colors.count)%colors.count]
+    }
     func accessibility(_ index:Int) -> String {
         let layers=state.stacks[index].reversed().map { Self.name(state.colors[$0]) }.joined(separator:", ")
-        return "Vial \(Self.letter(index)), \(state.stacks[index].count) of 4 units. \(layers.isEmpty ? "Empty":"Top to bottom: "+layers)."
+        let rule=state.rules[index] == .receiveOnly ? " Fill only; it cannot pour out.":""
+        return "Vial \(Self.letter(index)), \(state.stacks[index].count) of \(state.capacity(index)) units.\(rule) \(layers.isEmpty ? "Empty":"Top to bottom: "+layers)."
     }
 }
 
@@ -619,7 +670,7 @@ extension FluidBoardSession {
                 engine.installSimulation(game:game,samples:compositeSamples,vessels:item.vessels)
                 metalGroups[item.move.destination]=engine
             }
-            var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+            var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,capacities:game.state.capacities,rules:game.state.rules,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
             var aggregate=LabBoardMetrics();aggregate.gpuMilliseconds=renderer.lastGPUWorkMilliseconds
             var completed:[LabLaneResult]=[],empty:[Int]=[]
             for receiver in metalGroups.keys.sorted() {

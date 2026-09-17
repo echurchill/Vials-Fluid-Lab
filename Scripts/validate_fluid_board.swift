@@ -12,6 +12,7 @@ import AppKit
         let lib=try device.makeLibrary(URL:URL(fileURLWithPath:option("--library","default.metallib")))
         let renderer=try LabBoardRenderer(device:device,library:lib)
         let fps=Float(option("--fps","60"))!,width=Int(option("--width","1000"))!,height=Int(option("--height","650"))!
+        let pacingBudget=Float(option("--pacing-budget","8.5"))!
         let desc=MTLTextureDescriptor.texture2DDescriptor(pixelFormat:.bgra8Unorm_srgb,width:width,height:height,mipmapped:false)
         desc.storageMode = .shared;desc.usage=[.renderTarget,.shaderRead]
         let texture=device.makeTexture(descriptor:desc)!
@@ -30,7 +31,7 @@ import AppKit
         if fixture == "level" && initial.move(from:0,to:1) != nil { errors.append("Different top colors accepted") }
         guard let solution=initial.solution() ?? (fixture == "level" ? nil:[]) else { throw LabError.message("Initial level has no solution") }
         let route: [(Int,Int)] = (fixture == "shortest" || LabBoardPuzzle(rawValue:fixture) != nil) ? solution.map { ($0.source,$0.destination) } : fixture == "pear" ? [(3,1)] : fixture == "level" ? [(0,3),(1,0),(2,3),(2,0),(1,3)] : [(0,fixture == "partial" ? 1:3)]
-        print("Fixture \(fixture), particles \(renderer.particleCount), shortest solution \(solution.count) moves")
+        print("Fixture \(fixture), particles \(renderer.particleCount), solution \(solution.count) moves")
         renderer.encodeFrame(target:texture,deltaTime:0).waitUntilCompleted()
         try save(texture,to:output.appendingPathComponent("ready.png"))
         var observedCommits=0
@@ -80,7 +81,7 @@ import AppKit
                 if renderer.game.pending == nil { break }
             }
             gpu.sort();wall.sort()
-            if duration*renderer.playbackSpeed>8.5 { errors.append("Turn exceeded the 8.5-second pacing budget") }
+            if duration*renderer.playbackSpeed>pacingBudget { errors.append("Turn exceeded the \(pacingBudget)-second pacing budget") }
             let committed=renderer.game.moveCount == index+1
             if committed && observedCommits != renderer.game.moveCount { errors.append("Commit did not notify the UI before resting") }
             if !committed { errors.append("Move \(index) did not commit: \(renderer.lastOutcome)") }

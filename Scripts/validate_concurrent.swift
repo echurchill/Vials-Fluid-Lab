@@ -26,6 +26,19 @@ import AppKit
   print("PASS: exact reservation, reverse completion and failed earlier reservation")
   let device=MTLCreateSystemDefaultDevice()!
   let library=try device.makeLibrary(URL:URL(fileURLWithPath:CommandLine.arguments[1]))
+  let guidedSave=LabComparisonSave(presentation:.fluid2D,pace:.quick,puzzle:.valveCircuit,games:[:])
+  let guided=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:guidedSave)
+  let guidedRoute=guided.state.solution()!
+  guided.hint()
+  while guided.findingHint { try await Task.sleep(for:.milliseconds(5)) }
+  require(guided.selected==guidedRoute[0].source && guided.hintTarget==guidedRoute[0].destination,"initial hint differed from solved route")
+  require(guided.begin(guidedRoute[0],automaticClock:false),"guided move did not begin")
+  for _ in 0..<900 where guided.busy { guided.advance2D(deltaTime:1/60) }
+  require(!guided.busy,"guided move did not finish")
+  guided.hint()
+  require(!guided.findingHint && guided.selected==guidedRoute[1].source && guided.hintTarget==guidedRoute[1].destination,"next hint replanned instead of continuing its route")
+  require(!(guidedRoute[1].source==guidedRoute[0].destination && guidedRoute[1].destination==guidedRoute[0].source),"solved hint route immediately reversed")
+  print("PASS: hint retains and advances one solved route")
   func make(_ state:LabBoardState,_ mode:LabBoardPresentation)->FluidBoardSession {
    let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort,games:["firstSort":LabBoardGame(state:state)])
    return FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save,allowsConcurrentPours:true)
@@ -56,7 +69,7 @@ import AppKit
    var failures=0,rounds=0
    for tick in 0..<10000 {
     if session.solved { rounds+=1;if rounds==2 {break};session.reset();session.changePuzzle(.greenArrival) }
-    if tick%6==0,session.pourQueue.items.count<2 {
+    if tick%6==0,session.pourQueue.items.count<session.state.stacks.count {
      let projected=session.pourQueue.projected(session.state),receivers=Set(session.pourQueue.active.map {$0.move.destination})
      let options=session.state.stacks.indices.flatMap {a in session.state.stacks.indices.compactMap {b in session.availableMove(from:a,to:b)}}.sorted {receivers.contains($0.destination) && !receivers.contains($1.destination)}
      if let move=options.first(where: { !(projected.stacks[$0.destination].isEmpty && Set(projected.stacks[$0.source].map {projected.colors[$0]}).count==1) && projected.applying($0)?.solution() != nil}) {
@@ -106,7 +119,7 @@ import AppKit
    try NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(mode.rawValue+suffix+".png"))
   }
   for mode in LabBoardPresentation.allCases {
-   let state=LabBoardState(layers:[[0,1,1,1],[0,1],[],[],[2,2],[]])
+   let state=LabBoardState(layers:[[0,1,1,1],[0,1],[],[],[2,2],[]],capacities:[6,5,3,4,6,6])
    let session=make(state,mode)
    let a=session.availableMove(from:0,to:2)!,b=session.availableMove(from:1,to:3)!
    require(session.begin(a,automaticClock:false) && session.begin(b,automaticClock:false),"independent reservations \(mode)")
@@ -115,7 +128,7 @@ import AppKit
    require(session.begin(c,automaticClock:false),"third reservation rejected")
    for _ in 0..<45 { await session.advanceConcurrent(deltaTime:1/60) }
    try capture(session,mode)
-   require(session.pourQueue.active.count==2,"expected two active lanes \(mode)")
+   require(session.pourQueue.active.count==3,"expected three active lanes \(mode)")
    let phases=session.pourQueue.items.map(\.started),particles=session.fluid2D.particles,poses=session.renderer?.currentVessels.map(\.world)
    session.togglePause()
    for _ in 0..<10 { await session.advanceConcurrent(deltaTime:0.5) }
@@ -139,7 +152,7 @@ import AppKit
    }
    let expected=state.applying(a)!.applying(b)!.applying(c)!
    require(!session.busy && session.state==expected && session.moveCount==3,"independent commit \(mode): \(session.notice)")
-   require(maxActive<=2 && sawPartial,"concurrency limit/completion order")
+   require(maxActive==3,"three-way concurrency")
    session.undo();require(session.moveCount==2,"undo completed order")
    let staggered=make(state,mode)
    require(staggered.begin(a,automaticClock:false),"staggered first")
@@ -195,7 +208,7 @@ import AppKit
    require(reset.begin(c,automaticClock:false),"reset queued setup")
    await reset.advanceConcurrent(deltaTime:1/60);reset.reset();await reset.advanceConcurrent(deltaTime:10)
    require(!reset.busy && reset.moveCount==0 && reset.state==LabBoardPuzzle.firstSort.initial,"reset left lanes alive")
-   print("PASS: \(mode.rawValue) overlapping lanes, queue limit, shared receiver overlap, pause/suspend, checkpoint, partial completion, undo and reset")
+   print("PASS: \(mode.rawValue) three-way overlapping lanes, dependency guards, shared receiver overlap, pause/suspend, checkpoint, partial completion, undo and reset")
   }
   let overflow=make(LabBoardState(layers:[[0,0,0],[0,0,0],[1],[]]),.classic)
   require(overflow.begin(overflow.availableMove(from:0,to:3)!,automaticClock:false),"reserve 3")

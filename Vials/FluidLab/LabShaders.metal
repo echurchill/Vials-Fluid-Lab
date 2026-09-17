@@ -10,15 +10,15 @@ struct Uniforms {
 struct Vessel { float4x4 world, inverseWorld, previousWorld; float4 dimensions, marks; };
 struct Vertex { float4 position, normal; };
 // Include sources approaching the outside of either edge receiver.
-constant uint gridCount = 96*48*40;
+constant uint gridCount = 128*48*40;
 
 float radiusAt(float y, constant Vessel &v, device const float *profiles) {
     float f = clamp(y / v.dimensions.x, 0.0f, 1.0f) * 127;
     uint i = min(uint(f),126u), offset = uint(v.dimensions.y)*128;
     return mix(profiles[offset+i], profiles[offset+i+1], f-float(i));
 }
-int3 gridCell(float3 p, float h) { return int3(floor((p+float3(9.6,0.4,3.8))/0.20f)); }
-uint gridIndex(int3 c) { c=clamp(c,int3(0),int3(95,47,39)); return uint(c.x+96*(c.y+48*c.z)); }
+int3 gridCell(float3 p, float h) { return int3(floor((p+float3(12.8,0.4,3.8))/0.20f)); }
+uint gridIndex(int3 c) { c=clamp(c,int3(0),int3(127,47,39)); return uint(c.x+128*(c.y+48*c.z)); }
 float poly6(float r2, float h) {
     float q = max(0.0f,1-r2/(h*h));
     return 1.56668147f/(h*h*h)*q*q*q;
@@ -64,7 +64,8 @@ float4 collide(float4 point, constant Vessel *vessels, device const float *profi
         }
     }
     p.y=max(p.y,0.045f);
-    p.xz=clamp(p.xz,float2(board ? -9.5:-3.7,board ? -3.5:-2.35),float2(board ? 9.5:3.7,board ? 3.3:2.35));
+    float boardHalfWidth=max(9.5f,(float(max(2u,vesselCount))-1.0f)*1.1f+1.2f);
+    p.xz=clamp(p.xz,float2(board ? -boardHalfWidth:-3.7,board ? -3.5:-2.35),float2(board ? boardHalfWidth:3.7,board ? 3.3:2.35));
     return float4(p,float(owner));
 }
 
@@ -278,8 +279,14 @@ fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniform
     return particleDepth(in,u,v,profiles);
 }
 float3 boardColor(float dye) {
-    if(dye>1.5f) return float3(0.20,0.76,0.36);
-    return dye>0.5f ? float3(0.96,0.34,0.07):float3(0.05,0.58,0.86);
+    switch(clamp(int(round(dye)),0,11)) {
+        case 0:return float3(0.05,0.58,0.86);case 1:return float3(0.96,0.34,0.07);
+        case 2:return float3(0.20,0.76,0.36);case 3:return float3(0.94,0.34,0.65);
+        case 4:return float3(1.00,0.72,0.08);case 5:return float3(0.98,0.71,0.61);
+        case 6:return float3(0.55,0.30,0.95);case 7:return float3(0.12,0.78,0.62);
+        case 8:return float3(0.72,0.04,0.24);case 9:return float3(0.08,0.24,0.88);
+        case 10:return float3(0.54,0.78,0.06);default:return float3(0.82,0.78,0.68);
+    }
 }
 struct BoardDepthOut { float depthColor [[color(0)]]; float4 frontDye [[color(1)]]; float depth [[depth(any)]]; };
 fragment BoardDepthOut labBoardParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
@@ -430,6 +437,12 @@ fragment float4 labGlassFragment(GlassOut in [[stage_in]], constant Uniforms &u 
     // Volume graduations are restrained short strokes on the front of the glass.
     float front=smoothstep(0.10f,0.3f,in.local.z)*(1-smoothstep(0.06f,0.24f,abs(in.local.x)));
     color=mix(color,float3(0.59,0.79,0.82),line*front*0.48);
+    if(v.marks.w<0) {
+        float valveY=v.dimensions.x*0.76f;
+        float collar=1-smoothstep(0.006f,0.022f,abs(in.local.y-valveY));
+        float down=(1-smoothstep(0.010f,0.030f,abs(in.local.x)))*(1-smoothstep(0.0f,0.09f,abs(in.local.y-(valveY-0.07f))));
+        color=mix(color,float3(0.12f,0.88f,0.92f),front*max(collar,down)*0.88f);
+    }
     float rim=1-smoothstep(0.012f,0.035f,abs(in.local.y-v.dimensions.x));
     color+=rim*float3(0.15,0.22,0.25);
     float foot=1-smoothstep(0.005f,0.055f,abs(in.local.y));
@@ -458,6 +471,12 @@ fragment float4 labBoardGlassFragment(GlassOut in [[stage_in]], constant Uniform
     // Volume graduations are restrained short strokes on the front of the glass.
     float front=smoothstep(0.10f,0.3f,in.local.z)*(1-smoothstep(0.06f,0.24f,abs(in.local.x)));
     color=mix(color,float3(0.59,0.79,0.82),line*front*0.48);
+    if(v.marks.w<0) {
+        float valveY=v.dimensions.x*0.76f;
+        float collar=1-smoothstep(0.006f,0.022f,abs(in.local.y-valveY));
+        float down=(1-smoothstep(0.010f,0.030f,abs(in.local.x)))*(1-smoothstep(0.0f,0.09f,abs(in.local.y-(valveY-0.07f))));
+        color=mix(color,float3(0.12f,0.88f,0.92f),front*max(collar,down)*0.88f);
+    }
     // A broad, neutral edge remains legible without a selection-colored glow.
     // Screen derivatives keep the rim from collapsing into a subpixel hairline.
     float facing=abs(dot(n,eye));

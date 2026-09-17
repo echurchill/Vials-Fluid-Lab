@@ -30,7 +30,7 @@ import simd
         let frameRate=args.contains("--30fps") ? 30.0:60.0
         let speed:Float=engine.quickMotion ? 1.6:1.0
         var rows:[[String:Any]]=[]
-        for color in 0...2 {
+        for color in Set(puzzle.initial.colors).sorted() {
             let surface=Lab2DSurfaceState(energy:1,phase:1.3,impactX:0,color:color)
             let samples=(0...128).map { surface.offset(x:Float($0)/64-1,halfWidth:1,envelope:1) }
             let mean=(samples.reduce(0,+)-(samples.first!+samples.last!)/2)/128
