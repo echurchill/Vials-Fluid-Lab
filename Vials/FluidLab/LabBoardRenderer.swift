@@ -23,6 +23,7 @@ private struct LabMetalTransfer {
     var cleanupStart:Float?
     var correction=0
     var arrived=0,departed=0
+    var ready=false
 }
 
 @MainActor
@@ -43,6 +44,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var cutoffTilt:Float=0
     private var returnStart:Float?
     private var cleanupStart:Float?
+    private var settleFrom:[LabParticle]?
+    private var settleTargets:[LabParticle]?
+    private var groupSettleStart:Float?
     private var previousWorlds:[simd_float4x4]=[]
     private var beforeParticles:[LabParticle]=[]
     private var historyParticles:[[LabParticle]]=[]
@@ -61,7 +65,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     var paused=false
     var pointMode=false
     var reduceTransparency=false
-    var capExclusions:Set<Int>=[]
+    var capExclusions:Set<Int>=[] {
+        didSet {if oldValue != capExclusions {pausedSignature=nil}}
+    }
     var orbit:Float=0.12
     var playbackSpeed:Float=1
     var viscosity:Float=0.10
@@ -191,6 +197,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private func clearMotion() {
         compositeVessels=nil;groupTransfers=[];groupResults=[];groupOwnedParcels=[]
         pourTime=nil;tilt=0;cutoffTime=nil;returnStart=nil;cleanupStart=nil
+        settleFrom=nil;settleTargets=nil;groupSettleStart=nil
         previousWorlds=[];accumulator=0;lastWallTime=nil;pausedSignature=nil
         correctionCount=0;arrivalBeforeCorrection=0;lastMetrics=LabBoardMetrics();paused=false
     }
@@ -304,21 +311,27 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             cutoffTime=t;cutoffTilt=tilt
         }
         if let cleanup=cleanupStart {
-            if t-cleanup>=LabBoardTiming.cleanup {
+            let progress=(t-cleanup)/0.55
+            applySettle(progress:progress)
+            if progress>=1 {
                 let samples=particleSamples()
                 if let after=game.state.applying(move),inventoryMatches(samples,state:after) {
-                    normalizeOrder(state:after)
-                    settle(owners:[move.source,move.destination],state:after)
                     historyParticles.append(beforeParticles)
                     _=game.commit(move);lastOutcome="Move complete"
                 } else { rollback(message:"That pour needs another try") }
+                settleFrom=nil;settleTargets=nil
                 pourTime=nil;tilt=0;previousWorlds=[];pausedSignature=nil
             }
         } else if let back=returnStart,t-back>LabBoardTiming.returned+LabBoardTiming.settling {
             let missing=target-lastMetrics.arrived
             arrivalBeforeCorrection=Float(lastMetrics.arrived)/Float(target)
             if missing>=0,missing<=Int(Float(target)*0.05),lastMetrics.wrongParcel==0,lastMetrics.nonFinite==0 {
-                correct(move:move);cleanupStart=t
+                correct(move:move)
+                if let after=game.state.applying(move) {
+                    normalizeOrder(state:after)
+                    prepareSettle(owners:[move.source,move.destination],state:after)
+                    cleanupStart=t
+                } else {rollback(message:"That pour needs another try")}
             } else { rollback(message:"Too much spilled · Try again") }
         }
         // Publish the transaction before idle rendering stops. Waiting for a
@@ -326,7 +339,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         if game.pending == nil { onUpdate?(lastMetrics,phase,pourTime ?? 0) }
     }
     private func rollback(message:String) {
-        particles=makeBuffer(beforeParticles);game.cancel();pourTime=nil;tilt=0;previousWorlds=[];pausedSignature=nil;lastOutcome=message
+        particles=makeBuffer(beforeParticles);game.cancel();pourTime=nil;tilt=0;previousWorlds=[];pausedSignature=nil
+        settleFrom=nil;settleTargets=nil;lastOutcome=message
     }
     private func inventoryMatches(_ samples:[LabParticle],state:LabBoardState) -> Bool {
         var owners=[Int](repeating:-1,count:state.colors.count),counts=[Int](repeating:0,count:state.colors.count)
@@ -370,23 +384,33 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             }
         }
     }
-    /// Once a transaction is accepted, rebuild only the participating
-    /// vessels from exact logical volumes. Ownership alone is not enough: a
-    /// particle can enter a vial, satisfy the ledger, and still be suspended
-    /// above the bulk surface when idle simulation freezes. Untouched vessels
-    /// retain their physical state byte-for-byte.
-    private func settle(owners:Set<Int>,state:LabBoardState) {
+    /// Build an exact target for only the participating vessels. The current
+    /// and target buffers are blended during Final settling, so detached
+    /// particles rejoin the bulk fluid without a one-frame volume jump.
+    private func prepareSettle(owners:Set<Int>,state:LabBoardState) {
         guard !owners.isEmpty else {return}
         let parcels=Set(owners.flatMap {state.stacks[$0]})
         let canonical=Dictionary(grouping:seed(state:state)) {Int($0.visual.y)}
-        var offsets:[Int:Int]=[:]
-        let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
-        for i in 0..<particleCount {
-            let parcel=Int(p[i].visual.y)
-            guard parcels.contains(parcel),let targets=canonical[parcel] else {continue}
+        let current=particleSamples();var targets=current,offsets:[Int:Int]=[:]
+        for i in current.indices {
+            let parcel=Int(current[i].visual.y)
+            guard parcels.contains(parcel),let canonicalParcel=canonical[parcel] else {continue}
             let offset=offsets[parcel,default:0]
-            precondition(offset<targets.count)
-            p[i]=targets[offset];offsets[parcel]=offset+1
+            targets[i]=canonicalParcel[offset];offsets[parcel]=offset+1
+        }
+        settleFrom=current;settleTargets=targets
+    }
+    private func applySettle(progress:Float) {
+        guard let from=settleFrom,let targets=settleTargets else {return}
+        let f=labSmooth(min(1,max(0,progress)))
+        let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+        if progress>=1 {
+            for i in 0..<particleCount {p[i]=targets[i]}
+            return
+        }
+        for i in 0..<particleCount where from[i].position != targets[i].position {
+            let position=simd_mix(from[i].position,targets[i].position,SIMD4(repeating:f))
+            p[i]=targets[i];p[i].position=position;p[i].predicted=position
         }
     }
     private func makeBands() -> [LabBoardBand] {
@@ -576,7 +600,11 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     /// One receiver and all its incoming streams share a single particle buffer.
     func advanceGroup(game:LabBoardGame,starts:[LabPourReservation],samples:[LabParticle],deltaTime:Float) {
         lastCommand?.waitUntilCompleted();groupResults=[]
-        if self.game.state != game.state || !starts.isEmpty {
+        if !starts.isEmpty {
+            // A late shared-receiver pour changes the owned parcel set. Rebuild
+            // once and discard any prior interpolation target; unrelated groups
+            // finishing must not reorder this buffer underneath an active settle.
+            groupSettleStart=nil;settleFrom=nil;settleTargets=nil
             let moves=groupMoves+starts.map(\.move),owners=Set(moves.flatMap {[$0.source,$0.destination]})
             let owned=Set(owners.flatMap {game.state.stacks[$0]}+moves.flatMap(\.parcels))
             let current=particleSamples().filter {owned.contains(Int($0.visual.y))}
@@ -663,6 +691,24 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         return bands
     }
     private func updateGroupTransfers() {
+        if let start=groupSettleStart {
+            let progress=(simulationTime-start)/0.55
+            applySettle(progress:progress)
+            if progress>=1 {
+                let jobs=groupTransfers
+                for job in jobs {
+                    let move=job.item.move,target=move.amount*Self.particlesPerUnit
+                    let committed=self.game.commitReserved(move)
+                    groupResults.append(LabLaneResult(id:job.item.id,committed:committed,
+                        cleanup:100*Float(job.correction)/Float(target),vessels:[move.source,move.destination],
+                        diagnostic:"arrived=\(job.arrived)/\(target) departed=\(job.departed) time=\(job.time)"))
+                }
+                groupTransfers=[];groupSettleStart=nil;settleFrom=nil;settleTargets=nil
+                normalizeOrder(state:self.game.state)
+            }
+            compositeVessels=groupVessels()
+            return
+        }
         let values=particleSamples();var finished:[Int]=[];lastMetrics=LabBoardMetrics()
         let moves=groupMoves,owners=Set(moves.flatMap {[$0.source,$0.destination]})
         let selected=Set(moves.flatMap(\.parcels))
@@ -682,41 +728,44 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             lastMetrics.arrived+=job.arrived;lastMetrics.departed+=job.departed
             lastMetrics.guided+=moving.filter {$0.visual.w>0.5}.count
             if job.cutoff==nil,job.departed>=Int(Float(target)*0.99),job.arrived>=target-Int(Float(target)*0.05) {job.cutoff=job.time;job.cutoffTilt=job.tilt}
-            var success:Bool?
-            if let start=job.cleanupStart,job.time-start>=LabBoardTiming.cleanup { success=true }
+            var failed=false
+            if let start=job.cleanupStart,job.time-start>=LabBoardTiming.cleanup {job.ready=true}
             else if job.cleanupStart==nil,let back=job.returned,job.time-back>LabBoardTiming.returned+LabBoardTiming.settling {
                 let missing=target-job.arrived
                 if missing>=0,missing<=Int(Float(target)*0.05),lastMetrics.wrongParcel==0,lastMetrics.nonFinite==0,moving.allSatisfy({$0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite}) {
                     let pointer=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
                     let slots=(0..<particleCount).filter {ids.contains(Int(pointer[$0].visual.y)) && Int(pointer[$0].position.w) != move.destination}
                     let receiverCount=values.filter {Int($0.position.w)==move.destination}.count+missing
-                    let profile=profiles[move.destination],height=profile.height(for:profile.usableVolume*Float(receiverCount)/Float(4*Self.particlesPerUnit))
+                    let capacity=game.state.capacities[move.destination]
+                    let profile=profiles[move.destination],height=profile.height(for:profile.usableVolume*Float(receiverCount)/Float(capacity*Self.particlesPerUnit))
                     for (n,i) in slots.enumerated() {
                         let y=max(0.055,height-0.06),r=max(0.02,profile.radius(at:y)-0.10)*sqrt((Float(n)+0.5)/Float(max(1,slots.count))),a=Float(n)*2.3999632
                         let position=SIMD4(homes[move.destination]+SIMD3(r*cos(a),y,r*sin(a)),Float(move.destination))
                         pointer[i].position=position;pointer[i].predicted=position;pointer[i].velocity=SIMD4(0,0,0,pointer[i].velocity.w);pointer[i].visual.x=simulationTime
                     }
                     job.correction=missing;job.cleanupStart=job.time
-                } else { success=false }
+                } else {failed=true}
             }
-            if let success {
-                let committed=success && self.game.commitReserved(move)
-                if !committed {
-                    let sourceIDs=Set(job.before.map {Int($0.visual.y)})
-                    particles=makeBuffer(particleSamples().filter {!sourceIDs.contains(Int($0.visual.y))}+job.before)
-                }
-                groupResults.append(LabLaneResult(id:job.item.id,committed:committed,cleanup:100*Float(job.correction)/Float(target),vessels:[move.source,move.destination],diagnostic:"arrived=\(job.arrived)/\(target) departed=\(job.departed) time=\(job.time)"));finished.append(j)
+            if failed {
+                let sourceIDs=Set(job.before.map {Int($0.visual.y)})
+                particles=makeBuffer(particleSamples().filter {!sourceIDs.contains(Int($0.visual.y))}+job.before)
+                groupResults.append(LabLaneResult(id:job.item.id,committed:false,cleanup:0,
+                    vessels:[move.source,move.destination],diagnostic:"arrived=\(job.arrived)/\(target) departed=\(job.departed) time=\(job.time)"))
+                finished.append(j)
             }
             groupTransfers[j]=job
         }
         for i in finished.reversed() {groupTransfers.remove(at:i)}
         compositeVessels=groupVessels()
-        if groupTransfers.isEmpty,!finished.isEmpty {
-            let owners=Set(self.game.state.stacks.indices.filter {owner in
-                self.game.state.stacks[owner].contains {groupOwnedParcels.contains($0)}
-            })
-            normalizeOrder(state:self.game.state)
-            settle(owners:owners,state:self.game.state)
+        if !groupTransfers.isEmpty,groupTransfers.allSatisfy(\.ready) {
+            var projected=self.game.state
+            for job in groupTransfers {
+                guard let next=projected.applyingReserved(job.item.move) else {return}
+                projected=next
+            }
+            let owners=Set(groupTransfers.flatMap {[$0.item.move.source,$0.item.move.destination]})
+            prepareSettle(owners:owners,state:projected)
+            groupSettleStart=simulationTime
         }
     }
     func displayComposite(game:LabBoardGame,samples:[LabParticle],vessels:[LabVesselUniform]) {

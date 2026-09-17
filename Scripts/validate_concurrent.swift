@@ -62,6 +62,28 @@ import AppKit
    "live board discarded its route and suggested the inverse move")
   require(!(liveGuided.selected==3 && liveGuided.hintTarget==7),"live board repeated D→H after H→D")
   print("PASS: live concurrent-capable board does not circularly undo a followed hint")
+  // Exact Level 16 report: B and C pour Petal into the receive-only G vial.
+  // Once all destination particles arrive, the transaction must remain active
+  // for visible settling frames instead of snapping the final volume into view.
+  let valveSave=LabComparisonSave(presentation:.fluid,pace:.quick,puzzle:.valveCircuit,
+   games:[LabBoardPuzzle.valveCircuit.rawValue:LabBoardGame(state:LabBoardPuzzle.valveCircuit.initial)])
+  let valve=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:valveSave,allowsConcurrentPours:true)
+  let bToG=valve.availableMove(from:1,to:6)!,cToG:LabBoardMove
+  require(valve.begin(bToG,automaticClock:false),"Level 16 B→G did not begin")
+  cToG=valve.availableMove(from:2,to:6)!
+  require(valve.begin(cToG,automaticClock:false),"Level 16 C→G did not join shared receiver")
+  let finalG=Set(valve.state.stacks[6]+bToG.parcels+cToG.parcels)
+  var visibleSettleFrames=0
+  for _ in 0..<1800 where valve.busy {
+   await valve.advanceConcurrent(deltaTime:1/60)
+   let destination=valve.renderer!.particleSamples().filter {finalG.contains(Int($0.visual.y))}
+   if valve.busy && destination.count==finalG.count*LabBoardRenderer.particlesPerUnit && destination.allSatisfy({Int($0.position.w)==6}) {
+    visibleSettleFrames+=1
+   }
+  }
+  require(!valve.busy && valve.moveCount==2 && valve.state.isComplete(6),"Level 16 B+C→G did not complete")
+  require(visibleSettleFrames>=12,"Level 16 final fluid volume snapped instead of settling: \(visibleSettleFrames) frames")
+  print("PASS: Level 16 B+C→G shared pour settles for \(visibleSettleFrames) visible frames")
   func make(_ state:LabBoardState,_ mode:LabBoardPresentation)->FluidBoardSession {
    let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort,games:["firstSort":LabBoardGame(state:state)])
    return FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save,allowsConcurrentPours:true)

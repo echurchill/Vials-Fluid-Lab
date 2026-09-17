@@ -46,6 +46,8 @@ The 2D recovery pass had one similarly narrow edge case: three missing particles
 
 A later physical-iPad Five Streams session exposed a separate 3D completion edge case: particles could have the correct logical owner yet remain suspended above the bulk fluid when idle simulation froze. After an accepted transfer, the renderer now canonically settles only the source and destination vessels. Uninvolved vials retain their physical particles unchanged. The exact reported E→G state is replayed particle-for-particle against canonical settled fluid, and the complete 175-pour 3D suite remains clean.
 
+The first canonical-settle implementation exposed two presentation defects on the next physical-iPad pass. Corrected particles could jump to their final volume in one frame, and the idle renderer could retain a frame where a newly completed vial's cap was still excluded by its active pour. Participating liquid now blends to its exact canonical body over 0.55 seconds, including shared-receiver groups, and cap-exclusion changes invalidate the idle-frame cache. The reported Level 16 B+C→G sequence is an exact regression: both pink pours complete into fill-only G and retain 35 visible settle frames after arrival rather than popping into place. Independent groups preserve their particle ordering while another receiver commits, preventing interpolation targets from being applied to the wrong parcels.
+
 ![Physical iPad after relaunching the corrected Five Streams 3D renderer](ipad-five-streams-settled.png)
 
 ![Mac offscreen Sixfold fixture](mac-sixfold-3d.png)
@@ -61,7 +63,7 @@ A later physical-iPad Five Streams session exposed a separate 3D completion edge
 - 2D: all 175 physical pours committed with no moving-vial intersections. Maximum cleanup was 2.604%; inactive vials/material clocks and idle state remained frozen.
 - Reset/progress: all 16 levels passed in Classic, 2D and 3D, including active-pour reset, persistence and undo isolation.
 - Concurrent/shared-receiver and overlap suites pass in all three presentations. The concurrency fixture now verifies three genuinely simultaneous independent pours in Classic, 2D and 3D, plus the existing two-stream shared receiver.
-- The exact physical-iPad circular-hint state continues F→A after H→D instead of suggesting D→H, and the reported Five Streams E→G pour finishes with both participating 3D vials matching canonical continuous fluid.
+- The exact physical-iPad circular-hint state continues F→A after H→D, the reported Five Streams E→G pour finishes with both participating 3D vials matching canonical continuous fluid, and Level 16 B+C→G retains 35 visible final-settle frames before committing both pours.
 - The retained Pour Study water regression still finishes at the exact 2,122/1,061 particle inventory after widening the shared spatial grid.
 - macOS Release, iOS Simulator Debug and unsigned generic iOS Release builds pass.
 
