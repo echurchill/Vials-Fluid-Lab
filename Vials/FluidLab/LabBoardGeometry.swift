@@ -109,16 +109,25 @@ struct LabBoardLayout {
     static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
         // Fixed framing includes outward edge pours in either depth lane.
         // Resting and active boards share a camera, avoiding a zoom at pickup.
-        // Ten-vial boards need enough horizontal room in portrait as well as
-        // landscape. The projection intentionally keeps a nearly constant
-        // horizontal field of view on tall displays, so scale distance with
-        // the authored board width rather than the viewport height.
-        let distance:Float=max(vesselCount>4 ? 25:19,Float(vesselCount)*3.25)
-        let eye=SIMD3<Float>(sin(azimuth)*distance,5.4,cos(azimuth)*distance),target=SIMD3<Float>(0,2.5,0)
+        // Match the normalized scale used by Classic and 2D. Their layout is
+        // width-limited on the very wide iPad playfield, while the old fixed
+        // camera distance stayed sized for a much narrower viewport and made
+        // 3D vials look conspicuously smaller. A modest perspective margin
+        // accounts for depth and avoids framing resting glass at the edge.
+        let verticalScale:Float=1/tan(aspect<1.4 ? 0.235*1.4/max(aspect,0.55):0.235)
+        let planarScale=min(aspect/(Float(vesselCount)*2.2+4.4),1/6.4)
+        let distance=verticalScale/max(0.001,2*planarScale)*1.07
+        let target=SIMD3<Float>(0,3.1,0)
+        let eye=SIMD3<Float>(sin(azimuth)*distance,target.y+2.9,cos(azimuth)*distance)
         let forward=simd_normalize(eye-target),right=simd_normalize(simd_cross(SIMD3<Float>(0,1,0),forward)),up=simd_cross(forward,right)
         let view=simd_float4x4(SIMD4(right.x,up.x,forward.x,0),SIMD4(right.y,up.y,forward.y,0),SIMD4(right.z,up.z,forward.z,0),SIMD4(-simd_dot(right,eye),-simd_dot(up,eye),-simd_dot(forward,eye),1))
-        let y:Float=1/tan(aspect<1.4 ? 0.235*1.4/max(aspect,0.55):0.235),near:Float=0.1,far:Float=50
-        let p=simd_float4x4(SIMD4(y/aspect,0,0,0),SIMD4(0,y,0,0),SIMD4(0,0,far/(near-far),-1),SIMD4(0,0,near*far/(near-far),0))
+        // Lens-shift the projection so the common vial floor remains at the
+        // same 82% screen baseline as the planar modes at every aspect ratio.
+        let floor=view*SIMD4<Float>(0,0.18,0,1)
+        let floorNDC=verticalScale*floor.y / -floor.z
+        let verticalShift:Float = -0.64-floorNDC
+        let near:Float=0.1,far:Float=50
+        let p=simd_float4x4(SIMD4(verticalScale/aspect,0,0,0),SIMD4(0,verticalScale,0,0),SIMD4(0,-verticalShift,far/(near-far),-1),SIMD4(0,0,near*far/(near-far),0))
         return (p*view,view,eye)
     }
 }

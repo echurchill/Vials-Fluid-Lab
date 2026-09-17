@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Matched 3D board scale and a quieter floor](Reports/Prototype27/README.md) bring resting 3D vials into visual parity with Classic/2D across portrait, landscape and 4–10-vial boards, align the common floor baseline, and remove the unnecessary 3D floor ellipse while retaining contact shadows. Full complexity and overlap regressions pass.
+
 [Physical fill verification and expanded-level profiling](Reports/Prototype26/README.md) remove the remaining one-frame correction jump, confirm the Level 16 shared receiver and completion cap on the M4 iPad, revalidate depth-ordered caps, and measure the 10-vial Sixfold workload on device.
 
 [Variable-capacity and receive-only Lab boards](Reports/Prototype25/README.md) extend the shared progression to 16 levels, with visibly height-scaled 3–6-unit vessels, up to 10 vials and 6 colors, two fill-only valves, stable multi-step hints on the live concurrent-capable board, dependency-constrained pours beyond two simultaneous sources, and canonical final settling that prevents detached 3D particle clusters. Complete Classic/2D/3D regressions and physical-iPad layout checks pass.

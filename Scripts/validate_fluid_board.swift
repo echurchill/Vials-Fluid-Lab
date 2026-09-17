@@ -44,7 +44,7 @@ import AppKit
         var observedCommits=0
         renderer.onUpdate={ _,_,_ in if renderer.game.pending == nil { observedCommits=renderer.game.moveCount } }
         var snapshots:[[LabParticle]]=[],states:[LabBoardState]=[]
-        var maxPenetration:Float=0
+        var maxPenetration:Float=0,maxPenetrationMove=0,maxPenetrationFrame=0
         for (index,pair) in route.enumerated() {
             snapshots.append(renderer.particleSamples());states.append(renderer.game.state)
             guard let expected=renderer.game.state.move(from:pair.0,to:pair.1),renderer.begin(from:pair.0,to:pair.1) else { errors.append("Could not start legal move \(index)");break }
@@ -76,7 +76,10 @@ import AppKit
                         let point=vessels[pair.0].world*SIMD4<Float>(r*cos(a),y,r*sin(a),1)
                         for other in renderer.profiles.indices where other != pair.0 {
                             let q=(vessels[other].inverseWorld*point).xyz
-                            if q.y>=0 && q.y<=renderer.profiles[other].height { maxPenetration=max(maxPenetration,renderer.profiles[other].radius(at:q.y)+0.035-simd_length(SIMD2(q.x,q.z))) }
+                            if q.y>=0 && q.y<=renderer.profiles[other].height {
+                                let penetration=renderer.profiles[other].radius(at:q.y)+0.035-simd_length(SIMD2(q.x,q.z))
+                                if penetration>maxPenetration {maxPenetration=penetration;maxPenetrationMove=index;maxPenetrationFrame=frame}
+                            }
                         }
                     }}
                 }
@@ -137,7 +140,7 @@ import AppKit
             try save(texture,to:output.appendingPathComponent("after-\(index).png"))
             if !errors.isEmpty { break }
         }
-        if maxPenetration>0.02 { errors.append("Vessels intersected by \(maxPenetration) scene units") }
+        if maxPenetration>0.02 { errors.append("Vessels intersected by \(maxPenetration) scene units at move \(maxPenetrationMove), frame \(maxPenetrationFrame)") }
         if (["level","shortest"].contains(fixture) || LabBoardPuzzle(rawValue:fixture) != nil), !renderer.game.state.solved { errors.append("The complete solution did not solve the board") }
         // Undo restores exact particle snapshots and puzzle history, including colors.
         if renderer.game.pending == nil {
@@ -154,7 +157,7 @@ import AppKit
         for _ in 0..<30 { renderer.encodeFrame(target:texture,deltaTime:1/fps).waitUntilCompleted() }
         renderer.reset()
         if renderer.game.pending != nil || renderer.game.moveCount != 0 || renderer.game.state != .firstSort || zip(resetParticles,renderer.particleSamples()).contains(where: { $0.position != $1.position }) { errors.append("Reset failed to cancel and restore") }
-        let report:[String:Any]=["playbackSpeed":renderer.playbackSpeed,"funnelEnabled":renderer.funnelEnabled,"fixture":fixture,"device":device.name,"fps":fps,"resolution":[width,height],"particles":initial.colors.count*LabBoardRenderer.particlesPerUnit,"vialCount":initial.stacks.count,"maximumVesselPenetration":maxPenetration,"moves":results,"errors":errors]
+        let report:[String:Any]=["playbackSpeed":renderer.playbackSpeed,"funnelEnabled":renderer.funnelEnabled,"fixture":fixture,"device":device.name,"fps":fps,"resolution":[width,height],"particles":initial.colors.count*LabBoardRenderer.particlesPerUnit,"vialCount":initial.stacks.count,"maximumVesselPenetration":maxPenetration,"maximumVesselPenetrationMove":maxPenetrationMove,"maximumVesselPenetrationFrame":maxPenetrationFrame,"moves":results,"errors":errors]
         try JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]).write(to:output.appendingPathComponent("report.json"))
         print("REPORT \(output.path)/report.json")
         if !errors.isEmpty { print(errors.joined(separator:"\n"));exit(1) }

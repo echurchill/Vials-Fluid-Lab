@@ -1,5 +1,12 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 17 matched 3D framing — supersedes stale visual status below
+
+- The 3D board camera now uses the same normalized board scale as Classic/2D and lens-shifts the common floor to their 82% baseline. Resting vial height differs by at most 15.1% across 4–10-vial boards and six portrait/landscape aspect ratios.
+- The large 3D board floor ellipse is gone; localized contact shadows remain. The standalone two-vessel pour study keeps its smaller orientation ellipse.
+- The original collision-safe lift/pour/return geometry is unchanged. All 16 solutions and the full Five Streams, Tall Order, Sixfold and Valve Circuit 3D/2D routes pass. The 18-case cross-mode overlap suite reports zero penetration or clipping.
+- See `Reports/Prototype27/README.md`. Current branch is `codex/fluid-lab`; inspect the latest log and status for the exact commit/push state.
+
 ## September 17 device verification and profiling — supersedes stale status below
 
 - The remaining small end-of-pour jump was a pre-settle teleport of late correction particles. Those particles now remain in place and take the same 0.55-second canonical interpolation while simulation clocks advance without physics. The exact Level 16 B+C→G regression records 21 visible settle frames.

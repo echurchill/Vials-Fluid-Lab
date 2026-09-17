@@ -374,8 +374,13 @@ float3 background(float2 uv, constant Uniforms &u) {
         float shadow=0.35*exp(-dot((p.xz-float2(-1.25,0))*float2(1,1.5),(p.xz-float2(-1.25,0))*float2(1,1.5))*2.2);
         shadow+=0.40*exp(-dot((p.xz-float2(1.1,0))*float2(1,1.5),(p.xz-float2(1.1,0))*float2(1,1.5))*1.8);
         color=mix(color,float3(0.022,0.035,0.045)*(1-shadow),vignette);
-        float ellipse=length(p.xz/((u.options.w&1u) ? float2(u.options.z>4 ? 6.9:4.7,2.4):float2(3.05,1.6)));
-        color+=float3(0.045,0.075,0.087)*exp(-pow((ellipse-1)*110,2.0f));
+        // The board already has contact shadows and no longer needs the large
+        // floor ellipse. Retain the smaller marker in the standalone pour
+        // study, whose two-vessel composition still uses it for orientation.
+        if(!(u.options.w&1u)) {
+            float ellipse=length(p.xz/float2(3.05,1.6));
+            color+=float3(0.045,0.075,0.087)*exp(-pow((ellipse-1)*110,2.0f));
+        }
     }
     return color;
 }
