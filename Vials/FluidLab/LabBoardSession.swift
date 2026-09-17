@@ -30,6 +30,7 @@ import Combine
     private var concurrentFrame=0
     private var concurrentWorker:LabConcurrent2DWorker?
     var activeMoves:[LabBoardMove] { allowsConcurrentPours ? pourQueue.items.map(\.move):[game.pending].compactMap { $0 } }
+    var fluidFinalSettling:Bool { metalGroups.values.contains(where:\.groupFinalSettling) }
     var solved:Bool { state.solved && !busy }
     func canTap(_ index:Int)->Bool {
         guard !solved else { return false }
@@ -526,22 +527,42 @@ import Combine
     func runTrialIfRequested() async {
         guard !trialStarted,let trial=LabTrialConfiguration.current else { return }
         trialStarted=true
+        let arguments=ProcessInfo.processInfo.arguments
         #if os(iOS)
         let previousIdleTimer=UIApplication.shared.isIdleTimerDisabled
-        if ProcessInfo.processInfo.arguments.contains("--keep-awake") { UIApplication.shared.isIdleTimerDisabled=true }
+        if arguments.contains("--keep-awake") { UIApplication.shared.isIdleTimerDisabled=true }
         defer { UIApplication.shared.isIdleTimerDisabled=previousIdleTimer }
         #endif
         try? await Task.sleep(for:.seconds(2))
-        let checks=ProcessInfo.processInfo.arguments.contains("--check-controls") ? await checkTrialControls():[:]
+        // Deterministic physical-device visual replay for the tester-reported
+        // Level 16 shared receiver. It intentionally does not write timing data.
+        if arguments.contains("--level16-fill-check"),puzzle == .valveCircuit,presentation == .fluid {
+            for repetition in 0..<2 {
+                reset()
+                guard let first=availableMove(from:1,to:6),begin(first),
+                      let second=availableMove(from:2,to:6),begin(second) else { return }
+                while busy && !Task.isCancelled {try? await Task.sleep(for:.milliseconds(16))}
+                if repetition==0 {try? await Task.sleep(for:.seconds(1))}
+            }
+            paused=true;updatePause();return
+        }
+        let checks=arguments.contains("--check-controls") ? await checkTrialControls():[:]
         beginMeasurement()
         if !checks.isEmpty { performance.context["deviceControlChecks"]=checks }
+        let concurrentLimit:Int = {
+            guard let index=arguments.firstIndex(of:"--maximum-concurrent-pours"),index+1<arguments.count else {return 2}
+            return min(state.stacks.count,max(2,Int(arguments[index+1]) ?? 2))
+        }()
+        if allowsConcurrentPours,arguments.contains("--concurrent-pours") {
+            performance.context["requestedConcurrentPourLimit"]=concurrentLimit
+        }
         let start=ProcessInfo.processInfo.systemUptime
         var reason="completed"
         while !Task.isCancelled && ProcessInfo.processInfo.systemUptime-start<trial.seconds {
             if suspended { reason="application suspended";break }
-            if allowsConcurrentPours,ProcessInfo.processInfo.arguments.contains("--concurrent-pours") {
+            if allowsConcurrentPours,arguments.contains("--concurrent-pours") {
                 if solved { reset() }
-                if pourQueue.items.count<2 {
+                if pourQueue.items.count<concurrentLimit {
                     let projected=pourQueue.projected(state)
                     let options=state.stacks.indices.flatMap { a in state.stacks.indices.compactMap { b in availableMove(from:a,to:b) } }.sorted { a,b in
                         let receivers=Set(pourQueue.active.map {$0.move.destination})

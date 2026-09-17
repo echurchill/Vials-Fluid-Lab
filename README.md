@@ -1,6 +1,8 @@
 # Vials Fluid Lab
 
-[Variable-capacity and receive-only Lab boards](Reports/Prototype25/README.md) extend the shared progression to 16 levels, with visibly height-scaled 3–6-unit vessels, up to 10 vials and 6 colors, two fill-only valves, stable multi-step hints on the live concurrent-capable board, dependency-constrained pours beyond two simultaneous sources, and canonical final settling that prevents detached 3D particle clusters. Complete Classic/2D/3D regressions and iPad-simulator layout checks pass; physical-iPad performance remains deferred.
+[Physical fill verification and expanded-level profiling](Reports/Prototype26/README.md) remove the remaining one-frame correction jump, confirm the Level 16 shared receiver and completion cap on the M4 iPad, revalidate depth-ordered caps, and measure the 10-vial Sixfold workload on device.
+
+[Variable-capacity and receive-only Lab boards](Reports/Prototype25/README.md) extend the shared progression to 16 levels, with visibly height-scaled 3–6-unit vessels, up to 10 vials and 6 colors, two fill-only valves, stable multi-step hints on the live concurrent-capable board, dependency-constrained pours beyond two simultaneous sources, and canonical final settling that prevents detached 3D particle clusters. Complete Classic/2D/3D regressions and physical-iPad layout checks pass.
 
 [Unequal-capacity solver pruning](Reports/Prototype24/README.md) fixes a false dead end in the bundled Original game and adds generated-level, receive-only, helper and four-move counterexample coverage.
 
@@ -12,7 +14,7 @@
 
 [Stronger 3D glass edges and USB profiles](Reports/Prototype20/README.md) improve vial visibility and record actual iPad frame timing. The updated app is installed on the iPad.
 
-[Cached pour setup and separated 3D travel](Reports/Prototype19/README.md) reduce repeated preparation work, separate crossing paths and keep edge pours in frame. The iPad passes concurrent-pour and control checks; the completed-cap overlap follow-up remains.
+[Cached pour setup and separated 3D travel](Reports/Prototype19/README.md) reduce repeated preparation work, separate crossing paths and keep edge pours in frame. Its completed-cap overlap follow-up was resolved by [Prototype23](Reports/Prototype23/README.md).
 
 [Shared receivers and clearer overlapping vials](Reports/Prototype18/README.md) add simultaneous streams into one receiver and fix stale particle inventory during rapid consecutive pours.
 

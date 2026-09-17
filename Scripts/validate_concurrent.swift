@@ -73,17 +73,21 @@ import AppKit
   cToG=valve.availableMove(from:2,to:6)!
   require(valve.begin(cToG,automaticClock:false),"Level 16 C→G did not join shared receiver")
   let finalG=Set(valve.state.stacks[6]+bToG.parcels+cToG.parcels)
-  var visibleSettleFrames=0
+  var visibleSettleFrames=0,lastSettlePositions:[SIMD3<Float>]?=nil,maxSettleStep:Float=0
   for _ in 0..<1800 where valve.busy {
    await valve.advanceConcurrent(deltaTime:1/60)
-   let destination=valve.renderer!.particleSamples().filter {finalG.contains(Int($0.visual.y))}
-   if valve.busy && destination.count==finalG.count*LabBoardRenderer.particlesPerUnit && destination.allSatisfy({Int($0.position.w)==6}) {
+   if valve.fluidFinalSettling {
+    let positions=valve.renderer!.particleSamples().filter {finalG.contains(Int($0.visual.y))}.map(\.position.xyz)
+    if let previous=lastSettlePositions,previous.count==positions.count {
+     maxSettleStep=max(maxSettleStep,zip(previous,positions).map(simd_distance).max() ?? 0)
+    }
+    lastSettlePositions=positions
     visibleSettleFrames+=1
    }
   }
   require(!valve.busy && valve.moveCount==2 && valve.state.isComplete(6),"Level 16 B+C→G did not complete")
   require(visibleSettleFrames>=12,"Level 16 final fluid volume snapped instead of settling: \(visibleSettleFrames) frames")
-  print("PASS: Level 16 B+C→G shared pour settles for \(visibleSettleFrames) visible frames")
+  print("PASS: Level 16 B+C→G shared pour settles for \(visibleSettleFrames) visible frames, maximum particle step \(maxSettleStep)")
   func make(_ state:LabBoardState,_ mode:LabBoardPresentation)->FluidBoardSession {
    let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort,games:["firstSort":LabBoardGame(state:state)])
    return FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save,allowsConcurrentPours:true)

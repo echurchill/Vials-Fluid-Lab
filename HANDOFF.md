@@ -1,6 +1,14 @@
 # Vials Fluid Lab — handoff to the next chat
 
-## September 17 tester follow-up — supersedes stale status below
+## September 17 device verification and profiling — supersedes stale status below
+
+- The remaining small end-of-pour jump was a pre-settle teleport of late correction particles. Those particles now remain in place and take the same 0.55-second canonical interpolation while simulation clocks advance without physics. The exact Level 16 B+C→G regression records 21 visible settle frames.
+- The signed Release build was installed on the physical M4 iPad Pro. A deterministic two-pass B+C→G replay ended with G continuously filled, its pink completion cap visible, and both pours committed. CoreDevice screen recording is unavailable on this device, so direct screenshots plus the instrumented frame regression are the retained evidence.
+- Completed-cap depth ordering was already implemented and physically verified in Prototype23 (`7ff55f9`). The current 18-case overlap suite was rerun with zero penetration or clipping; do not reopen this based on the stale historical list below.
+- A 90-second Sixfold / Quick / 3D Fluid trial on the physical M4 iPad reached four concurrent pours and committed 18/18 moves. It remained nominal thermally. At 22,400 particles, median recorded GPU/host wait was about 96 ms, establishing the expanded board as GPU-bound and the next optimization target. USB/full battery observations are not energy evidence. See `Reports/Prototype26/README.md`.
+- Current branch is `codex/fluid-lab`; inspect the latest log for the final commit. The earlier work through `8236b50` is pushed.
+
+## September 17 tester follow-up — superseded by the device section above
 
 Eddie approved implementing the previously proposed items 1–4 while the physical iPad was unavailable: per-vial capacities, receive-only valves, larger authored levels, and Mac/Xcode-simulator validation. That work is now implemented locally and documented in `Reports/Prototype25/README.md`.
 
@@ -11,9 +19,9 @@ Eddie approved implementing the previously proposed items 1–4 while the physic
 - Real-iPad screenshots drove three follow-up fixes: Classic/2D no longer draw the confusing extra cyan line inside fill-only vials; hints retain and advance one solved route rather than oscillating between inverse moves; and identical vessel shapes scale vertically from 75% at three units to 150% at six units while preserving per-unit volume.
 - Concurrent play no longer has a global two-pour ceiling. Every dependency-independent reservation may start; a source still cannot be an existing source/destination and a moving source cannot become a destination. The regression suite verifies three simultaneous pours in Classic, 2D and 3D plus the existing shared receiver behavior.
 - A second physical-iPad follow-up reproduced two remaining defects from exact tester states. The live concurrent-capable session now advances a followed hint along its retained route instead of replanning H→D as D→H. Accepted 3D pours canonically settle only their participating vials, preventing correctly owned particles from freezing as detached clusters while preserving untouched vials byte-for-byte.
-- A third device follow-up found that the exact settle could make late fluid appear in one frame and could leave a completed vial's cap hidden in an idle cached frame. The settle is now a 0.55-second interpolation, cap-exclusion changes invalidate that idle cache, and concurrent receiver groups preserve stable particle ordering across unrelated commits. The exact Level 16 B+C→G shared-receiver regression completes with 35 visible settle frames; the full 175-pour 3D suite and all three concurrent presentation suites pass.
+- A third device follow-up found that the exact settle could make late fluid appear in one frame and could leave a completed vial's cap hidden in an idle cached frame. The settle is now a 0.55-second interpolation, cap-exclusion changes invalidate that idle cache, and concurrent receiver groups preserve stable particle ordering across unrelated commits. A subsequent refinement removed the remaining correction teleport; the exact Level 16 B+C→G shared-receiver regression now completes with 21 visible settle frames. The full 175-pour 3D suite and all three concurrent presentation suites pass.
 - A signed Release build containing these changes was installed and launched on the physical M4 iPad Pro. `Reports/Prototype25/ipad-valve-height-and-marker-fix.png` is a direct device screenshot verifying the 2D Valve Circuit height silhouettes and simplified fill-only marker. It is not a touch or performance test.
-- Density remains deferred. Real iPad performance/thermal/energy testing remains the next device-dependent step when hardware is available.
+- Density remains deferred. Initial real-iPad expanded-level performance is now measured in Prototype26; optimization and controlled unplugged energy testing remain open.
 - Current branch is `codex/fluid-lab`. The Prototype25 base is committed and pushed as `3a68289`; inspect `git status` and the latest log for subsequent tester follow-ups.
 
 The older snapshot below remains useful historical context, but its statements that Lab capacities are uniform, there are 12 levels, the Original solver patch is unapplied, or six commits are unpushed are obsolete. Prototype24 already contains the Original-game solver correction, and Prototype25 contains the new Lab work.
@@ -74,27 +82,27 @@ A tester with difficulty seeing fine lines prompted stronger glass silhouettes/r
 
 Mac captures, overlap regressions (30 transfers) and GPU command checks pass. A paired Mac render benchmark found +0.025 to +0.224 ms median surface cost depending on view. That is offscreen Mac rendering, not iPad frame-rate/energy evidence. See `Reports/Prototype21` for before/after images and limits. Actual iPad appearance/cost remains to be checked.
 
-## Open work — proposed priority order
+## Historical open work — completed or superseded
 
-### 1. Validate the latest build on the iPad when available
+### 1. Validate the latest build on the iPad when available — completed for the reported fill/cap path
 
 Install the current signed build only after verifying device availability. Check smoother yet readable 3D outlines on **Confluence**, including empty bulb flasks, neck/rims, portrait/landscape and overlapping pours. Check reset-all-progress UI (Cancel and confirm) and re-opened Original-game progress. Exercise concurrent/shared-receiver pours, pause/resume, undo, reset and presentation switching. Keep functional/visual checks separate from clean timing or battery measurements.
 
-### 2. Fix completed-cap overlap ordering
+### 2. Fix completed-cap overlap ordering — completed in Prototype23
 
-A remaining reproducible cosmetic bug: in a Classic portrait capture, a completed blue vial's cap draws **over** a moving green source that should pass in front. `LabVialCaps` is a separate SwiftUI overlay above the board. Integrate/order caps with the appropriate per-vial depth/draw ordering; inspect 2D and 3D implications too. Reproduction evidence: `Reports/Prototype19/ipad-classic-portrait.png` and that report's iPad section. Verify crossings and late/shared pours, in both orientations. This is separate from stuck pours.
+Prototype23 resolved the Classic portrait bug where a completed blue vial's cap drew over a moving green source. Classic/2D caps now participate in the per-vial layer order and 3D caps use the glass depth pass. Physical portrait/landscape checks and the current 18-case overlap regression pass.
 
-### 3. Apply the reviewed inherited solver fix, with regression coverage
+### 3. Apply the reviewed inherited solver fix, with regression coverage — completed in Prototype24
 
-Eddie supplied `/Users/eddie/Downloads/vials-prune-fix.patch` and asked whether it applies. **Reviewed and reproduced, but not applied.** A durable copy and notes live in `Reports/SolverPruningReview/{proposed.patch,repro.swift,README.md}`.
+Eddie supplied `/Users/eddie/Downloads/vials-prune-fix.patch`; Prototype24 applied the equivalent correction with regression coverage. The review artifact remains in `Reports/SolverPruningReview/{proposed.patch,repro.swift,README.md}`.
 
 Affected code: `Vials/Game/VialLevelGenerator.swift`, `LevelSolver.moves(for:)`, used by bundled Original game. The current solver incorrectly prunes moving a full homogeneous vial into an empty vial when capacities differ.
 
 Counterexample, bottom-to-top stacks: A capacity 2 = Ember/Ember; B capacity 3 = empty; C capacity 3 = Tide/Ember/Tide. Current solver reports dead end. Patched temporary solver finds a four-move solution A→B, C→A, C→B, C→A. Add this regression and check generated levels, duplicate colors, differing capacities, receive-only rules, helper-beaker hints, and node-limit/search-cost effects.
 
-**Do not blindly transplant the patch into `LabBoard.swift`.** Its identical-capacity symmetry makes the analogous pruning valid today. Revisit canonical state keys and the automated trial chooser if Lab gains differing capacities or destination-only rules.
+The Lab solver was reviewed separately when variable capacities and destination-only rules were added in Prototype25; its canonical keys and pruning now include that metadata.
 
-### 4. Continue measured 3D performance work
+### 4. Continue measured 3D performance work — expanded-board baseline captured in Prototype26
 
 Before MSAA, valid short USB iPad traces showed about **50–52 displayed frame changes/sec**, median app GPU active time around **7.8 ms**, and occasional gaps. Sustained 60 displayed updates/sec has not been established. Correlate stalls with setup, commits, receiver joins and surface rendering before further optimization; measure current MSAA build separately.
 
@@ -165,4 +173,4 @@ A stray uncommitted `xz` before `import Foundation` in `LabBoardRenderer.swift` 
 
 ## Suggested opening for the next chat
 
-Confirm the current branch/status and read this handoff plus Prototype22/21. Tell Eddie the immediate open work is iPad validation, cap overlap ordering, the reviewed Original-game solver correction, and measured 3D frame pacing. Then follow his chosen priority. Do not restart the project, re-implement completed concurrency work, or describe speculative fluid-rule ideas as already approved work.
+Confirm the current branch/status and read this handoff plus Prototype26/25/24/23. The immediate technical follow-up is optimizing the GPU-bound 22,400-particle Sixfold workload, then repeating the same controlled device profile. Longer unplugged energy testing remains separate. Do not reopen the completed cap-ordering or solver work, restart the project, or describe speculative fluid-rule ideas as already approved work.

@@ -59,6 +59,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private(set) var groupResults:[LabLaneResult]=[]
     private(set) var groupOwnedParcels:Set<Int>=[]
     var groupMoves:[LabBoardMove] { groupTransfers.map { $0.item.move } }
+    var groupFinalSettling:Bool { groupSettleStart != nil }
     var groupStreamActive:Bool { groupTransfers.contains {$0.departed>20 && $0.cutoff==nil} }
     var quality:LabRenderQuality = .automatic
     var funnelEnabled=true
@@ -357,15 +358,12 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let ids=Set(move.parcels)
         let missing=(0..<particleCount).filter { ids.contains(Int(p[$0].visual.y)) && Int(p[$0].position.w) != move.destination }
         correctionCount=missing.count
-        let profile=profiles[move.destination]
-        let targetHeight=profile.height(for:profile.usableVolume*Float(game.state.stacks[move.destination].count+move.amount)/Float(game.state.capacities[move.destination]))
-        for (n,i) in missing.enumerated() {
-            let y=max(0.055,targetHeight-0.06)
-            let radius=max(0.02,profile.radius(at:y)-0.10)*sqrt((Float(n)+0.5)/Float(max(1,missing.count)))
-            let a=Float(n)*2.3999632
-            let world=homes[move.destination]+SIMD3(radius*cos(a),y,radius*sin(a))
-            let point=SIMD4(world,Float(move.destination))
-            p[i].position=point;p[i].predicted=point;p[i].velocity=SIMD4(0,0,0,p[i].velocity.w);p[i].visual.x=simulationTime
+        // Claim the stragglers for the destination without teleporting their
+        // visible XYZ position. The final-settle interpolation below carries
+        // them into the exact fluid body over several frames.
+        for i in missing {
+            p[i].position.w=Float(move.destination);p[i].predicted=p[i].position
+            p[i].velocity=SIMD4(0,0,0,p[i].velocity.w);p[i].visual.x=simulationTime
         }
     }
     private func normalizeOrder(state:LabBoardState) {
@@ -550,7 +548,15 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
 
     /// Same path is used by the interactive view and the offscreen validation tool.
     private func encodeSimulation(command:MTLCommandBuffer,uniforms:LabUniforms,deltaTime:Float) {
-        if !paused && !resting {
+        // Final settling owns the participating particle positions directly.
+        // Running another physics step here would project newly claimed
+        // stragglers into the receiver before their visible interpolation.
+        if !paused && !resting && cleanupStart != nil {
+            accumulator=min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
+            while accumulator>=timeStep {
+                simulationTime+=timeStep;pourTime!+=timeStep;accumulator-=timeStep
+            }
+        } else if !paused && !resting {
             accumulator = min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
             var steps = 0
             while accumulator >= timeStep && steps < 12 {
@@ -624,6 +630,15 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let owners=Set(groupMoves.flatMap {[$0.source,$0.destination]}+groupResults.flatMap(\.vessels))
         groupOwnedParcels=Set(owners.flatMap {self.game.state.stacks[$0]}+groupMoves.flatMap(\.parcels))
         guard !groupTransfers.isEmpty else { return }
+        if groupSettleStart != nil {
+            accumulator=min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
+            while accumulator>=timeStep {
+                simulationTime+=timeStep
+                for i in groupTransfers.indices {groupTransfers[i].time+=timeStep}
+                accumulator-=timeStep
+            }
+            return
+        }
         let selected=Set(groupMoves.flatMap(\.parcels))
         let pointer=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
         for i in 0..<particleCount { pointer[i].visual.z=selected.contains(Int(pointer[i].visual.y)) ? 1:0 }
@@ -733,16 +748,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             else if job.cleanupStart==nil,let back=job.returned,job.time-back>LabBoardTiming.returned+LabBoardTiming.settling {
                 let missing=target-job.arrived
                 if missing>=0,missing<=Int(Float(target)*0.05),lastMetrics.wrongParcel==0,lastMetrics.nonFinite==0,moving.allSatisfy({$0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite}) {
-                    let pointer=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
-                    let slots=(0..<particleCount).filter {ids.contains(Int(pointer[$0].visual.y)) && Int(pointer[$0].position.w) != move.destination}
-                    let receiverCount=values.filter {Int($0.position.w)==move.destination}.count+missing
-                    let capacity=game.state.capacities[move.destination]
-                    let profile=profiles[move.destination],height=profile.height(for:profile.usableVolume*Float(receiverCount)/Float(capacity*Self.particlesPerUnit))
-                    for (n,i) in slots.enumerated() {
-                        let y=max(0.055,height-0.06),r=max(0.02,profile.radius(at:y)-0.10)*sqrt((Float(n)+0.5)/Float(max(1,slots.count))),a=Float(n)*2.3999632
-                        let position=SIMD4(homes[move.destination]+SIMD3(r*cos(a),y,r*sin(a)),Float(move.destination))
-                        pointer[i].position=position;pointer[i].predicted=position;pointer[i].velocity=SIMD4(0,0,0,pointer[i].velocity.w);pointer[i].visual.x=simulationTime
-                    }
+                    // Leave stragglers where physics last placed them until
+                    // every stream sharing this receiver is ready. The group
+                    // settle then moves them continuously to their exact slots.
                     job.correction=missing;job.cleanupStart=job.time
                 } else {failed=true}
             }

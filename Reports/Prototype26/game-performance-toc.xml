@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+
+<trace-toc>
+    <run number="1">
+        <info>
+            <target>
+                <device platform="iPadOS" model="iPad Pro 13-inch (M4)" memory-size="7732772864" name="Eddie’s iPad Pro" os-version="27.0 (24A435)" uuid="00008132-001C45281139001C"/>
+                <host-device platform="macOS" model="Mac mini" name="Eddie's M4 Mac Mini" os-version="27.0 (26A428)" uuid="E006D284-AA6D-55F6-A9FB-A8C0572C5C8C"/>
+                <process type="attached" return-exit-status="0" name="Vials Fluid Lab" pid="31171" termination-reason="exit(0)"/>
+            </target>
+            <summary>
+                <start-date>2026-09-17T17:55:39.874-05:00</start-date>
+                <end-date>2026-09-17T17:56:41.044-05:00</end-date>
+                <duration>61.170829</duration>
+                <end-reason>Time limit reached</end-reason>
+                <instruments-version>27.0 (27A5237l)</instruments-version>
+                <template-name>Game Performance Overview</template-name>
+                <recording-mode>Deferred</recording-mode>
+                <time-limit>1 minute</time-limit>
+                <intruments-recording-settings>
+                    <instrument name="Metal Performance Overview">
+                        <options>
+                            <option key="Game Performance Overview Per-Frame Metrics" value="Enabled"/>
+                            <option key="Game Performance Overview Shader Compilation Metrics" value="Disabled"/>
+                        </options>
+                    </instrument>
+                </intruments-recording-settings>
+            </summary>
+        </info>
+        <processes>
+            <process name="Vials Fluid Lab" pid="31171" path="/var/containers/Bundle/Application/A0846830-466F-41FE-965D-4545B88213F3/VialsFluidLab.app/VialsFluidLab"/>
+            <process name="kernel" pid="0" path="Unknown"/>
+        </processes>
+        <data>
+            <table schema="tick" frequency="1" documentation="Provides modelers with a regular reference time for modeling fixed time-based statistics. The ticks are evenly spaced with a configurable frequency specifying the number of events to generate per second, so a tick schema with a frequency of 10 will generate a row every 100ms."/>
+            <table schema="life-cycle-period" target-pid="SINGLE" documentation="Identifies where an application is in its lifecycle."/>
+            <table schema="metal-perf-overview-layer-metalfx-count-metric"/>
+            <table schema="metal-perf-overview-process-metric"/>
+            <table schema="metal-perf-overview-layer-per-frame-gptk-metric"/>
+            <table schema="metal-perf-overview-layer-gptk-duration-metric"/>
+            <table schema="tick" frequency="10" documentation="Provides modelers with a regular reference time for modeling fixed time-based statistics. The ticks are evenly spaced with a configurable frequency specifying the number of events to generate per second, so a tick schema with a frequency of 10 will generate a row every 100ms."/>
+            <table schema="metal-perf-overview-layer-per-frame-interval-metric"/>
+            <table schema="metal-perf-overview-layer-per-frame-metalfx-metric"/>
+            <table schema="device-thermal-state-intervals" documentation="Denotes the current thermal state of the device."/>
+            <table schema="metal-perf-overview-vm-system-metric-stacked"/>
+            <table schema="os-signpost" category="InduceCondition" subsystem="&quot;com.apple.ConditionInducer.LowSeverity&quot;" documentation="Holds a signpost event from the OS's Unified Logging and Tracing component."/>
+            <table records-shader-compiler-stats="0" schema="metal-perf-overview-layer-duration-metric" records-per-frame-data="1"/>
+            <table schema="metal-perf-overview-vm-system-metric"/>
+            <table schema="metal-perf-overview-gpu-power-ctrl-state-stacked"/>
+            <table target-pid="SINGLE" context-switch-sampling="0" high-frequency-sampling="0" schema="time-profile" record-waiting-threads="0" needs-kernel-callstack="0" documentation="When combined with other time-profile samples, creates a statistical picture of where your application is spending its time."/>
+            <table schema="metal-perf-overview-cpu-cluster-metric"/>
+            <table schema="process-info" documentation="Associates processes with their process names."/>
+            <table schema="dyld-library-load" target-pid="SINGLE"/>
+            <table codes="&quot;0x1f,0x05&quot;" target="SINGLE" schema="kdebug-strings" documentation="Associates numeric arguments with strings in kdebug trace points."/>
+            <table codes="&quot;0x2b,0x65&quot;" schema="kdebug" documentation="Tracing the kernel and some system frameworks."/>
+            <table codes="&quot;0x07,0x00&quot; &quot;0x1f,0x05&quot;" target="SINGLE" schema="kdebug" documentation="Tracing the kernel and some system frameworks."/>
+            <table codes="&quot;0x2b,0xd8&quot;" target="SINGLE" schema="kdebug" documentation="Tracing the kernel and some system frameworks."/>
+            <table codes="&quot;0x1f,0x7&quot;" target="SINGLE" schema="kdebug" documentation="Tracing the kernel and some system frameworks."/>
+            <table codes="&quot;0x1,0x25&quot;" target="SINGLE" schema="kdebug" documentation="Tracing the kernel and some system frameworks."/>
+            <table codes="&quot;0x2b,0x87&quot;" target="SINGLE" schema="kdebug" documentation="Tracing the kernel and some system frameworks."/>
+            <table codes="&quot;0x31,0xca&quot;" target="SINGLE" schema="kdebug" documentation="Tracing the kernel and some system frameworks."/>
+            <table schema="metal-perf-overview-layer-count-metric"/>
+            <table schema="metal-perf-overview-gpu-perf-state-stacked"/>
+            <table schema="metal-perf-overview-gpu-state-metric"/>
+            <table schema="metal-perf-overview-power-system-metric-stacked"/>
+            <table codes="&quot;0x2b,0xdc&quot;" target="SINGLE" schema="kdebug" documentation="Tracing the kernel and some system frameworks."/>
+            <table schema="metal-perf-overview-layer-per-frame-metric"/>
+            <table schema="metal-perf-overview-ips-stacked-metric"/>
+            <table codes="&quot;0x2d,*&quot;" schema="kdebug" callstack="user" target="SINGLE" documentation="Tracing the kernel and some system frameworks."/>
+            <table codes="&quot;0x07,0x00&quot;" target="SINGLE" schema="kdebug" documentation="Tracing the kernel and some system frameworks."/>
+            <table schema="thread-info" documentation="Associates threads with their owning process."/>
+            <table schema="metal-perf-overview-power-system-metric"/>
+            <table schema="metal-perf-overview-extended-system-metric"/>
+            <table schema="metal-perf-overview-gpu-power-ctrl-state-metric"/>
+            <table sample-rate-micro-seconds="1000" target="SINGLE" schema="time-sample" callstack="user" all-thread-states="NO" documentation="Holds a raw CPU profiling sample."/>
+        </data>
+        <tracks/>
+    </run>
+</trace-toc>
