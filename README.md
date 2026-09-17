@@ -1,6 +1,6 @@
 # Vials Fluid Lab
 
-[Variable-capacity and receive-only Lab boards](Reports/Prototype25/README.md) extend the shared progression to 16 levels, with visibly height-scaled 3–6-unit vessels, up to 10 vials and 6 colors, two fill-only valves, stable multi-step hints, and dependency-constrained pours beyond two simultaneous sources. Complete Classic/2D/3D regressions and iPad-simulator layout checks pass; physical-iPad performance remains deferred.
+[Variable-capacity and receive-only Lab boards](Reports/Prototype25/README.md) extend the shared progression to 16 levels, with visibly height-scaled 3–6-unit vessels, up to 10 vials and 6 colors, two fill-only valves, stable multi-step hints on the live concurrent-capable board, dependency-constrained pours beyond two simultaneous sources, and canonical final settling that prevents detached 3D particle clusters. Complete Classic/2D/3D regressions and iPad-simulator layout checks pass; physical-iPad performance remains deferred.
 
 [Unequal-capacity solver pruning](Reports/Prototype24/README.md) fixes a false dead end in the bundled Original game and adds generated-level, receive-only, helper and four-move counterexample coverage.
 

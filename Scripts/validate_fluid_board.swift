@@ -23,6 +23,13 @@ import AppKit
         if fixture == "three" { renderer.reset(state:LabBoardState(layers:[[0,1,1,1],[],[],[]])) }
         if fixture == "partial" { renderer.reset(state:LabBoardState(layers:[[0,0],[0,0,0],[],[]])) }
         if fixture == "last" { renderer.reset(state:LabBoardState(layers:[[0],[],[],[]])) }
+        if fixture == "floating" {
+            // Exact Five Streams state immediately before the reported E→G
+            // pour that left both participating vials visibly fragmented.
+            renderer.reset(state:LabBoardState(
+                layers:[[1,1,1],[2],[4,3,4],[1,0,2,2,2],[2,1,3,3],[4,0,4],[3,3,3],[0,0]],
+                capacities:[4,3,4,5,5,3,5,4]))
+        }
         renderer.funnelEnabled = !args.contains("--no-funnel")
         renderer.playbackSpeed=Float(option("--speed","1"))!
         let initial=renderer.game.state
@@ -30,7 +37,7 @@ import AppKit
         if initial.move(from:0,to:0) != nil || initial.move(from:-1,to:0) != nil { errors.append("Illegal move accepted") }
         if fixture == "level" && initial.move(from:0,to:1) != nil { errors.append("Different top colors accepted") }
         guard let solution=initial.solution() ?? (fixture == "level" ? nil:[]) else { throw LabError.message("Initial level has no solution") }
-        let route: [(Int,Int)] = (fixture == "shortest" || LabBoardPuzzle(rawValue:fixture) != nil) ? solution.map { ($0.source,$0.destination) } : fixture == "pear" ? [(3,1)] : fixture == "level" ? [(0,3),(1,0),(2,3),(2,0),(1,3)] : [(0,fixture == "partial" ? 1:3)]
+        let route: [(Int,Int)] = (fixture == "shortest" || LabBoardPuzzle(rawValue:fixture) != nil) ? solution.map { ($0.source,$0.destination) } : fixture == "pear" ? [(3,1)] : fixture == "floating" ? [(4,6)] : fixture == "level" ? [(0,3),(1,0),(2,3),(2,0),(1,3)] : [(0,fixture == "partial" ? 1:3)]
         print("Fixture \(fixture), particles \(renderer.particleCount), solution \(solution.count) moves")
         renderer.encodeFrame(target:texture,deltaTime:0).waitUntilCompleted()
         try save(texture,to:output.appendingPathComponent("ready.png"))
@@ -94,6 +101,19 @@ import AppKit
             let expectedState=states[index].applying(expected)!
             if committed && renderer.game.state != expectedState { errors.append("Wrong puzzle state after move \(index)") }
             if renderer.correctionCount > Int(Float(expected.amount*LabBoardRenderer.particlesPerUnit)*0.05) { errors.append("Correction exceeded 5 percent") }
+            if committed && fixture == "floating" {
+                let reference=try LabBoardRenderer(device:device,library:lib)
+                reference.reset(state:expectedState)
+                let canonical=reference.particleSamples(),ids=Set(expectedState.stacks[pair.0]+expectedState.stacks[pair.1])
+                func positions(_ values:[LabParticle],_ parcel:Int)->[SIMD3<Float>] {
+                    values.filter {Int($0.visual.y)==parcel}.map(\.position.xyz).sorted {
+                        $0.x != $1.x ? $0.x<$1.x:($0.y != $1.y ? $0.y<$1.y:$0.z<$1.z)
+                    }
+                }
+                if ids.contains(where:{positions(samples,$0) != positions(canonical,$0)}) {
+                    errors.append("Accepted pour left detached particles instead of a settled fluid body")
+                }
+            }
             // Unlike-colored layers must retain their vertical order when settled.
             if committed {
                 for (owner,stack) in expectedState.stacks.enumerated() {

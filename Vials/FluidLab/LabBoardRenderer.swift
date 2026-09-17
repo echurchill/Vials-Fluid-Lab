@@ -308,6 +308,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 let samples=particleSamples()
                 if let after=game.state.applying(move),inventoryMatches(samples,state:after) {
                     normalizeOrder(state:after)
+                    settle(owners:[move.source,move.destination],state:after)
                     historyParticles.append(beforeParticles)
                     _=game.commit(move);lastOutcome="Move complete"
                 } else { rollback(message:"That pour needs another try") }
@@ -367,6 +368,25 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 for (n,i) in indices.enumerated() { p[i].visual.y=Float(stack[start+n/Self.particlesPerUnit]);p[i].visual.z=0;p[i].visual.x=0 }
                 start=end
             }
+        }
+    }
+    /// Once a transaction is accepted, rebuild only the participating
+    /// vessels from exact logical volumes. Ownership alone is not enough: a
+    /// particle can enter a vial, satisfy the ledger, and still be suspended
+    /// above the bulk surface when idle simulation freezes. Untouched vessels
+    /// retain their physical state byte-for-byte.
+    private func settle(owners:Set<Int>,state:LabBoardState) {
+        guard !owners.isEmpty else {return}
+        let parcels=Set(owners.flatMap {state.stacks[$0]})
+        let canonical=Dictionary(grouping:seed(state:state)) {Int($0.visual.y)}
+        var offsets:[Int:Int]=[:]
+        let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+        for i in 0..<particleCount {
+            let parcel=Int(p[i].visual.y)
+            guard parcels.contains(parcel),let targets=canonical[parcel] else {continue}
+            let offset=offsets[parcel,default:0]
+            precondition(offset<targets.count)
+            p[i]=targets[offset];offsets[parcel]=offset+1
         }
     }
     private func makeBands() -> [LabBoardBand] {
@@ -691,7 +711,13 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         for i in finished.reversed() {groupTransfers.remove(at:i)}
         compositeVessels=groupVessels()
-        if groupTransfers.isEmpty,!finished.isEmpty {normalizeOrder(state:self.game.state)}
+        if groupTransfers.isEmpty,!finished.isEmpty {
+            let owners=Set(self.game.state.stacks.indices.filter {owner in
+                self.game.state.stacks[owner].contains {groupOwnedParcels.contains($0)}
+            })
+            normalizeOrder(state:self.game.state)
+            settle(owners:owners,state:self.game.state)
+        }
     }
     func displayComposite(game:LabBoardGame,samples:[LabParticle],vessels:[LabVesselUniform]) {
         lastCommand?.waitUntilCompleted()

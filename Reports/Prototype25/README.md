@@ -17,7 +17,7 @@ The fixtures are fixed outputs from the bundled Original game's deterministic Ha
 
 All three presentations use capacity-aware fill heights and markings. Vessel height now scales directly with capacity: a three-unit vessel is 75% of the four-unit reference height and a six-unit vessel is 150%. Identical shapes retain the same width and per-unit volume, so capacity is visible in the silhouette instead of through a subtle width change. Fill-only vials retain the explicit `↓ FILL` badge and capacity-card arrow; the redundant cyan line and arrow inside the Classic and 2D glass were removed after they read as a stray liquid boundary. The 3D shader palette and simulation grid accommodate the six-color, ten-vial board.
 
-The largest puzzles made synchronous hint search noticeable, so hints are computed off the main actor and expose a short `Finding…` state. A solved hint route is retained while the player follows it; the next hint advances along that route instead of launching a fresh search that can recommend immediately undoing the previous hint. A different player move, changing level, reset or undo invalidates the retained route.
+The largest puzzles made synchronous hint search noticeable, so hints are computed off the main actor and expose a short `Finding…` state. A solved hint route is retained while the player follows it; the next hint advances along that route instead of launching a fresh search that can recommend immediately undoing the previous hint. A physical-iPad follow-up exposed that the production board's concurrent-pour path had omitted this advancement: from the reported Valve Circuit state, a followed H→D hint was replanned as D→H. The exact state is now a regression fixture, and the live concurrent-capable session retains its route whenever the hinted move starts from an idle queue. A different or overlapping player move, changing level, reset or undo invalidates the retained route.
 
 Concurrent play is no longer capped at two active pours. Reservations still reject dependencies—a new source cannot be an existing source or destination, and a moving source cannot become a destination—but every independent ready transfer may start. The 3D renderer provisions simulation groups from the board size, allowing three or more independent pours on the larger levels while retaining exact projected capacity reservations.
 
@@ -44,6 +44,10 @@ Higher-capacity source vials also use additional travel separation so their larg
 
 The 2D recovery pass had one similarly narrow edge case: three missing particles after a 384-particle transfer could be corrected to positions just above the already-settled surface. Rare corrected particles are now kept beneath that visible surface; successful arrivals are still never repacked.
 
+A later physical-iPad Five Streams session exposed a separate 3D completion edge case: particles could have the correct logical owner yet remain suspended above the bulk fluid when idle simulation froze. After an accepted transfer, the renderer now canonically settles only the source and destination vessels. Uninvolved vials retain their physical particles unchanged. The exact reported E→G state is replayed particle-for-particle against canonical settled fluid, and the complete 175-pour 3D suite remains clean.
+
+![Physical iPad after relaunching the corrected Five Streams 3D renderer](ipad-five-streams-settled.png)
+
 ![Mac offscreen Sixfold fixture](mac-sixfold-3d.png)
 
 ![Mac offscreen five-unit Valve Circuit pour](mac-valve-pour-3d.png)
@@ -57,6 +61,7 @@ The 2D recovery pass had one similarly narrow edge case: three missing particles
 - 2D: all 175 physical pours committed with no moving-vial intersections. Maximum cleanup was 2.604%; inactive vials/material clocks and idle state remained frozen.
 - Reset/progress: all 16 levels passed in Classic, 2D and 3D, including active-pour reset, persistence and undo isolation.
 - Concurrent/shared-receiver and overlap suites pass in all three presentations. The concurrency fixture now verifies three genuinely simultaneous independent pours in Classic, 2D and 3D, plus the existing two-stream shared receiver.
+- The exact physical-iPad circular-hint state continues F→A after H→D instead of suggesting D→H, and the reported Five Streams E→G pour finishes with both participating 3D vials matching canonical continuous fluid.
 - The retained Pour Study water regression still finishes at the exact 2,122/1,061 particle inventory after widening the shared spatial grid.
 - macOS Release, iOS Simulator Debug and unsigned generic iOS Release builds pass.
 

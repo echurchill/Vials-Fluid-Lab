@@ -268,9 +268,17 @@ import Combine
     @discardableResult func begin(_ move:LabBoardMove,automaticClock:Bool = true) -> Bool {
         // A followed hint advances the route that was already solved. Any
         // different move invalidates it, so the next hint plans afresh.
-        let followsHintPlan = !allowsConcurrentPours && hintPlan.first == move
+        // The live board permits concurrent pours, but a hint followed while
+        // the queue is idle is still a sequential step along the retained
+        // route. A second overlapping reservation invalidates that route.
+        let followsHintPlan = hintPlan.first == move && (!allowsConcurrentPours || !busy)
         cancelHint(clearPlan:!followsHintPlan)
-        if allowsConcurrentPours { return beginConcurrent(move,automaticClock:automaticClock) }
+        if allowsConcurrentPours {
+            let began=beginConcurrent(move,automaticClock:automaticClock)
+            if began,followsHintPlan { hintPlan.removeFirst() }
+            if !began { hintPlan=[] }
+            return began
+        }
         guard !busy,!state.solved,game.state.move(from:move.source,to:move.destination)==move else {
             hintPlan=[];return false
         }

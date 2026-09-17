@@ -39,6 +39,29 @@ import AppKit
   require(!guided.findingHint && guided.selected==guidedRoute[1].source && guided.hintTarget==guidedRoute[1].destination,"next hint replanned instead of continuing its route")
   require(!(guidedRoute[1].source==guidedRoute[0].destination && guidedRoute[1].destination==guidedRoute[0].source),"solved hint route immediately reversed")
   print("PASS: hint retains and advances one solved route")
+  // Exact state reported from the live Valve Circuit board. A fresh search
+  // after H→D chooses the legal but useless D→H undo, while the already-solved
+  // route continues F→A. The production board enables concurrent pours, so it
+  // must retain the route when the hinted pour begins from an idle queue.
+  let circularState=LabBoardState(
+   layers:[[1,3],[0,0,0,0,0],[],[4,1,3,2,2],[1],[3,1,4,0,3,3],[3,3,3,3,3],[2,4,3,2,2]],
+   capacities:[5,6,3,6,4,6,5,5],
+   rules:[.normal,.normal,.normal,.normal,.receiveOnly,.normal,.receiveOnly,.normal])
+  let circularSave=LabComparisonSave(presentation:.fluid2D,pace:.quick,puzzle:.valveCircuit,
+   games:[LabBoardPuzzle.valveCircuit.rawValue:LabBoardGame(state:circularState)])
+  let liveGuided=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:circularSave,allowsConcurrentPours:true)
+  let liveRoute=circularState.solution()!
+  require(liveRoute[0].source==7 && liveRoute[0].destination==3,"reported circular-hint fixture changed")
+  liveGuided.hint()
+  while liveGuided.findingHint {try await Task.sleep(for:.milliseconds(5))}
+  require(liveGuided.begin(liveRoute[0],automaticClock:false),"live hinted move did not begin")
+  for _ in 0..<900 where liveGuided.busy {await liveGuided.advanceConcurrent(deltaTime:1/60)}
+  require(!liveGuided.busy,"live hinted move did not finish")
+  liveGuided.hint()
+  require(!liveGuided.findingHint && liveGuided.selected==liveRoute[1].source && liveGuided.hintTarget==liveRoute[1].destination,
+   "live board discarded its route and suggested the inverse move")
+  require(!(liveGuided.selected==3 && liveGuided.hintTarget==7),"live board repeated D→H after H→D")
+  print("PASS: live concurrent-capable board does not circularly undo a followed hint")
   func make(_ state:LabBoardState,_ mode:LabBoardPresentation)->FluidBoardSession {
    let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort,games:["firstSort":LabBoardGame(state:state)])
    return FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save,allowsConcurrentPours:true)
