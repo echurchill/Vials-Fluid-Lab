@@ -20,10 +20,10 @@ private struct LabMetalTransfer {
     var cutoff:Float?
     var cutoffTilt:Float=0
     var returned:Float?
-    var cleanupStart:Float?
+    var settleReady=false
     var correction=0
     var arrived=0,departed=0
-    var ready=false
+    var visualSettled=false
 }
 
 @MainActor
@@ -611,6 +611,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             // once and discard any prior interpolation target; unrelated groups
             // finishing must not reorder this buffer underneath an active settle.
             groupSettleStart=nil;settleFrom=nil;settleTargets=nil
+            for i in groupTransfers.indices {groupTransfers[i].visualSettled=false}
             let moves=groupMoves+starts.map(\.move),owners=Set(moves.flatMap {[$0.source,$0.destination]})
             let owned=Set(owners.flatMap {game.state.stacks[$0]}+moves.flatMap(\.parcels))
             let current=particleSamples().filter {owned.contains(Int($0.visual.y))}
@@ -634,9 +635,20 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             accumulator=min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
             while accumulator>=timeStep {
                 simulationTime+=timeStep
-                for i in groupTransfers.indices {groupTransfers[i].time+=timeStep}
                 accumulator-=timeStep
             }
+            return
+        }
+        // Once the receiver has reached its canonical, headspaced level, keep
+        // those particles fixed while the now-empty sources return home. This
+        // makes the cap a completion cue instead of a late visual top-off.
+        if groupTransfers.allSatisfy(\.visualSettled) {
+            accumulator=min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
+            while accumulator>=timeStep {
+                simulationTime+=timeStep;advanceGroupMotion()
+                accumulator-=timeStep
+            }
+            compositeVessels=groupVessels()
             return
         }
         let selected=Set(groupMoves.flatMap(\.parcels))
@@ -652,20 +664,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         var steps=0
         while accumulator>=timeStep,steps<12 {
             simulationTime+=timeStep
-            for i in groupTransfers.indices {
-                groupTransfers[i].time+=timeStep
-                let t=groupTransfers[i].time
-                if let stop=groupTransfers[i].cutoff {
-                    let elapsed=t-stop,initial=groupTransfers[i].cutoffTilt
-                    if elapsed<LabBoardTiming.stop { groupTransfers[i].tilt=initial-min(0.45,initial)*labSmooth(elapsed/LabBoardTiming.stop) }
-                    else { groupTransfers[i].tilt=max(0,initial-0.45)*(1-labSmooth((elapsed-LabBoardTiming.stop)/LabBoardTiming.upright)) }
-                    if elapsed>=LabBoardTiming.untilted,groupTransfers[i].returned==nil { groupTransfers[i].returned=t }
-                } else if t>=LabBoardTiming.tiltStart {
-                    let rate=groupTransfers[i].departed<20 ? LabBoardTiming.approachRate:LabBoardTiming.pouringRate
-                    groupTransfers[i].tilt=min(2.15,groupTransfers[i].tilt+rate*labSmooth((t-LabBoardTiming.tiltStart)/0.25)*timeStep)
-                    if t>LabBoardTiming.timeout { groupTransfers[i].cutoff=t;groupTransfers[i].cutoffTilt=groupTransfers[i].tilt }
-                }
-            }
+            advanceGroupMotion()
             var vessels=groupVessels()
             for i in vessels.indices { vessels[i].previousWorld=previousWorlds.count==vessels.count ? previousWorlds[i]:vessels[i].world }
             previousWorlds=vessels.map(\.world);compositeVessels=vessels
@@ -674,6 +673,22 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             accumulator-=timeStep;steps+=1
         }
         lastCommand=command;command.commit()
+    }
+    private func advanceGroupMotion() {
+        for i in groupTransfers.indices {
+            groupTransfers[i].time+=timeStep
+            let t=groupTransfers[i].time
+            if let stop=groupTransfers[i].cutoff {
+                let elapsed=t-stop,initial=groupTransfers[i].cutoffTilt
+                if elapsed<LabBoardTiming.stop { groupTransfers[i].tilt=initial-min(0.45,initial)*labSmooth(elapsed/LabBoardTiming.stop) }
+                else { groupTransfers[i].tilt=max(0,initial-0.45)*(1-labSmooth((elapsed-LabBoardTiming.stop)/LabBoardTiming.upright)) }
+                if elapsed>=LabBoardTiming.untilted,groupTransfers[i].returned==nil { groupTransfers[i].returned=t }
+            } else if t>=LabBoardTiming.tiltStart {
+                let rate=groupTransfers[i].departed<20 ? LabBoardTiming.approachRate:LabBoardTiming.pouringRate
+                groupTransfers[i].tilt=min(2.15,groupTransfers[i].tilt+rate*labSmooth((t-LabBoardTiming.tiltStart)/0.25)*timeStep)
+                if t>LabBoardTiming.timeout { groupTransfers[i].cutoff=t;groupTransfers[i].cutoffTilt=groupTransfers[i].tilt }
+            }
+        }
     }
     private func groupVessels()->[LabVesselUniform] {
         var result=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,rules:game.state.rules,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
@@ -710,18 +725,25 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let progress=(simulationTime-start)/0.55
             applySettle(progress:progress)
             if progress>=1 {
-                let jobs=groupTransfers
-                for job in jobs {
-                    let move=job.item.move,target=move.amount*Self.particlesPerUnit
-                    let committed=self.game.commitReserved(move)
-                    groupResults.append(LabLaneResult(id:job.item.id,committed:committed,
-                        cleanup:100*Float(job.correction)/Float(target),vessels:[move.source,move.destination],
-                        diagnostic:"arrived=\(job.arrived)/\(target) departed=\(job.departed) time=\(job.time)"))
-                }
-                groupTransfers=[];groupSettleStart=nil;settleFrom=nil;settleTargets=nil
-                normalizeOrder(state:self.game.state)
+                for i in groupTransfers.indices {groupTransfers[i].visualSettled=true}
+                groupSettleStart=nil;settleFrom=nil;settleTargets=nil
             }
             compositeVessels=groupVessels()
+            return
+        }
+        if !groupTransfers.isEmpty,groupTransfers.allSatisfy(\.visualSettled) {
+            guard groupTransfers.allSatisfy({job in job.returned.map {job.time-$0>=LabBoardTiming.returned} ?? false}) else {
+                compositeVessels=groupVessels();return
+            }
+            let jobs=groupTransfers
+            for job in jobs {
+                let move=job.item.move,target=move.amount*Self.particlesPerUnit
+                let committed=self.game.commitReserved(move)
+                groupResults.append(LabLaneResult(id:job.item.id,committed:committed,
+                    cleanup:100*Float(job.correction)/Float(target),vessels:[move.source,move.destination],
+                    diagnostic:"arrived=\(job.arrived)/\(target) departed=\(job.departed) time=\(job.time)"))
+            }
+            groupTransfers=[];normalizeOrder(state:self.game.state);compositeVessels=groupVessels()
             return
         }
         let values=particleSamples();var finished:[Int]=[];lastMetrics=LabBoardMetrics()
@@ -744,14 +766,13 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             lastMetrics.guided+=moving.filter {$0.visual.w>0.5}.count
             if job.cutoff==nil,job.departed>=Int(Float(target)*0.99),job.arrived>=target-Int(Float(target)*0.05) {job.cutoff=job.time;job.cutoffTilt=job.tilt}
             var failed=false
-            if let start=job.cleanupStart,job.time-start>=LabBoardTiming.cleanup {job.ready=true}
-            else if job.cleanupStart==nil,let back=job.returned,job.time-back>LabBoardTiming.returned+LabBoardTiming.settling {
+            if !job.settleReady,job.returned != nil {
                 let missing=target-job.arrived
                 if missing>=0,missing<=Int(Float(target)*0.05),lastMetrics.wrongParcel==0,lastMetrics.nonFinite==0,moving.allSatisfy({$0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite}) {
-                    // Leave stragglers where physics last placed them until
-                    // every stream sharing this receiver is ready. The group
-                    // settle then moves them continuously to their exact slots.
-                    job.correction=missing;job.cleanupStart=job.time
+                    // Freeze every source over the receiver while its complete
+                    // fluid body settles. Only after this interpolation will
+                    // the empty source begin its visible return.
+                    job.correction=missing;job.settleReady=true
                 } else {failed=true}
             }
             if failed {
@@ -765,7 +786,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         for i in finished.reversed() {groupTransfers.remove(at:i)}
         compositeVessels=groupVessels()
-        if !groupTransfers.isEmpty,groupTransfers.allSatisfy(\.ready) {
+        if !groupTransfers.isEmpty,groupTransfers.allSatisfy(\.settleReady) {
             var projected=self.game.state
             for job in groupTransfers {
                 guard let next=projected.applyingReserved(job.item.move) else {return}

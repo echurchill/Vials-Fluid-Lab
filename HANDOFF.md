@@ -7,6 +7,7 @@
 - The original collision-safe lift/pour/return geometry is unchanged. All 16 solutions and the full Five Streams, Tall Order, Sixfold and Valve Circuit 3D/2D routes pass. The 18-case cross-mode overlap suite reports zero penetration or clipping.
 - The per-vial information cards now stay in a single ordered row. Physical M4 iPad checks confirm all 8 cards at normal scale and all 10 denser cards remain readable in landscape and portrait, including counts, capacities, rules and unit colors.
 - A signed Release build was installed on the physical M4 iPad Pro. Matching Level 16 Classic/2D/3D captures confirm the new scale, and the B+C→G concurrent replay verifies active framing, continuous final fill and the completion cap. The iPad was returned to landscape-left.
+- A later B+C→G physical replay found that G still rose when the cap appeared because final canonical settling followed source return. Shared 3D receivers now settle while sources remain held over them, retain realistic headspace, stay particle-position stable throughout source return, and show the cap only afterward. The focused regression measures 21 held-source settle frames, 34 stable-receiver return frames and 0.20 scene units of headspace; the full concurrent and expanded-level suites pass.
 - See `Reports/Prototype27/README.md`. Current branch is `codex/fluid-lab`; inspect the latest log and status for the exact commit/push state.
 
 ## September 17 device verification and profiling — supersedes stale status below

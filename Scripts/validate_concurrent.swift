@@ -74,20 +74,41 @@ import AppKit
   require(valve.begin(cToG,automaticClock:false),"Level 16 C→G did not join shared receiver")
   let finalG=Set(valve.state.stacks[6]+bToG.parcels+cToG.parcels)
   var visibleSettleFrames=0,lastSettlePositions:[SIMD3<Float>]?=nil,maxSettleStep:Float=0
+  var heldSources:[SIMD3<Float>]?=nil,maxHeldSourceStep:Float=0
+  var postSettleReceiver:[SIMD3<Float>]?=nil,postSettleFrames=0,maxPostSettleStep:Float=0,maxReturnTravel:Float=0
+  var wasSettling=false
   for _ in 0..<1800 where valve.busy {
    await valve.advanceConcurrent(deltaTime:1/60)
-   if valve.fluidFinalSettling {
-    let positions=valve.renderer!.particleSamples().filter {finalG.contains(Int($0.visual.y))}.map(\.position.xyz)
+   let settling=valve.fluidFinalSettling
+   let positions=valve.renderer!.particleSamples().filter {finalG.contains(Int($0.visual.y))}.map(\.position.xyz)
+   let sources=[1,2].map {valve.renderer!.currentVessels[$0].world.columns.3.xyz}
+   if settling {
     if let previous=lastSettlePositions,previous.count==positions.count {
      maxSettleStep=max(maxSettleStep,zip(previous,positions).map(simd_distance).max() ?? 0)
     }
+    if let previous=heldSources {maxHeldSourceStep=max(maxHeldSourceStep,zip(previous,sources).map(simd_distance).max() ?? 0)}
     lastSettlePositions=positions
+    heldSources=sources
     visibleSettleFrames+=1
+   } else if wasSettling && valve.busy {
+    postSettleReceiver=positions;heldSources=sources;postSettleFrames=1
+   } else if let final=postSettleReceiver,valve.busy {
+    maxPostSettleStep=max(maxPostSettleStep,zip(final,positions).map(simd_distance).max() ?? 0)
+    if let heldSources {maxReturnTravel=max(maxReturnTravel,zip(heldSources,sources).map(simd_distance).max() ?? 0)}
+    postSettleFrames+=1
    }
+   wasSettling=settling
   }
   require(!valve.busy && valve.moveCount==2 && valve.state.isComplete(6),"Level 16 B+C→G did not complete")
   require(visibleSettleFrames>=12,"Level 16 final fluid volume snapped instead of settling: \(visibleSettleFrames) frames")
-  print("PASS: Level 16 B+C→G shared pour settles for \(visibleSettleFrames) visible frames, maximum particle step \(maxSettleStep)")
+  require(maxHeldSourceStep<0.001,"Level 16 sources left before final fluid settled: \(maxHeldSourceStep)")
+  require(postSettleFrames>=12 && maxReturnTravel>0.5,"Level 16 sources did not visibly return after settling")
+  require(maxPostSettleStep<0.001,"Level 16 receiver changed while sources returned: \(maxPostSettleStep)")
+  let finalSamples=valve.renderer!.particleSamples().filter {finalG.contains(Int($0.visual.y))}
+  let surface=(finalSamples.map(\.position.y).max() ?? 0)-LabBoardLayout.homes(count:8)[6].y
+  let headspace=valve.renderer!.profiles[6].height-surface
+  require(headspace>0.12,"Level 16 completed receiver has no visible headspace: \(headspace)")
+  print("PASS: Level 16 B+C→G settles for \(visibleSettleFrames) held-source frames, returns for \(postSettleFrames) stable-receiver frames, headspace \(headspace)")
   func make(_ state:LabBoardState,_ mode:LabBoardPresentation)->FluidBoardSession {
    let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort,games:["firstSort":LabBoardGame(state:state)])
    return FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save,allowsConcurrentPours:true)

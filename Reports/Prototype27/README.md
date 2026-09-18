@@ -16,6 +16,12 @@ The signed Release build was installed on the 13-inch M4 iPad Pro. Matching init
 
 The exact concurrent Level 16 B+C→G replay kept both lifted sources in frame, completed both moves, continuously filled G and showed its pink completion cap. The installed build was then checked on the ten-vial Sixfold board in both orientations. All ten letter/count/capacity cards and their unit-color bars fit in a single row.
 
+A subsequent physical replay exposed one remaining sequencing problem: the canonical final settle ran after B/C had returned, so G visibly rose when its cap appeared. Shared 3D receivers now settle to their canonical, naturally headspaced level while the empty sources remain held above the receiver. Their particles are then frozen while the sources return, and the cap appears only after the motion completes. G therefore keeps visible air above the liquid and its surface does not change when the cap appears.
+
+The focused regression records 21 held-source settle frames, followed by 34 source-return frames in which every G particle remains position-stable. Its final surface retains 0.20 scene units of headspace. The paired physical-iPad crops below show the same liquid height immediately before and after the cap.
+
+![Level 16 G before and after its cap, with unchanged liquid height and visible headspace](ipad-level16-headspace-before-after-cap.png)
+
 ![Ten-vial single row on the physical iPad in landscape](ipad-ten-vial-single-row-landscape.png)
 
 ![Ten-vial single row on the physical iPad in portrait](ipad-ten-vial-single-row-portrait.png)
@@ -28,5 +34,6 @@ The exact concurrent Level 16 B+C→G replay kept both lifted sources in frame, 
 - `Scripts/validate_complexity.sh` passes all 16 model solutions and every 3D/2D move in Five Streams, Tall Order, Sixfold and Valve Circuit with the original collision-safe motion geometry.
 - `Scripts/validate_overlap.sh` passes all 18 Classic, 2D and 3D cap-crossing, near-full, crossing, shared-receiver and return-crossing cases with zero vessel penetration, clipping or spatial clipping.
 - macOS Debug and signed iOS Release builds pass after the single-row layout change.
+- The receiver-first settling change passes the complete concurrency suite and every 3D/2D move in the four expanded boards. CoreDevice screen recording remains unsupported on this iPad, so a twelve-frame screenshot sequence and the focused frame regression provide the transition evidence.
 
 The camera regression measures resting board scale. The renderer continues to reserve enough motion space for the existing authored pours rather than compressing or rerouting them solely to keep every lifted tall vial inside an unusually wide diagnostic crop.
