@@ -2,6 +2,16 @@
 
 September 7, 2026. Planning only; no game implementation or benchmark was performed.
 
+> **Prototype execution clarification — September 18, 2026:** The density, mixing,
+> and crossover keystones associated with this plan are specified in
+> [Keystone Lab Prototype Plan](./keystone-lab-prototype-plan.md). Those prototypes
+> are implemented and tested macOS-first so development is not blocked by limited
+> iPad or iPhone access. iOS compatibility remains required, but physical-device
+> validation is a later compatibility and release gate rather than the routine
+> development path. This clarification supersedes the phone-first recommendation
+> below for the keystone prototype phase only; the final production renderer must
+> still be validated on its oldest supported physical iOS device.
+
 **1. Recommended direction**
 
 Build real 3D glass vessels and use a GPU fluid solver for moving liquid, pouring, impact, and settling. Keep Swift for the app, persistence, and puzzle logic; replace the SwiftUI board artwork with a dedicated 3D rendering surface. Start by evaluating Metal directly, with RealityKit as a possible scene layer, against Unity with Obi Fluid in a short prototype comparison.
