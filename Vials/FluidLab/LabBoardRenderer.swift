@@ -203,6 +203,20 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
     }
 
+    /// Replace the solver's particle working set and resize its scratch
+    /// buffers to match. The visible board keeps every particle, while a
+    /// concurrent receiver lane only needs the parcels in its source and
+    /// destination vessels.
+    private func installParticleStorage(_ values:[LabParticle]) {
+        precondition(!values.isEmpty)
+        particleCount=values.count
+        particles=makeBuffer(values)
+        next=device.makeBuffer(length:particleCount*4,options:.storageModePrivate)
+        lambdas=device.makeBuffer(length:particleCount*4,options:.storageModePrivate)
+        deltas=device.makeBuffer(length:particleCount*16,options:.storageModePrivate)
+        velocities=device.makeBuffer(length:particleCount*16,options:.storageModePrivate)
+    }
+
     private func clearMotion() {
         compositeVessels=nil;groupTransfers=[];groupResults=[];groupOwnedParcels=[]
         pourTime=nil;tilt=0;cutoffTime=nil;returnStart=nil;cleanupStart=nil
@@ -220,14 +234,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             capMeshes=profiles.map { let vertices=labCapMesh($0);return (makeBuffer(vertices),vertices.count) }
         }
         let values=seed(state:state)
-        particleCount=values.count
         particleVolume=profiles.first.map(particleFillVolume) ?? 1
         particleVolume/=Float(max(1,state.capacities.first ?? 4))*Float(Self.particlesPerUnit)
-        particles=makeBuffer(values)
-        next=device.makeBuffer(length:particleCount*4,options:.storageModePrivate)
-        lambdas=device.makeBuffer(length:particleCount*4,options:.storageModePrivate)
-        deltas=device.makeBuffer(length:particleCount*16,options:.storageModePrivate)
-        velocities=device.makeBuffer(length:particleCount*16,options:.storageModePrivate)
+        installParticleStorage(values)
     }
     /// Install the shared puzzle checkpoint when changing presentation or undoing.
     /// Particle snapshots are retained within this session; classic-only moves
@@ -610,9 +619,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     func installSimulation(game:LabBoardGame,samples:[LabParticle],vessels:Set<Int>) {
         install(game:game)
         let ids=Set(vessels.flatMap { game.state.stacks[$0] })
-        let local=particleSamples().filter { !ids.contains(Int($0.visual.y)) }+samples.filter { ids.contains(Int($0.visual.y)) }
-        precondition(local.count==particleCount)
-        particles=makeBuffer(local)
+        installParticleStorage(samples.filter {ids.contains(Int($0.visual.y))})
     }
     func advanceSimulation(deltaTime:Float) {
         if game.pending != nil && !paused { updateTransfer() }
@@ -637,15 +644,19 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let moves=groupMoves+starts.map(\.move),owners=Set(moves.flatMap {[$0.source,$0.destination]})
             let owned=Set(owners.flatMap {game.state.stacks[$0]}+moves.flatMap(\.parcels))
             let current=particleSamples().filter {owned.contains(Int($0.visual.y))}
-            let stable=seed(state:game.state).filter {!owned.contains(Int($0.visual.y))}
-            particles=makeBuffer(current+stable)
+            let currentParcels=Set(current.map {Int($0.visual.y)})
+            let added=samples.filter {
+                let parcel=Int($0.visual.y)
+                return owned.contains(parcel) && !currentParcels.contains(parcel)
+            }
+            installParticleStorage(current+added)
         }
         self.game=game
         for item in starts {
             guard game.state.applyingReserved(item.move) != nil else { groupResults.append(LabLaneResult(id:item.id,committed:false,cleanup:0));continue }
             let sourceIDs=Set(game.state.stacks[item.move.source])
             let local=particleSamples().filter {!sourceIDs.contains(Int($0.visual.y))}+samples.filter {sourceIDs.contains(Int($0.visual.y))}
-            particles=makeBuffer(local)
+            installParticleStorage(local)
             groupOwnedParcels.formUnion(sourceIDs);groupOwnedParcels.formUnion(game.state.stacks[item.move.destination])
             groupTransfers.append(LabMetalTransfer(item:item,before:local.filter {sourceIDs.contains(Int($0.visual.y))}))
         }

@@ -77,6 +77,9 @@ import AppKit
   require(valve.begin(bToG,automaticClock:false),"Level 16 B→G did not begin")
   cToG=valve.availableMove(from:2,to:6)!
   require(valve.begin(cToG,automaticClock:false),"Level 16 C→G did not join shared receiver")
+  await valve.advanceConcurrent(deltaTime:1/60)
+  require(valve.active3DSimulationParticleCount==5*LabBoardRenderer.particlesPerUnit,
+   "Level 16 shared lane did not compact to the five participating units: \(valve.active3DSimulationParticleCount)")
   let finalG=Set(valve.state.stacks[6]+bToG.parcels+cToG.parcels)
   var visibleSettleFrames=0,lastSettlePositions:[SIMD3<Float>]?=nil,maxSettleStep:Float=0
   var heldSources:[SIMD3<Float>]?=nil,maxHeldSourceStep:Float=0

@@ -89,6 +89,7 @@ import Combine
     var state:LabBoardState { game.state }
     var moveCount:Int { game.moveCount }
     var busy:Bool { game.pending != nil || pourQueue.busy }
+    var active3DSimulationParticleCount:Int {metalGroups.values.reduce(0) {$0+$1.particleCount}}
     var effectiveSpeed:Float { (comparisonSpeed ?? pace.speed)*(slow ? 0.35:1) }
     var validDestinations:Set<Int> {
         guard let selected,allowsConcurrentPours || !busy else { return [] }
@@ -534,6 +535,36 @@ import Combine
         defer { UIApplication.shared.isIdleTimerDisabled=previousIdleTimer }
         #endif
         try? await Task.sleep(for:.seconds(2))
+        // Freeze the two tester-reported transitions at useful inspection
+        // points on a physical device. These diagnostic replays are isolated
+        // from saved play by the trial configuration above.
+        if arguments.contains("--level16-partial-return-check"),puzzle == .valveCircuit,presentation == .fluid {
+            reset()
+            guard let first=availableMove(from:1,to:6),begin(first),
+                  let second=availableMove(from:2,to:6),begin(second) else { return }
+            while busy && !Task.isCancelled {try? await Task.sleep(for:.milliseconds(16))}
+            guard let partial=availableMove(from:0,to:2),begin(partial) else { return }
+            var sawFinalSettle=false
+            while busy && !Task.isCancelled {
+                if fluidFinalSettling {sawFinalSettle=true}
+                else if sawFinalSettle {
+                    paused=true;updatePause();return
+                }
+                try? await Task.sleep(for:.milliseconds(8))
+            }
+            paused=true;updatePause();return
+        }
+        if arguments.contains("--level16-classic-stream-check"),puzzle == .valveCircuit,presentation == .classic {
+            reset()
+            guard let move=availableMove(from:1,to:6),begin(move) else { return }
+            while busy && !Task.isCancelled {
+                if concurrentClassicPours.contains(where:{$0.progress > 0.45 && $0.progress < 0.55}) {
+                    paused=true;updatePause();return
+                }
+                try? await Task.sleep(for:.milliseconds(8))
+            }
+            paused=true;updatePause();return
+        }
         // Deterministic physical-device visual replay for the tester-reported
         // Level 16 shared receiver. It intentionally does not write timing data.
         if arguments.contains("--level16-fill-check"),puzzle == .valveCircuit,presentation == .fluid {
@@ -727,6 +758,11 @@ extension FluidBoardSession {
             performance.context["maximumConcurrentPours"]=max(performance.context["maximumConcurrentPours"] as? Int ?? 0,pourQueue.active.count)
             let shared=Dictionary(grouping:pourQueue.active,by:{$0.move.destination}).values.map(\.count).max() ?? 0
             performance.context["maximumSharedReceiverPours"]=max(performance.context["maximumSharedReceiverPours"] as? Int ?? 0,shared)
+            if presentation == .fluid {
+                performance.context["fullBoardParticles"]=renderer?.particleCount ?? 0
+                performance.context["maximumLaneSimulationParticles"]=max(
+                    performance.context["maximumLaneSimulationParticles"] as? Int ?? 0,active3DSimulationParticleCount)
+            }
         }
         refresh()
     }

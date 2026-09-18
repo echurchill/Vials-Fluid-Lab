@@ -1,0 +1,164 @@
+{
+  "animationFrameIntervalMs" : {
+    "maximum" : 6947.3109245300293,
+    "median" : 21.446041762828827,
+    "p95" : 104.3698713183403,
+    "samples" : 294
+  },
+  "configuration" : {
+    "colorCount" : 6,
+    "concurrentPourLimit" : "dependency constrained",
+    "cpuCounter" : "simulation scheduling and GPU waits; excludes surface rendering",
+    "drainSeconds" : 5.3018496666336432,
+    "frameCounter" : "concurrent controller updates, not compositor presents",
+    "maximumConcurrentPours" : 4,
+    "maximumRenderDimension" : 1000,
+    "maximumSharedReceiverPours" : 2,
+    "particleCount" : 22400,
+    "puzzle" : "sixfold",
+    "quality" : "automatic",
+    "requestedConcurrentPourLimit" : 4,
+    "requestedDurationSeconds" : 30,
+    "vialCount" : 10
+  },
+  "date" : "2026-09-18T17:18:28Z",
+  "elapsedSeconds" : 39.663054874981754,
+  "end" : {
+    "batteryLevel" : 1,
+    "batteryState" : "charging",
+    "deviceModel" : "iPad",
+    "elapsedSeconds" : 39.663058833335526,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "environmentSamples" : [
+    {
+      "batteryLevel" : 1,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 1.9166618585586548e-06,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 1,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 23.413468666723929,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 1,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 23.413694833405316,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 1,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 34.416814625030383,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 1,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 34.416886833379976,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 1,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 38.848010666668415,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 1,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 39.64544237498194,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    }
+  ],
+  "fluidGPUFrameMs" : {
+    "maximum" : 123.16320836544037,
+    "median" : 43.089000042527914,
+    "p95" : 98.335333401337266,
+    "samples" : 294
+  },
+  "intervalsOver25ms" : 144,
+  "keptAwakeForTrial" : true,
+  "moves" : [
+    {
+      "cleanupPercent" : 0.3125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 16.886311458307318
+    },
+    {
+      "cleanupPercent" : 0.15625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 9.8502198749920353
+    },
+    {
+      "cleanupPercent" : 0.15625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 19.504434666712768
+    },
+    {
+      "cleanupPercent" : 0.15625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 18.124936916632578
+    },
+    {
+      "cleanupPercent" : 0.3125,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 4.5925100417807698
+    },
+    {
+      "cleanupPercent" : 0.15625,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid",
+      "seconds" : 5.2246119166957214
+    }
+  ],
+  "notes" : "Intervals are controller\/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Concurrent play records controller updates in every presentation. Legacy Classic\/2D record animation updates; legacy 3D records MTKView draw intervals. The configuration identifies each counter. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging\/full cannot measure drain; short unplugged samples are coarse and do not establish battery life.",
+  "os" : "Version 27.0 (Build 24A435)",
+  "pace" : "quick",
+  "presentation" : "fluid",
+  "reason" : "completed",
+  "schema" : 2,
+  "start" : {
+    "batteryLevel" : 1,
+    "batteryState" : "charging",
+    "deviceModel" : "iPad",
+    "elapsedSeconds" : 1.9166618585586548e-06,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "updateOrEncodeWallMs" : {
+    "maximum" : 128.37666657287627,
+    "median" : 16.948624979704618,
+    "p95" : 102.92883333750069,
+    "samples" : 294
+  }
+}

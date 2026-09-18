@@ -1,6 +1,15 @@
 # Vials Fluid Lab — handoff to the next chat
 
-## September 18 stream endpoint and completed-vial headspace follow-up — latest status
+## September 18 physical acceptance and compact-lane optimization — latest status
+
+- The current signed Release build is installed on the physical 13-inch M4 iPad Pro. Direct device captures verify completed G retains visible headspace beneath its cap, the redundant in-glass valve glyph is absent, A's three retained units travel inside the raised glass during A→C return, and the Classic stream reaches the receiver's accumulating surface. See `Reports/Prototype28/README.md`.
+- Concurrent 3D receiver engines now simulate only particles belonging to their participating source/destination vessels. The complete visible board remains at 640 particles per unit; visual density, timing, volume and canonical final states are unchanged.
+- The exact Level 16 B+C→G lane is asserted at 3,200 particles (five participating units) instead of 22,400. The complete concurrency suite still passes the 21-frame settle, 34-frame stable return, 0.20-unit headspace and partial-source containment checks.
+- A matched 30-second Sixfold / Quick / 3D physical-iPad trial committed six pours before and after. Median Metal GPU time fell 43.09→13.42 ms, median controller/GPU-wait time 16.95→12.84 ms, and intervals over 25 ms 144→82. The optimized run's busiest active lanes totaled 12,160 particles while the visible board remained 22,400 particles. Both runs remained thermally nominal.
+- The full expanded-level validation passes all 16 model solutions, all 175 3D routes, all 175 2D routes, all 18 overlap fixtures and the complete Classic/2D/3D concurrency matrix. Signed iOS Release succeeds. Remaining high-percentile spikes (78.02 ms p95 GPU in the short matched trial) make full-board surface reconstruction/worst-case multi-lane frames the next measured performance target.
+- Current branch is `codex/fluid-lab`; inspect Git status and the latest log for the exact commit/push state.
+
+## September 18 stream endpoint and completed-vial headspace follow-up — superseded by the physical acceptance above
 
 - The tester's 15-second physical-iPad recording was inspected frame by frame around 11–13 seconds. G's particles were already stable while B/C returned; the apparent final fill was the opaque matching cap visually bridging the small air gap, compounded by measuring particle centers rather than the top of their rendered billboards.
 - The 3D particle fill calibration now reserves one rendered particle radius below the shared fill line, so the visible particle surface—not merely its centers—lands at the same naturally headspaced level as Classic/2D. Completion caps remain fully outside the vessel cavity and use a neutral dark underside/gasket, preserving an obvious air gap even when cap and fluid colors match.
