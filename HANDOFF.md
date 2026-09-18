@@ -5,6 +5,8 @@
 - The 3D board camera now uses the same normalized board scale as Classic/2D and lens-shifts the common floor to their 82% baseline. Resting vial height differs by at most 15.1% across 4–10-vial boards and six portrait/landscape aspect ratios.
 - The large 3D board floor ellipse is gone; localized contact shadows remain. The standalone two-vessel pour study keeps its smaller orientation ellipse.
 - The original collision-safe lift/pour/return geometry is unchanged. All 16 solutions and the full Five Streams, Tall Order, Sixfold and Valve Circuit 3D/2D routes pass. The 18-case cross-mode overlap suite reports zero penetration or clipping.
+- The per-vial information cards now stay in a single ordered row. Physical M4 iPad checks confirm all 8 cards at normal scale and all 10 denser cards remain readable in landscape and portrait, including counts, capacities, rules and unit colors.
+- A signed Release build was installed on the physical M4 iPad Pro. Matching Level 16 Classic/2D/3D captures confirm the new scale, and the B+C→G concurrent replay verifies active framing, continuous final fill and the completion cap. The iPad was returned to landscape-left.
 - See `Reports/Prototype27/README.md`. Current branch is `codex/fluid-lab`; inspect the latest log and status for the exact commit/push state.
 
 ## September 17 device verification and profiling — supersedes stale status below

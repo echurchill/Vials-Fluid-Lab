@@ -4,14 +4,29 @@ The 3D board camera now derives its framing from the same normalized scale used 
 
 The large 3D board floor ellipse has been removed. Local contact shadows remain, so vessels still feel grounded without an extra enclosing line. The smaller orientation ellipse in the standalone two-vessel pour study is intentionally retained.
 
+The per-vial information cards now remain in one ordered row instead of wrapping after six entries. Eight-vial boards retain the original type scale; the cards use tighter spacing and slightly smaller type only when the available width requires it. The largest ten-vial board remains fully readable in both iPad orientations, keeping each card directly beneath its corresponding vessel and returning the second-row height to the playfield.
+
 ![Classic scale reference](classic-scale-reference.png)
 
 ![3D Fluid scale reference without the floor ellipse](fluid-scale-reference.png)
+
+## Physical iPad verification
+
+The signed Release build was installed on the 13-inch M4 iPad Pro. Matching initial Level 16 captures in Classic, 2D and 3D confirm that the three presentations now occupy essentially the same visual envelope. The 3D floor ellipse is absent in landscape and portrait, while local contact shadows remain.
+
+The exact concurrent Level 16 B+C→G replay kept both lifted sources in frame, completed both moves, continuously filled G and showed its pink completion cap. The installed build was then checked on the ten-vial Sixfold board in both orientations. All ten letter/count/capacity cards and their unit-color bars fit in a single row.
+
+![Ten-vial single row on the physical iPad in landscape](ipad-ten-vial-single-row-landscape.png)
+
+![Ten-vial single row on the physical iPad in portrait](ipad-ten-vial-single-row-portrait.png)
+
+![Completed shared receiver on the physical iPad](ipad-level16-final.png)
 
 ## Verification
 
 - `Scripts/validate_scale_parity.sh` passes for 4, 6, 8 and 10 vials at six portrait/landscape aspect ratios. The maximum normalized height difference from the planar reference is 15.1%, and the common-floor baseline differs by less than 0.7% of view height.
 - `Scripts/validate_complexity.sh` passes all 16 model solutions and every 3D/2D move in Five Streams, Tall Order, Sixfold and Valve Circuit with the original collision-safe motion geometry.
 - `Scripts/validate_overlap.sh` passes all 18 Classic, 2D and 3D cap-crossing, near-full, crossing, shared-receiver and return-crossing cases with zero vessel penetration, clipping or spatial clipping.
+- macOS Debug and signed iOS Release builds pass after the single-row layout change.
 
 The camera regression measures resting board scale. The renderer continues to reserve enough motion space for the existing authored pours rather than compressing or rerouting them solely to keep every lifted tall vial inside an unusually wide diagnostic crop.

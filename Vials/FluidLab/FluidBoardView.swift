@@ -17,6 +17,11 @@ struct FluidBoardView:View {
     var body:some View {
         GeometryReader { geometry in
             let compact=geometry.size.width<680
+            let vialCount=session.state.stacks.count
+            let debugInset:CGFloat=compact ? 40:64
+            let debugGap:CGFloat=vialCount>8 ? 5:8
+            let debugCardWidth=(geometry.size.width-debugInset-debugGap*CGFloat(max(0,vialCount-1)))/CGFloat(max(1,vialCount))
+            let denseDebug=debugCardWidth<82
             VStack(spacing:0) {
                 HStack {
                     VStack(alignment:.leading,spacing:4) {
@@ -101,21 +106,23 @@ struct FluidBoardView:View {
                     }
                 }.frame(minHeight:220)
                 VStack(spacing:14) {
-                    LazyVGrid(columns:Array(repeating:GridItem(.flexible(),spacing:8),count:compact && session.state.stacks.count>4 ? 3:min(6,session.state.stacks.count)),spacing:8) {
+                    HStack(spacing:debugGap) {
                         ForEach(session.state.stacks.indices,id:\.self) { index in
                             Button { session.select(index) } label: {
-                                VStack(spacing:5) {
-                                    HStack(spacing:5) {
-                                        Text(FluidBoardSession.letter(index)).font(.system(size:13,weight:.semibold,design:.monospaced))
-                                        Text(session.vialComplete(index) ? "✓":"\(session.state.stacks[index].count) / \(session.state.capacity(index))").font(.system(size:11,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
-                                        if session.state.rules[index] == .receiveOnly { Image(systemName:"arrow.down").font(.system(size:9,weight:.bold)).foregroundStyle(Color.cyan) }
+                                VStack(spacing:denseDebug ? 3:5) {
+                                    HStack(spacing:denseDebug ? 2:5) {
+                                        Text(FluidBoardSession.letter(index)).font(.system(size:denseDebug ? 10:13,weight:.semibold,design:.monospaced))
+                                        Text(session.vialComplete(index) ? "✓":"\(session.state.stacks[index].count) / \(session.state.capacity(index))")
+                                            .font(.system(size:denseDebug ? 9:11,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
+                                        if session.state.rules[index] == .receiveOnly { Image(systemName:"arrow.down").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(Color.cyan) }
                                     }
-                                    HStack(spacing:3) {
+                                    .lineLimit(1).minimumScaleFactor(0.72)
+                                    HStack(spacing:denseDebug ? 1.5:3) {
                                         ForEach(0..<session.state.capacity(index),id:\.self) { layer in
                                             Capsule().fill(layer<session.state.stacks[index].count ? FluidBoardSession.color(session.state.colors[session.state.stacks[index][layer]]):ink.opacity(0.09)).frame(height:4)
                                         }
                                     }
-                                }.frame(maxWidth:.infinity).padding(.vertical,12).padding(.horizontal,9)
+                                }.frame(maxWidth:.infinity).padding(.vertical,denseDebug ? 8:12).padding(.horizontal,denseDebug ? 3:9)
                                     .background(cueLabel(index).isEmpty ? ink.opacity(0.04):cueColor(index).opacity(0.13),in:RoundedRectangle(cornerRadius:10))
                                     .overlay(RoundedRectangle(cornerRadius:10).stroke(cueColor(index).opacity(0.65),lineWidth:1))
                                     .scaleEffect(!reduceMotion && session.selected==index ? 1.025:1)
