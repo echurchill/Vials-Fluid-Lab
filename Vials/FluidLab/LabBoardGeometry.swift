@@ -49,7 +49,7 @@ struct LabBoardLayout {
                 radialScale:sqrt(reference/raw.usableVolume*volumeScale))
         }
     }
-    static func vessels(profiles:[LabVesselProfile],capacities:[Int]?=nil,rules:[LabVialRule]?=nil,move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?,approach:Float=0,depthSide:Float=0) -> [LabVesselUniform] {
+    static func vessels(profiles:[LabVesselProfile],capacities:[Int]?=nil,move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?,approach:Float=0,depthSide:Float=0) -> [LabVesselUniform] {
         let homes=homes(count:profiles.count)
         var positions=homes,rotations=[simd_float4x4](repeating:matrix_identity_float4x4,count:profiles.count)
         if let move {
@@ -99,11 +99,10 @@ struct LabBoardLayout {
         return profiles.enumerated().map { i,p in
             let world=labTranslation(positions[i])*rotations[i]
             let role:Float=move?.source == i ? (tilt>0.95 ? 1:3):(move?.destination == i ? 2:0)
-            let valve=rules?[i] == .receiveOnly
             return LabVesselUniform(world:world,inverseWorld:world.inverse,previousWorld:world,
                 dimensions:SIMD4(p.height,Float(i),0.035,role),marks:SIMD4(
                     p.height(for:p.usableVolume*0.25),p.height(for:p.usableVolume*0.5),
-                    p.height(for:p.usableVolume*0.75),valve ? -1:p.height(for:p.usableVolume)))
+                    p.height(for:p.usableVolume*0.75),p.height(for:p.usableVolume)))
         }
     }
     static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {

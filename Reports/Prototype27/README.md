@@ -4,6 +4,8 @@ The 3D board camera now derives its framing from the same normalized scale used 
 
 The large 3D board floor ellipse has been removed. Local contact shadows remain, so vessels still feel grounded without an extra enclosing line. The smaller orientation ellipse in the standalone two-vessel pour study is intentionally retained.
 
+Receive-only vessels no longer repeat their rule as a cyan line-and-stem glyph inside the 3D glass. The explicit `↓ FILL` badge above the vessel remains the primary cue, with the compact down arrow in the information card retained for row scanning.
+
 The per-vial information cards now remain in one ordered row instead of wrapping after six entries. Eight-vial boards retain the original type scale; the cards use tighter spacing and slightly smaller type only when the available width requires it. The largest ten-vial board remains fully readable in both iPad orientations, keeping each card directly beneath its corresponding vessel and returning the second-row height to the playfield.
 
 ![Classic scale reference](classic-scale-reference.png)

@@ -79,7 +79,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var compositeVessels:[LabVesselUniform]?
     var currentVessels:[LabVesselUniform] {
         if let compositeVessels { return compositeVessels }
-        return LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,rules:game.state.rules,move:game.pending,time:pourTime ?? 0,tilt:tilt,
+        return LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,move:game.pending,time:pourTime ?? 0,tilt:tilt,
             cutoffTilt:cutoffTime == nil ? nil:cutoffTilt,cutoffElapsed:(pourTime ?? 0)-(cutoffTime ?? 0),
             returnElapsed:returnStart.map { (pourTime ?? 0)-$0 })
     }
@@ -701,10 +701,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
     }
     private func groupVessels()->[LabVesselUniform] {
-        var result=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,rules:game.state.rules,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+        var result=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
         for job in groupTransfers {
             let move=job.item.move
-            let poses=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,rules:game.state.rules,move:move,time:job.time,tilt:job.tilt,cutoffTilt:job.cutoff==nil ? nil:job.cutoffTilt,cutoffElapsed:job.time-(job.cutoff ?? 0),returnElapsed:job.returned.map {job.time-$0},approach:job.item.approach,depthSide:job.item.depthSide)
+            let poses=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,move:move,time:job.time,tilt:job.tilt,cutoffTilt:job.cutoff==nil ? nil:job.cutoffTilt,cutoffElapsed:job.time-(job.cutoff ?? 0),returnElapsed:job.returned.map {job.time-$0},approach:job.item.approach,depthSide:job.item.depthSide)
             result[move.source]=poses[move.source];result[move.destination]=poses[move.destination]
         }
         return result

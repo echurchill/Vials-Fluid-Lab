@@ -442,12 +442,6 @@ fragment float4 labGlassFragment(GlassOut in [[stage_in]], constant Uniforms &u 
     // Volume graduations are restrained short strokes on the front of the glass.
     float front=smoothstep(0.10f,0.3f,in.local.z)*(1-smoothstep(0.06f,0.24f,abs(in.local.x)));
     color=mix(color,float3(0.59,0.79,0.82),line*front*0.48);
-    if(v.marks.w<0) {
-        float valveY=v.dimensions.x*0.76f;
-        float collar=1-smoothstep(0.006f,0.022f,abs(in.local.y-valveY));
-        float down=(1-smoothstep(0.010f,0.030f,abs(in.local.x)))*(1-smoothstep(0.0f,0.09f,abs(in.local.y-(valveY-0.07f))));
-        color=mix(color,float3(0.12f,0.88f,0.92f),front*max(collar,down)*0.88f);
-    }
     float rim=1-smoothstep(0.012f,0.035f,abs(in.local.y-v.dimensions.x));
     color+=rim*float3(0.15,0.22,0.25);
     float foot=1-smoothstep(0.005f,0.055f,abs(in.local.y));
@@ -476,12 +470,6 @@ fragment float4 labBoardGlassFragment(GlassOut in [[stage_in]], constant Uniform
     // Volume graduations are restrained short strokes on the front of the glass.
     float front=smoothstep(0.10f,0.3f,in.local.z)*(1-smoothstep(0.06f,0.24f,abs(in.local.x)));
     color=mix(color,float3(0.59,0.79,0.82),line*front*0.48);
-    if(v.marks.w<0) {
-        float valveY=v.dimensions.x*0.76f;
-        float collar=1-smoothstep(0.006f,0.022f,abs(in.local.y-valveY));
-        float down=(1-smoothstep(0.010f,0.030f,abs(in.local.x)))*(1-smoothstep(0.0f,0.09f,abs(in.local.y-(valveY-0.07f))));
-        color=mix(color,float3(0.12f,0.88f,0.92f),front*max(collar,down)*0.88f);
-    }
     // A broad, neutral edge remains legible without a selection-colored glow.
     // Screen derivatives keep the rim from collapsing into a subpixel hairline.
     float facing=abs(dot(n,eye));

@@ -699,7 +699,7 @@ extension FluidBoardSession {
                 engine.installSimulation(game:game,samples:compositeSamples,vessels:item.vessels)
                 metalGroups[item.move.destination]=engine
             }
-            var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,capacities:game.state.capacities,rules:game.state.rules,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+            var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,capacities:game.state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
             var aggregate=LabBoardMetrics();aggregate.gpuMilliseconds=renderer.lastGPUWorkMilliseconds
             var completed:[LabLaneResult]=[],empty:[Int]=[]
             for receiver in metalGroups.keys.sorted() {
