@@ -134,6 +134,14 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private let inFlight = DispatchSemaphore(value: 3)
     private let spacing: Float = 0.079
     private let timeStep: Float = 1.0 / 120
+    var renderedParticleRadius:Float { spacing*(pointMode ? 0.30:1.16) }
+
+    /// Particle billboards reconstruct a surface around their centers. Pack
+    /// centers one rendered radius below the common fill line so the visible
+    /// 3D surface retains the same physical headspace as Classic and 2D.
+    private func particleFillVolume(_ profile:LabVesselProfile)->Float {
+        profile.volume(at:max(0.08,profile.height*LabVesselProfile.usableHeightFraction-spacing*1.16))
+    }
 
     init(device: MTLDevice, library: MTLLibrary? = nil) throws {
         self.device = device
@@ -213,7 +221,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         let values=seed(state:state)
         particleCount=values.count
-        particleVolume=(profiles.first?.usableVolume ?? 1)/Float(max(1,state.capacities.first ?? 4))/Float(Self.particlesPerUnit)
+        particleVolume=profiles.first.map(particleFillVolume) ?? 1
+        particleVolume/=Float(max(1,state.capacities.first ?? 4))*Float(Self.particlesPerUnit)
         particles=makeBuffer(values)
         next=device.makeBuffer(length:particleCount*4,options:.storageModePrivate)
         lambdas=device.makeBuffer(length:particleCount*4,options:.storageModePrivate)
@@ -238,7 +247,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private func seed(state:LabBoardState) -> [LabParticle] {
         if seedPositions.count != profiles.count {
             seedPositions=profiles.enumerated().map { owner,profile in
-                let capacity=game.state.capacities[owner],unit=profile.usableVolume/Float(capacity)
+                let capacity=game.state.capacities[owner],unit=particleFillVolume(profile)/Float(capacity)
                 return (0..<(capacity*Self.particlesPerUnit)).map { slot in
                     let layer=slot/Self.particlesPerUnit,i=slot%Self.particlesPerUnit
                     let v=(Float(layer)+(Float(i)+0.5)/Float(Self.particlesPerUnit))*unit
@@ -420,7 +429,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         for (owner,stack) in state.stacks.enumerated() {
             let profile=profiles[owner]
             var levels:[Float]=[-100]
-            for layer in 1...max(1,stack.count) { levels.append(profile.height(for:profile.usableVolume*Float(layer)/Float(state.capacities[owner]))) }
+            let fillVolume=particleFillVolume(profile)
+            for layer in 1...max(1,stack.count) { levels.append(profile.height(for:fillVolume*Float(layer)/Float(state.capacities[owner]))) }
             for (layer,id) in stack.enumerated() {
                 let isMoving=selected.contains(id) && cleanupStart == nil
                 var first=layer,last=layer+1
@@ -435,7 +445,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         if let move,cleanupStart == nil {
             let profile=profiles[move.destination]
-            let lower=game.state.stacks[move.destination].isEmpty ? -100:profile.height(for:profile.usableVolume*Float(game.state.stacks[move.destination].count)/Float(game.state.capacities[move.destination]))
+            let lower=game.state.stacks[move.destination].isEmpty ? -100:profile.height(for:particleFillVolume(profile)*Float(game.state.stacks[move.destination].count)/Float(game.state.capacities[move.destination]))
             for id in selected { result[move.destination*count+id]=LabBoardBand(range:SIMD4(lower,100,1,1)) }
         }
         return result
@@ -707,7 +717,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let selected=Set(outgoing?.parcels ?? [])
             let stack=original+groupMoves.filter {$0.destination==owner}.flatMap(\.parcels)
             let profile=profiles[owner]
-            func level(_ unit:Int)->Float { unit==0 ? -100:profile.height(for:profile.usableVolume*Float(unit)/Float(game.state.capacities[owner])) }
+            let fillVolume=particleFillVolume(profile)
+            func level(_ unit:Int)->Float { unit==0 ? -100:profile.height(for:fillVolume*Float(unit)/Float(game.state.capacities[owner])) }
             for (layer,id) in stack.enumerated() {
                 var first=layer,last=layer+1
                 while first>0,state.colors[stack[first-1]]==state.colors[id],!selected.contains(stack[first-1]) {first-=1}

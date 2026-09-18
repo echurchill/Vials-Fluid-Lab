@@ -1,5 +1,15 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 18 stream endpoint and completed-vial headspace follow-up — latest status
+
+- The tester's 15-second physical-iPad recording was inspected frame by frame around 11–13 seconds. G's particles were already stable while B/C returned; the apparent final fill was the opaque matching cap visually bridging the small air gap, compounded by measuring particle centers rather than the top of their rendered billboards.
+- The 3D particle fill calibration now reserves one rendered particle radius below the shared fill line, so the visible particle surface—not merely its centers—lands at the same naturally headspaced level as Classic/2D. Completion caps remain fully outside the vessel cavity and use a neutral dark underside/gasket, preserving an obvious air gap even when cap and fluid colors match.
+- Classic pour streams now extend inside the receiver to its live accumulated fluid surface. The endpoint includes every concurrent incoming and outgoing pour's progress and is clamped to the receiver capacity.
+- The exact Level 16 B+C→G regression still records 21 held-source settle frames and 34 position-stable receiver frames during source return; visible headspace is 0.200955 scene units. It also asserts that 3D cap geometry stays outside every 3–6-unit vessel cavity.
+- Final macOS verification passes the full concurrency suite, all 18 overlap fixtures, all 16 model solutions, and the complete Five Streams, Tall Order, Sixfold and Valve Circuit 3D/2D routes. A current unsigned generic-iOS Debug build (including the Metal shader) also succeeds. A completed Level 16 visual fixture shows the corrected dark air gap, and a Classic shared-receiver capture shows streams reaching the accumulating surface.
+- The iPad stopped appearing in CoreDevice, `xcdevice`, and USB inventory before this latest build could be installed. Earlier Prototype27 device evidence remains valid for framing/layout/concurrency; the final cap/surface calibration still needs a physical-device spot check when it reconnects.
+- See `Reports/Prototype27/README.md`. Current branch is `codex/fluid-lab`; inspect the latest log and status for the exact commit/push state.
+
 ## September 17 matched 3D framing — supersedes stale visual status below
 
 - The 3D board camera now uses the same normalized board scale as Classic/2D and lens-shifts the common floor to their 82% baseline. Resting vial height differs by at most 15.1% across 4–10-vial boards and six portrait/landscape aspect ratios.

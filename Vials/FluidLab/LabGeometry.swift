@@ -262,7 +262,10 @@ func labGlassMesh(_ profile: LabVesselProfile, rings:Int = 96, segments:Int = 96
 /// Opaque completion stopper. It shares the vial transform and depth buffer so
 /// foreground moving glass can correctly pass in front of a completed vial.
 func labCapMesh(_ profile:LabVesselProfile,segments:Int=64) -> [LabVertex] {
-    let bottom=profile.height-0.015,top=profile.height+0.18,radius=profile.radii.last!+0.065
+    // Keep the opaque stopper outside the cavity. A lower face just inside the
+    // rim projected over the 3D headspace and made an unchanged liquid surface
+    // look as though it jumped upward when the completion cap appeared.
+    let bottom=profile.height+0.015,top=profile.height+0.20,radius=profile.radii.last!+0.065
     var vertices:[LabVertex]=[]
     for segment in 0..<segments {
         let a=Float(segment)/Float(segments)*2*Float.pi,b=Float(segment+1)/Float(segments)*2*Float.pi

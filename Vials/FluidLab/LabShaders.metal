@@ -495,6 +495,7 @@ fragment float4 labBoardGlassFragment(GlassOut in [[stage_in]], constant Uniform
 }
 fragment float4 labBoardCapFragment(GlassOut in [[stage_in]], constant Uniforms &u [[buffer(1)]],
                                     constant float4 &capColor [[buffer(3)]]) {
+    bool underside=in.normal.y < -0.75f;
     float3 n=normalize(in.normal),eye=normalize(u.camera.xyz-in.world);
     if(dot(n,eye)<0) n=-n;
     float diffuse=0.52+0.48*max(dot(n,normalize(float3(-0.55,0.85,0.75))),0.0f);
@@ -504,6 +505,9 @@ fragment float4 labBoardCapFragment(GlassOut in [[stage_in]], constant Uniforms 
     float3 color=capColor.rgb*diffuse*(1-side*grooves*0.12f);
     color+=studio(reflect(-eye,n))*(0.08f+fresnel*0.20f);
     color+=float3(0.30,0.38,0.42)*pow(max(dot(reflect(-normalize(float3(-0.6,1,1)),n),eye),0.0f),70.0f);
+    // A neutral gasket keeps the air pocket visually distinct from a cap that
+    // happens to match the fluid color beneath it.
+    if(underside) color=mix(float3(0.018,0.028,0.034),capColor.rgb,0.12f);
     return float4(color,1);
 }
 fragment float4 labCopy(QuadOut in [[stage_in]], texture2d<float> scene [[texture(0)]]) {

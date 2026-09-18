@@ -26,6 +26,11 @@ import AppKit
   print("PASS: exact reservation, reverse completion and failed earlier reservation")
   let device=MTLCreateSystemDefaultDevice()!
   let library=try device.makeLibrary(URL:URL(fileURLWithPath:CommandLine.arguments[1]))
+  for profile in LabBoardLayout.profiles(capacities:[3,4,5,6]) {
+   let cap=labCapMesh(profile)
+   require((cap.map(\.position.y).min() ?? -1)>profile.height,"3D completion cap intrudes into liquid headspace")
+  }
+  print("PASS: 3D completion caps remain outside the vial cavity")
   let guidedSave=LabComparisonSave(presentation:.fluid2D,pace:.quick,puzzle:.valveCircuit,games:[:])
   let guided=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:guidedSave)
   let guidedRoute=guided.state.solution()!
@@ -105,10 +110,10 @@ import AppKit
   require(postSettleFrames>=12 && maxReturnTravel>0.5,"Level 16 sources did not visibly return after settling")
   require(maxPostSettleStep<0.001,"Level 16 receiver changed while sources returned: \(maxPostSettleStep)")
   let finalSamples=valve.renderer!.particleSamples().filter {finalG.contains(Int($0.visual.y))}
-  let surface=(finalSamples.map(\.position.y).max() ?? 0)-LabBoardLayout.homes(count:8)[6].y
-  let headspace=valve.renderer!.profiles[6].height-surface
+  let centerSurface=(finalSamples.map(\.position.y).max() ?? 0)-LabBoardLayout.homes(count:8)[6].y
+  let headspace=valve.renderer!.profiles[6].height-centerSurface-valve.renderer!.renderedParticleRadius
   require(headspace>0.12,"Level 16 completed receiver has no visible headspace: \(headspace)")
-  print("PASS: Level 16 B+C→G settles for \(visibleSettleFrames) held-source frames, returns for \(postSettleFrames) stable-receiver frames, headspace \(headspace)")
+  print("PASS: Level 16 B+C→G settles for \(visibleSettleFrames) held-source frames, returns for \(postSettleFrames) stable-receiver frames, visible headspace \(headspace)")
   func make(_ state:LabBoardState,_ mode:LabBoardPresentation)->FluidBoardSession {
    let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort,games:["firstSort":LabBoardGame(state:state)])
    return FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save,allowsConcurrentPours:true)

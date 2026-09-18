@@ -35,7 +35,12 @@ struct LabClassicBoardView:View {
                     let h=CGFloat(profiles[pour.move.source].height)*scale
                     let mouth=CGPoint(x:pose.base.x+sin(pose.angle)*h,y:pose.base.y-cos(pose.angle)*h)
                     let receiver=layout.base(pour.move.destination)
-                    let target=CGPoint(x:receiver.x,y:receiver.y-CGFloat(profiles[pour.move.destination].height)*scale+6)
+                    let destination=pour.move.destination,profile=profiles[destination]
+                    let surface=profile.height(for:profile.usableVolume*displayedUnits(in:destination)/Float(state.capacity(destination)))
+                    // Follow the growing liquid body into the cavity. Stopping
+                    // at the rim made the stream look as though it vanished at
+                    // the mouth instead of joining the accumulating fluid.
+                    let target=CGPoint(x:receiver.x,y:receiver.y-CGFloat(surface)*scale-1)
                     var stream=Path();stream.move(to:mouth)
                     stream.addCurve(to:target,control1:CGPoint(x:mouth.x,y:mouth.y+20),control2:CGPoint(x:target.x,y:target.y-24))
                     let envelope=min(1,min(CGFloat(pour.progress)*12,CGFloat(1-pour.progress)*12))
@@ -47,6 +52,14 @@ struct LabClassicBoardView:View {
                 drawVial(pour.move.source,context:context,layout:layout)
             }
         }.accessibilityHidden(true)
+    }
+    private func displayedUnits(in index:Int)->Float {
+        var units=Float(state.stacks[index].count)
+        for pour in pours {
+            if pour.move.source == index { units-=Float(pour.move.amount)*pour.progress }
+            if pour.move.destination == index { units+=Float(pour.move.amount)*pour.progress }
+        }
+        return min(Float(state.capacity(index)),max(0,units))
     }
     private func shape(_ profile:LabVesselProfile,scale:CGFloat) -> Path {
         Path { path in

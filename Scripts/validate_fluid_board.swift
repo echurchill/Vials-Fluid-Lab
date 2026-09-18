@@ -30,6 +30,12 @@ import AppKit
                 layers:[[1,1,1],[2],[4,3,4],[1,0,2,2,2],[2,1,3,3],[4,0,4],[3,3,3],[0,0]],
                 capacities:[4,3,4,5,5,3,5,4]))
         }
+        if fixture == "level16-complete" {
+            var state=LabBoardPuzzle.valveCircuit.initial
+            state=state.applying(state.move(from:1,to:6)!)!
+            state=state.applying(state.move(from:2,to:6)!)!
+            renderer.reset(state:state)
+        }
         renderer.funnelEnabled = !args.contains("--no-funnel")
         renderer.playbackSpeed=Float(option("--speed","1"))!
         let initial=renderer.game.state
@@ -41,6 +47,7 @@ import AppKit
         print("Fixture \(fixture), particles \(renderer.particleCount), solution \(solution.count) moves")
         renderer.encodeFrame(target:texture,deltaTime:0).waitUntilCompleted()
         try save(texture,to:output.appendingPathComponent("ready.png"))
+        if args.contains("--ready-only") { return }
         var observedCommits=0
         renderer.onUpdate={ _,_,_ in if renderer.game.pending == nil { observedCommits=renderer.game.moveCount } }
         var snapshots:[[LabParticle]]=[],states:[LabBoardState]=[]
