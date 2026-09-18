@@ -394,10 +394,22 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     /// Build an exact target for only the participating vessels. The current
     /// and target buffers are blended during Final settling, so detached
     /// particles rejoin the bulk fluid without a one-frame volume jump.
-    private func prepareSettle(owners:Set<Int>,state:LabBoardState) {
+    private func prepareSettle(owners:Set<Int>,state:LabBoardState,vessels:[LabVesselUniform]?=nil) {
         guard !owners.isEmpty else {return}
         let parcels=Set(owners.flatMap {state.stacks[$0]})
-        let canonical=Dictionary(grouping:seed(state:state)) {Int($0.visual.y)}
+        var canonicalSamples=seed(state:state)
+        if let vessels {
+            let homeVessels=LabBoardLayout.vessels(profiles:profiles,capacities:state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+            let transforms=Dictionary(uniqueKeysWithValues:owners.map {($0,vessels[$0].world*homeVessels[$0].inverseWorld)})
+            for i in canonicalSamples.indices {
+                let owner=Int(canonicalSamples[i].position.w)
+                guard let transform=transforms[owner] else {continue}
+                let position=transform*SIMD4(canonicalSamples[i].position.xyz,1)
+                canonicalSamples[i].position=SIMD4(position.xyz,canonicalSamples[i].position.w)
+                canonicalSamples[i].predicted=canonicalSamples[i].position
+            }
+        }
+        let canonical=Dictionary(grouping:canonicalSamples) {Int($0.visual.y)}
         let current=particleSamples();var targets=current,offsets:[Int:Int]=[:]
         for i in current.indices {
             let parcel=Int(current[i].visual.y)
@@ -655,7 +667,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         if groupTransfers.allSatisfy(\.visualSettled) {
             accumulator=min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
             while accumulator>=timeStep {
+                let previous=groupVessels()
                 simulationTime+=timeStep;advanceGroupMotion()
+                let current=groupVessels()
+                carryRetainedSourceParticles(from:previous,to:current)
                 accumulator-=timeStep
             }
             compositeVessels=groupVessels()
@@ -804,8 +819,31 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 projected=next
             }
             let owners=Set(groupTransfers.flatMap {[$0.item.move.source,$0.item.move.destination]})
-            prepareSettle(owners:owners,state:projected)
+            // The source glass is still raised. Canonicalize its retained
+            // liquid in that live pose, then carry it rigidly with the glass
+            // during return instead of sending it to the home coordinates
+            // before the vessel gets there.
+            prepareSettle(owners:owners,state:projected,vessels:groupVessels())
             groupSettleStart=simulationTime
+        }
+    }
+
+    private func carryRetainedSourceParticles(from previous:[LabVesselUniform],to current:[LabVesselUniform]) {
+        var transforms:[Int:simd_float4x4]=[:]
+        for job in groupTransfers {
+            let move=job.item.move,source=move.source
+            let transferred=Set(move.parcels)
+            let delta=current[source].world*previous[source].inverseWorld
+            for parcel in game.state.stacks[source] where !transferred.contains(parcel) {transforms[parcel]=delta}
+        }
+        guard !transforms.isEmpty else {return}
+        let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+        for i in 0..<particleCount {
+            guard let transform=transforms[Int(p[i].visual.y)] else {continue}
+            let position=transform*SIMD4(p[i].position.xyz,1)
+            p[i].position=SIMD4(position.xyz,p[i].position.w)
+            p[i].predicted=p[i].position
+            p[i].velocity=SIMD4(0,0,0,p[i].velocity.w)
         }
     }
     func displayComposite(game:LabBoardGame,samples:[LabParticle],vessels:[LabVesselUniform]) {

@@ -114,6 +114,49 @@ import AppKit
   let headspace=valve.renderer!.profiles[6].height-centerSurface-valve.renderer!.renderedParticleRadius
   require(headspace>0.12,"Level 16 completed receiver has no visible headspace: \(headspace)")
   print("PASS: Level 16 B+C→G settles for \(visibleSettleFrames) held-source frames, returns for \(postSettleFrames) stable-receiver frames, visible headspace \(headspace)")
+  // Exact recording follow-up: A pours its two Tide units into C but retains
+  // three lower units. Those retained particles must remain inside the raised
+  // source and travel home with it; they must not wait at A's home position for
+  // the descending glass to reveal them.
+  var partialSourceState=LabBoardPuzzle.valveCircuit.initial
+  partialSourceState=partialSourceState.applying(partialSourceState.move(from:1,to:6)!)!
+  partialSourceState=partialSourceState.applying(partialSourceState.move(from:2,to:6)!)!
+  let partialSourceSave=LabComparisonSave(presentation:.fluid,pace:.quick,puzzle:.valveCircuit,
+   games:[LabBoardPuzzle.valveCircuit.rawValue:LabBoardGame(state:partialSourceState)])
+  let partialSource=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:partialSourceSave,allowsConcurrentPours:true)
+  let aToC=partialSource.availableMove(from:0,to:2)!
+  let retainedA=Set(partialSource.state.stacks[0]).subtracting(aToC.parcels)
+  let finalC=Set(partialSource.state.stacks[2]+aToC.parcels)
+  require(partialSource.begin(aToC,automaticClock:false),"Level 16 A→C did not begin")
+  var sawPartialSettle=false,partialReturnFrames=0,maxRetainedLocalDrift:Float=0,maxPartialReceiverStep:Float=0,minRetainedInside=1.0
+  var retainedBaseline:[SIMD3<Float>]?=nil,receiverBaseline:[SIMD3<Float>]?=nil,heldSource:SIMD3<Float>?=nil,maxPartialReturnTravel:Float=0
+  for _ in 0..<1800 where partialSource.busy {
+   await partialSource.advanceConcurrent(deltaTime:1/60)
+   let settling=partialSource.fluidFinalSettling
+   if settling {sawPartialSettle=true}
+   else if sawPartialSettle && partialSource.busy {
+    let vessel=partialSource.renderer!.currentVessels[0]
+    let retained=partialSource.renderer!.particleSamples().filter {retainedA.contains(Int($0.visual.y))}
+    let local=retained.map {(vessel.inverseWorld*SIMD4($0.position.xyz,1)).xyz}
+    let receiver=partialSource.renderer!.particleSamples().filter {finalC.contains(Int($0.visual.y))}.map(\.position.xyz)
+    if let baseline=retainedBaseline {maxRetainedLocalDrift=max(maxRetainedLocalDrift,zip(baseline,local).map(simd_distance).max() ?? 0)}
+    else {retainedBaseline=local;receiverBaseline=receiver;heldSource=vessel.world.columns.3.xyz}
+    if let baseline=receiverBaseline {maxPartialReceiverStep=max(maxPartialReceiverStep,zip(baseline,receiver).map(simd_distance).max() ?? 0)}
+    if let heldSource {maxPartialReturnTravel=max(maxPartialReturnTravel,simd_distance(heldSource,vessel.world.columns.3.xyz))}
+    let profile=partialSource.renderer!.profiles[0]
+    let inside=local.filter {p in
+     let y=min(profile.height,max(0,p.y)),radius=profile.radius(at:y)+0.18
+     return p.y > -0.12 && p.y < profile.height+0.12 && hypot(p.x,p.z)<radius
+    }.count
+    minRetainedInside=min(minRetainedInside,Double(inside)/Double(max(1,local.count)))
+    partialReturnFrames+=1
+   }
+  }
+  require(!partialSource.busy && partialSource.moveCount==1 && partialSource.state.isComplete(2),"Level 16 A→C did not complete")
+  require(partialReturnFrames>=12 && maxPartialReturnTravel>0.5,"Level 16 partial source did not visibly return")
+  require(maxRetainedLocalDrift<0.001 && minRetainedInside>0.99,"Level 16 retained A liquid detached during return: drift \(maxRetainedLocalDrift), inside \(minRetainedInside)")
+  require(maxPartialReceiverStep<0.001,"Level 16 completed C changed while A returned: \(maxPartialReceiverStep)")
+  print("PASS: Level 16 A→C retains three source units through \(partialReturnFrames) return frames while completed C stays stable")
   func make(_ state:LabBoardState,_ mode:LabBoardPresentation)->FluidBoardSession {
    let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort,games:["firstSort":LabBoardGame(state:state)])
    return FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save,allowsConcurrentPours:true)

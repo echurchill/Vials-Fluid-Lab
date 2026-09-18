@@ -24,6 +24,8 @@ The tester's later 15-second iPad recording made a second, purely visual problem
 
 The focused regression records 21 held-source settle frames, followed by 34 source-return frames in which every G particle remains position-stable. It now measures the visible particle surface and retains 0.20 scene units of headspace. The comparison below shows the prior matching-cap merge at left and the calibrated headspace at right. The following paired physical-iPad crops document the stable liquid height immediately before and after the old cap treatment and are retained as the source evidence for the follow-up.
 
+A later recording of the next Level 16 move, A→C, revealed that the receiver-first settle assumed every source had emptied. A retains three lower units in this move; those particles were canonicalized at A's home coordinates while its glass was still raised, then appeared as the glass descended over them. Canonical settling now uses each participating vessel's live pose, and retained source liquid travels rigidly with its upright glass throughout return. The exact B→G, C→G, A→C regression verifies 34 return frames with every retained particle inside A, under 0.001 scene units of source-local drift, and no movement in completed C.
+
 ![Level 16 completed-vial headspace before and after particle-radius and cap calibration](level16-headspace-calibration-before-after.png)
 
 ![Level 16 G before and after its cap, with unchanged liquid height and visible headspace](ipad-level16-headspace-before-after-cap.png)
@@ -40,6 +42,7 @@ The focused regression records 21 held-source settle frames, followed by 34 sour
 - `Scripts/validate_complexity.sh` passes all 16 model solutions and every 3D/2D move in Five Streams, Tall Order, Sixfold and Valve Circuit with the original collision-safe motion geometry.
 - `Scripts/validate_overlap.sh` passes all 18 Classic, 2D and 3D cap-crossing, near-full, crossing, shared-receiver and return-crossing cases with zero vessel penetration, clipping or spatial clipping.
 - The complete concurrency suite verifies that every 3D completion cap remains above the vessel cavity, measures the visible Level 16 headspace after accounting for particle radius, and retains all simultaneous-pour, reservation, pause, undo and reset coverage.
+- The same suite replays the recorded partial-source path and verifies that retained liquid follows the returning source rather than teleporting to its home position.
 - The Classic renderer now terminates each live stream at the receiver's accumulated fluid surface, including the combined progress of concurrent pours, rather than at the vial rim.
 - macOS Debug and signed iOS Release builds pass after the single-row layout change. The latest cap/surface calibration was rebuilt and visually captured on macOS, and its unsigned generic-iOS Debug build (including the Metal shader) succeeds; physical-device installation remains pending because the iPad was no longer discoverable by CoreDevice at the end of this follow-up.
 - The receiver-first settling change passes the complete concurrency suite and every 3D/2D move in the four expanded boards. CoreDevice screen recording remains unsupported on this iPad, so the tester-provided Photos recording, retained screenshots and focused frame regression provide the transition evidence.
