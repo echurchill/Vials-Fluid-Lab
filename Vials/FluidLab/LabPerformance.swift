@@ -43,6 +43,7 @@ struct LabTrialConfiguration {
     private var started:Double=0
     private var first:[String:Any]=[:]
     private var frames:[[Double]]=[] // interval ms, host update/encode wall ms, GPU ms (-1 for Classic)
+    private var fluidBreakdowns:[[Double]]=[] // visible-board surface ms, concurrent lane physics ms
     private var moves:[[String:Any]]=[]
     private var environments:[[String:Any]]=[]
     private var concurrentStarts:[Int:(Double,String,String)]=[:]
@@ -54,12 +55,16 @@ struct LabTrialConfiguration {
         #if canImport(UIKit)
         UIDevice.current.isBatteryMonitoringEnabled=true
         #endif
-        active=true;started=ProcessInfo.processInfo.systemUptime;frames=[];moves=[];moveStart=nil;concurrentStarts=[:]
+        active=true;started=ProcessInfo.processInfo.systemUptime;frames=[];fluidBreakdowns=[];moves=[];moveStart=nil;concurrentStarts=[:]
         first=environment();environments=[first]
     }
     func recordFrame(interval:Double,cpuMS:Double,gpuMS:Double?) {
         guard active,interval.isFinite,interval>0,frames.count<100_000 else { return }
         frames.append([interval*1000,cpuMS,gpuMS ?? -1])
+    }
+    func recordFluidBreakdown(surfaceMS:Double,laneMS:Double) {
+        guard active,surfaceMS.isFinite,laneMS.isFinite,fluidBreakdowns.count<100_000 else { return }
+        fluidBreakdowns.append([surfaceMS,laneMS])
     }
     func beginMove(presentation:LabBoardPresentation,pace:LabBoardPace) {
         guard active else { return }
@@ -106,6 +111,7 @@ struct LabTrialConfiguration {
             "schema":2,"configuration":context,"keptAwakeForTrial":ProcessInfo.processInfo.arguments.contains("--keep-awake"),"date":ISO8601DateFormatter().string(from:Date()),"presentation":mode,"pace":pace,"elapsedSeconds":elapsed,"reason":reason,
             "os":ProcessInfo.processInfo.operatingSystemVersionString,"start":first,"end":last,"environmentSamples":environments,"moves":moves,
             "animationFrameIntervalMs":summary(frames.map{$0[0]}),"updateOrEncodeWallMs":summary(frames.map{$0[1]}),"fluidGPUFrameMs":summary(frames.map{$0[2]}.filter{$0>=0}),
+            "fluidSurfaceGPUFrameMs":summary(fluidBreakdowns.map{$0[0]}),"fluidLaneGPUFrameMs":summary(fluidBreakdowns.map{$0[1]}),
             "intervalsOver25ms":frames.filter{$0[0]>25}.count,
             "notes":"Intervals are controller/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Concurrent play records controller updates in every presentation. Legacy Classic/2D record animation updates; legacy 3D records MTKView draw intervals. The configuration identifies each counter. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging/full cannot measure drain; short unplugged samples are coarse and do not establish battery life."
         ]

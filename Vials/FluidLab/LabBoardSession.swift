@@ -731,11 +731,28 @@ extension FluidBoardSession {
                 metalGroups[item.move.destination]=engine
             }
             var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,capacities:game.state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
-            var aggregate=LabBoardMetrics();aggregate.gpuMilliseconds=renderer.lastGPUWorkMilliseconds
+            var aggregate=LabBoardMetrics()
+            let surfaceGPU=renderer.lastGPUWorkMilliseconds
+            aggregate.gpuMilliseconds=surfaceGPU
             var completed:[LabLaneResult]=[],empty:[Int]=[]
+            // At 60 Hz, Quick motion needs 3.2 fixed 120 Hz steps and uses a
+            // fourth periodically for the remainder. More than four steps per
+            // independent lane is therefore hitch recovery, not normal motion.
+            // Let a lone lane catch up fully, but prevent two or more lanes
+            // from amplifying one delayed callback into another long burst.
+            let laneStepBudget=metalGroups.count>1 ? 4:12
+            let pressureIterations=metalGroups.count>1 ? 3:5
+            if measurementActive {
+                performance.context["minimumLaneStepBudget"]=min(
+                    performance.context["minimumLaneStepBudget"] as? Int ?? 12,laneStepBudget)
+                performance.context["minimumLanePressureIterations"]=min(
+                    performance.context["minimumLanePressureIterations"] as? Int ?? 5,pressureIterations)
+            }
             for receiver in metalGroups.keys.sorted() {
                 let engine=metalGroups[receiver]!
                 engine.playbackSpeed=effectiveSpeed
+                engine.maximumSimulationStepsPerAdvance=laneStepBudget
+                engine.pressureIterationsPerStep=pressureIterations
                 engine.advanceGroup(game:game,starts:starts.filter {$0.move.destination==receiver},samples:compositeSamples,deltaTime:deltaTime)
                 let samples=engine.particleSamples(),ids=engine.groupOwnedParcels
                 aggregate.gpuMilliseconds+=engine.lastGPUWorkMilliseconds
@@ -752,6 +769,7 @@ extension FluidBoardSession {
             if concurrentFrame%15==0 || !busy { metrics=aggregate }
             renderer.displayComposite(game:game,samples:compositeSamples,vessels:vessels)
             if !busy { settledParticles=compositeSamples }
+            performance.recordFluidBreakdown(surfaceMS:surfaceGPU,laneMS:max(0,aggregate.gpuMilliseconds-surfaceGPU))
             performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:aggregate.gpuMilliseconds)
         }
         if measurementActive {

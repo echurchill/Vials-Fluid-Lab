@@ -1,5 +1,14 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 18 bounded multi-lane physics — latest status
+
+- Stage-specific physical-iPad counters show the full 22,400-particle visible surface is inexpensive (1.33 ms median / 2.71 ms p95 in the matched baseline); compact receiver-lane physics caused the remaining 77 ms p95.
+- Independent receiver lanes now share bounded catch-up work. With two or more active receiver groups, each lane performs at most four fixed 120 Hz steps per callback and uses the established three-pressure-projection profile. One active receiver group retains the original 12-step allowance and five projections, including when two sources share that receiver. Visible particle density, normal 60 Hz Quick cadence, authored motion timing and exact final states are unchanged.
+- A matched physical M4 iPad Sixfold trial committed the same six pours with the same 22,400 visible particles and 12,160 maximum lane particles. Median GPU time changed 13.46→12.23 ms; p95 fell 78.18→22.91 ms; maximum fell 120.43→30.94 ms; p95 callback interval fell 84.62→25.59 ms; intervals over 25 ms fell 77→31. Both runs remained thermally nominal.
+- An occupied-cell grid-clear experiment produced no meaningful iPad improvement and was reverted.
+- Full validation passes all 16 model solutions, all 175 expanded 3D routes, all 175 expanded 2D routes, all 18 overlap fixtures and the complete concurrent presentation matrix. Signed iOS Release succeeds and the measured build is installed on the iPad.
+- See `Reports/Prototype29/README.md`. Current branch is `codex/fluid-lab`; inspect Git status/log for the final commit/push state.
+
 ## September 18 physical acceptance and compact-lane optimization — latest status
 
 - The current signed Release build is installed on the physical 13-inch M4 iPad Pro. Direct device captures verify completed G retains visible headspace beneath its cap, the redundant in-glass valve glyph is absent, A's three retained units travel inside the raised glass during A→C return, and the Classic stream reaches the receiver's accumulating surface. See `Reports/Prototype28/README.md`.

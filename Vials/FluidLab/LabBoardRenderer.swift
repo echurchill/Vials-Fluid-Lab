@@ -71,6 +71,14 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
     var orbit:Float=0.12
     var playbackSpeed:Float=1
+    /// Independent receiver lanes share a bounded per-callback physics budget.
+    /// The default preserves standalone/offscreen behavior; the live session
+    /// divides the catch-up allowance across simultaneously active lanes.
+    var maximumSimulationStepsPerAdvance=12
+    /// Five projections remain the default for a single active fluid body.
+    /// Independent multi-lane play may use the three-pass profile already used
+    /// by the standalone 3D prototype to keep aggregate work frame-bounded.
+    var pressureIterationsPerStep=5
     var viscosity:Float=0.10
     var onFrame:((Double,Double,Double)->Void)?
     var onError:((String)->Void)?
@@ -551,7 +559,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let n = particleCount
         dispatch("labPredict",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
         constrainLayers(command:command,uniforms:uniforms,vessels:vessels)
-        for _ in 0..<5 {
+        for _ in 0..<max(1,pressureIterationsPerStep) {
             dispatch("labClearHeads",count:128*48*40,command:command,buffers:[(0,heads)])
             dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
             dispatch("labLambda",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas)],uniforms:uniforms)
@@ -691,14 +699,15 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let pointer=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
         for i in 0..<particleCount { pointer[i].visual.z=selected.contains(Int(pointer[i].visual.y)) ? 1:0 }
         let command=queue.makeCommandBuffer()!;command.label="Shared receiver physics"
-        accumulator=min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*12)
+        let stepBudget=max(1,maximumSimulationStepsPerAdvance)
+        accumulator=min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*Float(stepBudget))
         let active=Set(groupMoves.flatMap {[$0.source,$0.destination]})
         let flags=active.reduce(UInt32(1 | (funnelEnabled ? 65536:0))) { $0 | (1 << ($1+1)) }
         let (vp,view,eye)=LabBoardLayout.camera(aspect:1,azimuth:orbit,vesselCount:profiles.count)
         var u=LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
             viewport:SIMD4(1,1,spacing*1.16,simulationTime),physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),0,UInt32(profiles.count),flags))
         var steps=0
-        while accumulator>=timeStep,steps<12 {
+        while accumulator>=timeStep,steps<stepBudget {
             simulationTime+=timeStep
             advanceGroupMotion()
             var vessels=groupVessels()
