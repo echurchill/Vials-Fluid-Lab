@@ -4,7 +4,7 @@ import Foundation
 struct ComplexityValidation {
     static func main() throws {
         var failures:[String]=[]
-        let legacyPuzzles=Array(LabBoardPuzzle.allCases.prefix(12))
+        let legacyPuzzles=Array(LabDiscipline.sorting.levels.prefix(12))
         for puzzle in legacyPuzzles {
             let state=puzzle.initial
             if state.capacities != Array(repeating:4,count:state.stacks.count) {failures.append("\(puzzle.rawValue): legacy capacities changed")}
@@ -21,7 +21,7 @@ struct ComplexityValidation {
             }
         }
 
-        for puzzle in LabBoardPuzzle.allCases {
+        for puzzle in LabDiscipline.sorting.levels {
             let initial=puzzle.initial,start=ProcessInfo.processInfo.systemUptime
             guard let route=initial.solution() else {failures.append("\(puzzle.rawValue): no solution");continue}
             var state=initial

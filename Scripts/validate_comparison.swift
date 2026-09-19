@@ -14,7 +14,7 @@ import AVFoundation
         descriptor.storageMode = .shared;descriptor.usage=[.renderTarget,.shaderRead]
         let texture=device.makeTexture(descriptor:descriptor)!
         var errors:[String]=[],results:[[String:Any]]=[]
-        let puzzles=args.contains("--expanded") ? LabBoardPuzzle.allCases:Array(LabBoardPuzzle.allCases.prefix(5))
+        let puzzles=args.contains("--expanded") ? LabDiscipline.sorting.levels:Array(LabDiscipline.sorting.levels.prefix(5))
         for puzzle in puzzles { for pace in LabBoardPace.allCases {
             let session=FluidBoardSession(defaults:nil,device:device,library:lib)
             session.changePuzzle(puzzle);session.changePace(pace)
@@ -97,7 +97,7 @@ import AVFoundation
         if fallback.moveCount != 1 { errors.append("Classic fallback cannot complete a move") }
         // Every shipped level must be reachable with the actual legal-move rules.
         var routes:[[String:Any]]=[]
-        for puzzle in LabBoardPuzzle.allCases {
+        for puzzle in LabDiscipline.sorting.levels {
             guard let route=puzzle.initial.solution() else { errors.append("Unsolvable level \(puzzle)");continue }
             var state=puzzle.initial
             for move in route { guard let next=state.applying(move) else { errors.append("Invalid solution step");break };state=next }

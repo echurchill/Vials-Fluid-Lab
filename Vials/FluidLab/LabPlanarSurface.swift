@@ -63,9 +63,9 @@ private struct LabIdleFluidDetail:View {
                     func screen(_ x:Float,_ y:Float)->CGPoint { CGPoint(x:base.x+CGFloat(x)*scale,y:base.y-CGFloat(y)*scale) }
                     var start=0
                     while start<stack.count {
-                        let color=state.colors[stack[start]]
+                        let color=state.visualDye(stack[start])
                         var end=start+1
-                        while end<stack.count && state.colors[stack[end]]==color { end+=1 }
+                        while end<stack.count && state.visualDye(stack[end])==color { end+=1 }
                         let low=profile.level(Float(start))+0.04,high=profile.level(Float(end))-0.04
                         defer { start=end }
                         guard high>low else { continue }

@@ -44,7 +44,7 @@ struct LabClassicBoardView:View {
                     var stream=Path();stream.move(to:mouth)
                     stream.addCurve(to:target,control1:CGPoint(x:mouth.x,y:mouth.y+20),control2:CGPoint(x:target.x,y:target.y-24))
                     let envelope=min(1,min(CGFloat(pour.progress)*12,CGFloat(1-pour.progress)*12))
-                    let color=FluidBoardSession.color(pour.move.color)
+                    let color=FluidBoardSession.color(state.visualDye(pour.move.parcels[0]))
                     context.stroke(stream,with:.color(color.opacity(0.20)),style:StrokeStyle(lineWidth:scale*0.22*envelope,lineCap:.round))
                     context.stroke(stream,with:.linearGradient(Gradient(colors:[color.opacity(0.7),color]),startPoint:mouth,endPoint:target),style:StrokeStyle(lineWidth:scale*0.11*envelope,lineCap:.round))
                     context.stroke(stream,with:.color(.white.opacity(0.22)),style:StrokeStyle(lineWidth:scale*0.02*envelope,lineCap:.round))
@@ -85,13 +85,13 @@ struct LabClassicBoardView:View {
         ctx.fill(cavity,with:.color(Color(red:0.025,green:0.045,blue:0.06).opacity(0.82)))
         ctx.stroke(cavity,with:.color(.black.opacity(0.28)),lineWidth:5)
         var liquid=ctx;liquid.clip(to:cavity)
-        var amounts=state.stacks[index].map { (state.colors[$0],Float(1)) }
+        var amounts=state.stacks[index].map { (state.visualDye($0),Float(1)) }
         for pour in pours {
             if index == pour.move.source {
                 amounts=amounts.enumerated().map { position,pair in
                     (pair.0,position>=amounts.count-pour.move.amount ? 1-pour.progress:1)
                 }
-            } else if index == pour.move.destination { amounts.append((pour.move.color,Float(pour.move.amount)*pour.progress)) }
+            } else if index == pour.move.destination { amounts.append((state.visualDye(pour.move.parcels[0]),Float(pour.move.amount)*pour.progress)) }
         }
         var units:Float=0,run=0
         while run<amounts.count {
@@ -125,7 +125,7 @@ struct LabClassicBoardView:View {
         let excluded=capExclusions.union(pours.flatMap { [$0.move.source,$0.move.destination] })
         if !excluded.contains(index),state.isComplete(index),let first=state.stacks[index].first {
             drawLabPlanarCap(context:&ctx,height:profile.height,radius:profile.radii.last!+0.065,
-                scale:scale,color:FluidBoardSession.color(state.colors[first]))
+                scale:scale,color:FluidBoardSession.color(state.visualDye(first)))
         }
     }
     private func pose(_ pour:LabClassicPour,layout:LabClassicLayout) -> (base:CGPoint,angle:CGFloat) {

@@ -17,9 +17,14 @@ import Combine
     @Published private(set) var presentation:LabBoardPresentation
     @Published private(set) var pace:LabBoardPace
     @Published private(set) var puzzle:LabBoardPuzzle
+    var discipline:LabDiscipline {puzzle.discipline}
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
     let allowsConcurrentPours:Bool
+    /// The established sorting boards support independent simultaneous pours.
+    /// Experimental material transforms remain sequential so density settlement
+    /// and apparatus inputs have one deterministic commit order.
+    var concurrentPoursEnabled:Bool {allowsConcurrentPours && discipline == .sorting}
     @Published private(set) var pourQueue=LabPourQueue()
     @Published private(set) var concurrentClassicPours:[LabClassicPour]=[]
     private var concurrentExamples:[Int:LabPourExample]=[:]
@@ -29,16 +34,16 @@ import Combine
     private var compositeSamples:[LabParticle]=[]
     private var concurrentFrame=0
     private var concurrentWorker:LabConcurrent2DWorker?
-    var activeMoves:[LabBoardMove] { allowsConcurrentPours ? pourQueue.items.map(\.move):[game.pending].compactMap { $0 } }
+    var activeMoves:[LabBoardMove] { concurrentPoursEnabled ? pourQueue.items.map(\.move):[game.pending].compactMap { $0 } }
     var fluidFinalSettling:Bool { metalGroups.values.contains(where:\.groupFinalSettling) }
     var solved:Bool { state.solved && !busy }
     func canTap(_ index:Int)->Bool {
         guard !solved else { return false }
-        if !allowsConcurrentPours { return !busy && (selected != nil || state.canPourOut(index)) }
+        if !concurrentPoursEnabled { return !busy && (selected != nil || state.canPourOut(index)) }
         return selected == nil ? state.canPourOut(index) && !pourQueue.lockedSources.contains(index):!pourQueue.movingSources.contains(index)
     }
     func availableMove(from:Int,to:Int)->LabBoardMove? {
-        allowsConcurrentPours ? pourQueue.move(from:from,to:to,state:state):state.move(from:from,to:to)
+        concurrentPoursEnabled ? pourQueue.move(from:from,to:to,state:state):state.move(from:from,to:to)
     }
     lazy var fluid2D=LabFluid2D(game:LabBoardGame(state:LabBoardState(layers:[])))
     let planarDisplay=LabPlanarDisplay()
@@ -48,12 +53,13 @@ import Combine
     private var rejectionTask:Task<Void,Never>?
     private var hintTask:Task<Void,Never>?
     private var hintRevision=0
-    private var hintPlan:[LabBoardMove]=[]
+    private var hintPlan:[LabBoardOperation]=[]
     @Published private(set) var findingHint=false
     // Used only by the disposable comparison session to align playback duration.
     var comparisonSpeed:Float? { didSet { updateSpeed() } }
     @Published var selected:Int?
     @Published var hintTarget:Int?
+    @Published var hintApparatusID:Int?
     @Published var phase="Choose a vial"
     @Published var notice="Tap a filled vial, then a matching color or an empty vial."
     @Published var paused=false
@@ -71,7 +77,7 @@ import Combine
     @Published var hapticsEnabled=true { didSet { feedback.hapticsEnabled=hapticsEnabled;defaults?.set(hapticsEnabled,forKey:"lab.haptics") } }
     @Published var quality:LabRenderQuality = .automatic { didSet { renderer?.quality=quality;defaults?.set(quality.rawValue,forKey:"lab.quality");finishMeasurement(reason:"quality changed") } }
     private let feedback=LabBoardFeedback()
-    var completedPuzzleCount:Int { saved.games.values.filter { $0.state.solved }.count }
+    var completedPuzzleCount:Int { discipline.levels.filter(hasCompleted).count }
     func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool { puzzle == self.puzzle ? state.solved:(saved.games[puzzle.rawValue]?.state.solved ?? false) }
     func nextPuzzle() { if !busy,let next=puzzle.next { changePuzzle(next) } }
     let performance=LabPerformanceRecorder()
@@ -92,9 +98,12 @@ import Combine
     var active3DSimulationParticleCount:Int {metalGroups.values.reduce(0) {$0+$1.particleCount}}
     var effectiveSpeed:Float { (comparisonSpeed ?? pace.speed)*(slow ? 0.35:1) }
     var validDestinations:Set<Int> {
-        guard let selected,allowsConcurrentPours || !busy else { return [] }
+        guard let selected,concurrentPoursEnabled || !busy else { return [] }
         return Set(state.stacks.indices.filter { availableMove(from:selected,to:$0) != nil })
     }
+    var activatableApparatus:[LabApparatus] {state.apparatus.filter {state.canActivate(.init(apparatusID:$0.id))}}
+    func target(_ index:Int)->LabVialTarget? {state.target(index)}
+    func apparatus(forVial index:Int)->LabApparatus? {state.apparatus.first {$0.inputs.contains(index) || $0.output==index}}
     func vialComplete(_ index:Int)->Bool {
         state.isComplete(index)
     }
@@ -129,6 +138,7 @@ import Combine
     private func clearSelectionFeedback() { rejectionTask?.cancel();rejectedVial=nil }
     private func cancelHint(clearPlan:Bool = true) {
         hintRevision &+= 1;hintTask?.cancel();hintTask=nil;findingHint=false
+        hintApparatusID=nil
         if clearPlan { hintPlan=[] }
     }
     private func rememberPour(_ committed:Bool) {
@@ -162,7 +172,7 @@ import Combine
                 guard let device else { throw LabError.message("Fluid rendering is unavailable. Classic remains playable.") }
                 let engine=try LabBoardRenderer(device:device,library:library)
                 engine.onFrame={ [weak self] interval,cpu,gpu in
-                    guard let self,!self.allowsConcurrentPours else { return }
+                    guard let self,!self.concurrentPoursEnabled else { return }
                     self.performance.recordFrame(interval:interval,cpuMS:cpu,gpuMS:gpu)
                 }
                 engine.onError={ [weak self] in self?.error=$0 }
@@ -170,7 +180,7 @@ import Combine
                 renderer=engine
             }
             renderer?.install(game:game,samples:settledParticles)
-            if allowsConcurrentPours,let renderer {
+            if concurrentPoursEnabled,let renderer {
                 compositeSamples=renderer.particleSamples()
                 // One simulation group per independent receiver. Dependency
                 // rules, rather than a two-pour ceiling, now determine how
@@ -187,6 +197,7 @@ import Combine
         performance.traceBegin("Checkpoint");defer { performance.traceEnd("Checkpoint") }
         var stable=game;stable.cancel()
         saved.games[puzzle.rawValue]=stable;saved.presentation=presentation;saved.pace=pace;saved.puzzle=puzzle
+        saved.lastPuzzles[puzzle.discipline.rawValue]=puzzle.rawValue
         if let data=try? JSONEncoder().encode(saved) { defaults?.set(data,forKey:"lab.comparison.v1") }
     }
     func checkpointData() throws -> Data { checkpoint();return try JSONEncoder().encode(saved) }
@@ -203,25 +214,30 @@ import Combine
     func changePace(_ value:LabBoardPace) {
         guard !busy,pace != value else { return };finishMeasurement(reason:"pace changed");pace=value;updateSpeed();checkpoint()
     }
+    func changeDiscipline(_ value:LabDiscipline) {
+        guard !busy,value != discipline else {return}
+        let remembered=saved.lastPuzzles[value.rawValue].flatMap(LabBoardPuzzle.init(rawValue:))
+        changePuzzle(remembered?.discipline==value ? remembered!:value.levels[0])
+    }
     func changePuzzle(_ value:LabBoardPuzzle) {
         guard !busy,value != puzzle else { return }
         cancelHint()
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         finishMeasurement(reason:"puzzle changed");checkpoint();puzzle=value;game=saved.games[value.rawValue] ?? LabBoardGame(state:value.initial);game.cancel()
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
-        selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
+        selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
-        notice="Same puzzle and rules in all three views.";checkpoint();refresh()
+        notice=value.discipline == .sorting ? "Same puzzle and rules in all three views.":"Match the outlined target vials.";checkpoint();refresh()
     }
     func refresh() {
         updateFeedback()
         let nextPhase:String
         if solved {
-            nextPhase="Sorted beautifully"
-            let solvedNotice="Every color has a home. Undo to explore, or play again."
+            nextPhase=state.targets.isEmpty ? "Sorted beautifully":"Targets complete"
+            let solvedNotice=state.targets.isEmpty ? "Every color has a home. Undo to explore, or play again.":"Every requested material is in place. Undo to explore, or play again."
             if notice != solvedNotice { notice=solvedNotice }
-        } else if allowsConcurrentPours,busy {
+        } else if concurrentPoursEnabled,busy {
             let active=pourQueue.active.count,waiting=pourQueue.items.count-active
             nextPhase="\(active) \(active == 1 ? "pour":"pours")"+(waiting>0 ? " · \(waiting) queued":"")
         } else if let pour=classicPour {
@@ -231,7 +247,7 @@ import Combine
         if phase != nextPhase { phase=nextPhase;performance.tracePhase(nextPhase) }
     }
     private func fluidUpdate() {
-        guard !allowsConcurrentPours,presentation == .fluid,let renderer else { return }
+        guard !concurrentPoursEnabled,presentation == .fluid,let renderer else { return }
         metrics=renderer.lastMetrics;correction=renderer.correctionCount;captured=renderer.arrivalBeforeCorrection
         if busy,renderer.game.pending == nil {
             let amount=game.pending?.amount ?? 1
@@ -246,25 +262,26 @@ import Combine
         refresh()
     }
     func select(_ index:Int) {
-        guard state.stacks.indices.contains(index),allowsConcurrentPours || !busy,!solved else { return }
+        guard state.stacks.indices.contains(index),concurrentPoursEnabled || !busy,!solved else { return }
         if let source=selected {
-            if source == index { clearSelectionFeedback();selected=nil;hintTarget=nil;notice="Choose another vial.";return }
+            if source == index { clearSelectionFeedback();selected=nil;hintTarget=nil;hintApparatusID=nil;notice="Choose another vial.";return }
             guard let move=availableMove(from:source,to:index) else {
                 reject(index)
-                if allowsConcurrentPours,pourQueue.movingSources.contains(index) { notice="That vial is already pouring or queued." }
+                if concurrentPoursEnabled,pourQueue.movingSources.contains(index) { notice="That vial is already pouring or queued." }
                 else if pourQueue.projected(state).stacks[index].count == state.capacity(index) { notice="That vial is full or its remaining space is reserved." }
-                else { notice="Choose the same top color or an empty vial." }
+                else { notice=state.behavior.unrestrictedDestinations ? "That destination cannot receive this batch.":"Choose the same top material, an apparatus input, or an empty vial." }
                 return
             }
             if begin(move) {
-                selected=nil;hintTarget=nil
+                selected=nil;hintTarget=nil;hintApparatusID=nil
                 notice="\(move.amount) \(move.amount == 1 ? "unit":"units") of \(Self.name(move.color)) · \(Self.letter(source)) → \(Self.letter(index))"
             }
         } else {
-            guard !allowsConcurrentPours || !pourQueue.lockedSources.contains(index) else { reject(index);notice="That vial is already in use.";return }
+            guard !concurrentPoursEnabled || !pourQueue.lockedSources.contains(index) else { reject(index);notice="That vial is already in use.";return }
             guard state.canPourOut(index) else { reject(index);notice="That valve is fill only. Choose a vial that can pour out.";return }
             guard !state.stacks[index].isEmpty else { reject(index);notice="Choose a vial that contains liquid first.";return }
-            clearSelectionFeedback();feedback.selection();selected=index;hintTarget=nil;notice="Now choose a matching color or an empty vial."
+            clearSelectionFeedback();feedback.selection();selected=index;hintTarget=nil;hintApparatusID=nil
+            notice=state.behavior.unrestrictedDestinations ? "Now choose any non-full destination.":"Now choose a matching material, apparatus input, or empty vial."
         }
     }
     @discardableResult func begin(_ move:LabBoardMove,automaticClock:Bool = true) -> Bool {
@@ -273,9 +290,9 @@ import Combine
         // The live board permits concurrent pours, but a hint followed while
         // the queue is idle is still a sequential step along the retained
         // route. A second overlapping reservation invalidates that route.
-        let followsHintPlan = hintPlan.first == move && (!allowsConcurrentPours || !busy)
+        let followsHintPlan = hintPlan.first == .pour(move) && (!concurrentPoursEnabled || !busy)
         cancelHint(clearPlan:!followsHintPlan)
-        if allowsConcurrentPours {
+        if concurrentPoursEnabled {
             let began=beginConcurrent(move,automaticClock:automaticClock)
             if began,followsHintPlan { hintPlan.removeFirst() }
             if !began { hintPlan=[] }
@@ -396,8 +413,8 @@ import Combine
         game=LabBoardGame(state:puzzle.initial);undoParticles=[];settledParticles=nil;beforeParticles=nil
         renderer?.reset(state:puzzle.initial)
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
-        selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
-        notice="Tap a filled vial, then a matching color or an empty vial.";updatePause();checkpoint();refresh()
+        selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
+        notice=discipline == .sorting ? "Tap a filled vial, then a matching color or an empty vial.":"Match the outlined target vials.";updatePause();checkpoint();refresh()
     }
     /// Clears every saved board, not just the currently selected puzzle.
     /// reset() invalidates in-flight worker results before the fresh checkpoint.
@@ -420,31 +437,55 @@ import Combine
         settledParticles=undoParticles.isEmpty ? nil:undoParticles.removeLast()
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
-        selected=nil;hintTarget=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
+        selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         notice="Move undone. Try a different route.";updatePause();checkpoint();refresh()
     }
     func hint() {
         guard !busy,!state.solved,!findingHint else { return }
         clearSelectionFeedback()
-        if let move=hintPlan.first,state.move(from:move.source,to:move.destination)==move {
-            selected=move.source;hintTarget=move.destination
-            notice="Try \(Self.letter(move.source)) → \(Self.letter(move.destination)) · \(move.amount) \(Self.name(move.color)) \(move.amount == 1 ? "unit":"units")"
-            return
+        if let operation=hintPlan.first,state.applying(operation) != nil {
+            showHint(operation);return
         }
         hintPlan=[];let snapshot=state
         hintRevision &+= 1;let revision=hintRevision
-        findingHint=true;notice="Finding a route through this larger board…"
+        findingHint=true;notice="Finding a route through this larger board…";let puzzle=self.puzzle
         hintTask=Task { @MainActor [weak self] in
-            let route=await Task.detached(priority:.userInitiated) {snapshot.solution()}.value
+            let behavior=snapshot.behavior
+            let route=await Task.detached(priority:.userInitiated) {
+                if behavior == .sorting {return snapshot.solution().map {$0.map(LabBoardOperation.pour)}}
+                if snapshot==puzzle.initial,let authored=puzzle.authoredRoute(from:snapshot) {return authored}
+                return snapshot.operationSolution()
+            }.value
             guard let self,self.hintRevision==revision else {return}
             self.findingHint=false;self.hintTask=nil
             guard !Task.isCancelled,!self.busy,self.state==snapshot else {return}
-            if let route,let move=route.first {
+            if let route,let operation=route.first {
                 self.hintPlan=route
-                self.selected=move.source;self.hintTarget=move.destination
-                self.notice="Try \(Self.letter(move.source)) → \(Self.letter(move.destination)) · \(move.amount) \(Self.name(move.color)) \(move.amount == 1 ? "unit":"units")"
+                self.showHint(operation)
             } else {self.notice="No solution from here. Undo a move to try another route."}
         }
+    }
+    private func showHint(_ operation:LabBoardOperation) {
+        switch operation {
+        case .pour(let move):
+            hintApparatusID=nil;selected=move.source;hintTarget=move.destination
+            notice="Try \(Self.letter(move.source)) → \(Self.letter(move.destination)) · \(move.amount) \(Self.name(move.color)) \(move.amount == 1 ? "unit":"units")"
+        case .activate(let activation):
+            selected=nil;hintTarget=nil;hintApparatusID=activation.apparatusID
+            notice="Activate \(state.apparatus.first(where:{$0.id==activation.apparatusID})?.title ?? "the apparatus")."
+        }
+    }
+    func activateApparatus(_ id:Int) {
+        guard !busy else {return}
+        let activation=LabApparatusActivation(apparatusID:id)
+        let followsHint=hintPlan.first == .activate(activation)
+        cancelHint(clearPlan:!followsHint)
+        guard game.activate(activation) else {notice="That apparatus is not ready.";return}
+        if followsHint {hintPlan.removeFirst()}
+        undoParticles.append(nil);settledParticles=nil;selected=nil;hintTarget=nil;hintApparatusID=nil
+        if presentation == .fluid {prepareFluid()}
+        if presentation == .fluid2D {fluid2D.install(game);planarDisplay.publish(fluid2D)}
+        notice="Transformation complete.";feedback.completed(solved:state.solved);checkpoint();refresh()
     }
     // A dismissed preview must release its clock even when it closes mid-pour.
     func discardPreview() {
@@ -458,7 +499,7 @@ import Combine
     private func updatePause() { clockRevision+=1;renderer?.paused=paused || suspended || presentation != .fluid;updateFeedback() }
     private func updateFeedback() {
         let visibleStream:Bool
-        if allowsConcurrentPours {
+        if concurrentPoursEnabled {
             switch presentation {
             case .classic: visibleStream=concurrentClassicPours.contains { $0.progress>0 && $0.progress<1 }
             case .fluid2D: visibleStream=fluid2D.streamActive
@@ -478,7 +519,7 @@ import Combine
             performance.context["cpuCounter"]="2D worker solver only; excludes Canvas drawing"
             performance.context["physicsExecution"]="isolated actor, immutable value snapshots"
         }
-        if allowsConcurrentPours {
+        if concurrentPoursEnabled {
             performance.context["concurrentPourLimit"]="dependency constrained"
             performance.context["frameCounter"]="concurrent controller updates, not compositor presents"
             if presentation == .fluid { performance.context["cpuCounter"]="simulation scheduling and GPU waits; excludes surface rendering" }
@@ -499,7 +540,7 @@ import Combine
     // Explicit diagnostic flag: exercise the same actions as the board controls
     // on the device, outside the timed/battery sample and without saved progress.
     private func checkTrialControls() async -> [String:Bool] {
-        if allowsConcurrentPours { return await checkConcurrentControls() }
+        if concurrentPoursEnabled { return await checkConcurrentControls() }
         guard presentation == .fluid2D,let move=state.solution()?.first else { return [:] }
         let initial=state
         guard begin(move) else { return ["begin":false] }
@@ -584,14 +625,14 @@ import Combine
             guard let index=arguments.firstIndex(of:"--maximum-concurrent-pours"),index+1<arguments.count else {return 2}
             return min(state.stacks.count,max(2,Int(arguments[index+1]) ?? 2))
         }()
-        if allowsConcurrentPours,arguments.contains("--concurrent-pours") {
+        if concurrentPoursEnabled,arguments.contains("--concurrent-pours") {
             performance.context["requestedConcurrentPourLimit"]=concurrentLimit
         }
         let start=ProcessInfo.processInfo.systemUptime
         var reason="completed"
         while !Task.isCancelled && ProcessInfo.processInfo.systemUptime-start<trial.seconds {
             if suspended { reason="application suspended";break }
-            if allowsConcurrentPours,arguments.contains("--concurrent-pours") {
+            if concurrentPoursEnabled,arguments.contains("--concurrent-pours") {
                 if solved { reset() }
                 if pourQueue.items.count<concurrentLimit {
                     let projected=pourQueue.projected(state)
@@ -641,17 +682,19 @@ import Combine
         return names[(color % names.count+names.count)%names.count]
     }
     static func color(_ value:Int) -> Color {
-        let colors:[Color]=[
-            Color(red:0.05,green:0.58,blue:0.86),Color(red:0.96,green:0.34,blue:0.07),Color(red:0.20,green:0.76,blue:0.36),
-            Color(red:0.94,green:0.34,blue:0.65),Color(red:1.00,green:0.72,blue:0.08),Color(red:0.98,green:0.71,blue:0.61),
-            Color(red:0.55,green:0.30,blue:0.95),Color(red:0.12,green:0.78,blue:0.62),Color(red:0.72,green:0.04,blue:0.24),
-            Color(red:0.08,green:0.24,blue:0.88),Color(red:0.54,green:0.78,blue:0.06),Color(red:0.82,green:0.78,blue:0.68)]
-        return colors[(value % colors.count+colors.count)%colors.count]
+        let palette:[(Double,Double,Double)]=[(0.05,0.58,0.86),(0.96,0.34,0.07),(0.20,0.76,0.36),(0.94,0.34,0.65),(1.00,0.72,0.08),(0.98,0.71,0.61),(0.55,0.30,0.95),(0.12,0.78,0.62),(0.72,0.04,0.24),(0.08,0.24,0.88),(0.54,0.78,0.06),(0.82,0.78,0.68)]
+        let pigment=(value%12+12)%12,bank=max(0,value/12),base=palette[pigment]
+        if bank==1 {return Color(red:base.0*0.60+0.40,green:base.1*0.60+0.40,blue:base.2*0.60+0.40)}
+        if bank==2 {return Color(red:base.0*0.52,green:base.1*0.52,blue:base.2*0.52)}
+        return Color(red:base.0,green:base.1,blue:base.2)
     }
     func accessibility(_ index:Int) -> String {
-        let layers=state.stacks[index].reversed().map { Self.name(state.colors[$0]) }.joined(separator:", ")
-        let rule=state.rules[index] == .receiveOnly ? " Fill only; it cannot pour out.":""
-        return "Vial \(Self.letter(index)), \(state.stacks[index].count) of \(state.capacity(index)) units.\(rule) \(layers.isEmpty ? "Empty":"Top to bottom: "+layers)."
+        let layers=state.stacks[index].reversed().map { "\(state.densities[$0].title) \(Self.name(state.colors[$0]))" }.joined(separator:", ")
+        let rule=state.rules[index] == .receiveOnly ? " Fill only; it cannot pour out.":(state.rules[index] == .sourceOnly ? " Apparatus output; it cannot receive a pour.":"")
+        let target=state.target(index).map { target in
+            " Target bottom to top: "+target.layers.map { "\($0.density.title) \(Self.name($0.pigment))" }.joined(separator:", ")+"."
+        } ?? ""
+        return "Vial \(Self.letter(index)), \(state.stacks[index].count) of \(state.capacity(index)) units.\(rule) \(layers.isEmpty ? "Empty":"Top to bottom: "+layers).\(target)"
     }
 }
 
@@ -689,7 +732,7 @@ extension FluidBoardSession {
     }
     /// Shared by the live clock and deterministic multi-pour regression checks.
     func advanceConcurrent(deltaTime:Float) async {
-        guard allowsConcurrentPours,busy,!paused,!suspended else { return }
+        guard concurrentPoursEnabled,busy,!paused,!suspended else { return }
         var queue=pourQueue
         let starts=queue.startReady()
         if !starts.isEmpty { pourQueue=queue }

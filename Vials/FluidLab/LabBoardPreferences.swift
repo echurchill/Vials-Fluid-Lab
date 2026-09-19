@@ -20,17 +20,48 @@ enum LabRenderQuality:String,CaseIterable,Codable {
         }
     }
 }
-enum LabBoardPuzzle:String,CaseIterable,Codable {
+
+nonisolated enum LabDiscipline:String,CaseIterable,Codable {
+    case sorting,density,mixing,crossover
+    var title:String {
+        switch self {case .sorting:"Sorting";case .density:"Density";case .mixing:"Mixing";case .crossover:"Crossover"}
+    }
+    var header:String { title.uppercased()+" LAB" }
+    var levels:[LabBoardPuzzle] { LabBoardPuzzle.allCases.filter {$0.discipline==self} }
+}
+nonisolated enum LabAuthoredStep:Equatable {
+    case pour(Int,Int)
+    case activate(Int)
+}
+nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
     case firstSort,crossCurrents,lastDrops,greenArrival,tidalPool,glassGarden,switchback,estuary,crossingPaths,deepCurrent,orchard,confluence
     case fiveStreams,tallOrder,sixfold,valveCircuit
-    var title:String {
-        switch self { case .firstSort:"First sort";case .crossCurrents:"Cross currents";case .lastDrops:"Last drops";case .greenArrival:"Green arrival";case .tidalPool:"Tidal pool";case .glassGarden:"Glass garden";case .switchback:"Switchback";case .estuary:"Estuary";case .crossingPaths:"Crossing paths";case .deepCurrent:"Deep current";case .orchard:"Orchard";case .confluence:"Confluence";case .fiveStreams:"Five streams";case .tallOrder:"Tall order";case .sixfold:"Sixfold";case .valveCircuit:"Valve circuit" }
+    case heavyLanding,threeDeep,shadesOfBlue,twinColumns,againstThePour
+    case warmBlend,coolBlend,violetReaction,colorWheel,measuredBatch
+    case equalPartners,weightedOrange,layerCake,twinProducts,fullSpectrum
+    var discipline:LabDiscipline {
+        switch self {
+        case .heavyLanding,.threeDeep,.shadesOfBlue,.twinColumns,.againstThePour:.density
+        case .warmBlend,.coolBlend,.violetReaction,.colorWheel,.measuredBatch:.mixing
+        case .equalPartners,.weightedOrange,.layerCake,.twinProducts,.fullSpectrum:.crossover
+        default:.sorting
+        }
     }
-    var number:Int { Self.allCases.firstIndex(of:self)!+1 }
-    var next:Self? { number<Self.allCases.count ? Self.allCases[number]:nil }
+    var title:String {
+        switch self {
+        case .firstSort:"First sort";case .crossCurrents:"Cross currents";case .lastDrops:"Last drops";case .greenArrival:"Green arrival";case .tidalPool:"Tidal pool";case .glassGarden:"Glass garden";case .switchback:"Switchback";case .estuary:"Estuary";case .crossingPaths:"Crossing paths";case .deepCurrent:"Deep current";case .orchard:"Orchard";case .confluence:"Confluence";case .fiveStreams:"Five streams";case .tallOrder:"Tall order";case .sixfold:"Sixfold";case .valveCircuit:"Valve circuit"
+        case .heavyLanding:"Heavy landing";case .threeDeep:"Three deep";case .shadesOfBlue:"Shades of blue";case .twinColumns:"Twin columns";case .againstThePour:"Against the pour"
+        case .warmBlend:"Warm blend";case .coolBlend:"Cool blend";case .violetReaction:"Violet reaction";case .colorWheel:"Color wheel";case .measuredBatch:"Measured batch"
+        case .equalPartners:"Equal partners";case .weightedOrange:"Weighted orange";case .layerCake:"Layer cake";case .twinProducts:"Twin products";case .fullSpectrum:"Full spectrum"
+        }
+    }
+    var number:Int { discipline.levels.firstIndex(of:self)!+1 }
+    var next:Self? { let levels=discipline.levels;return number<levels.count ? levels[number]:nil }
     var detail:String {
         let state=initial,range=(state.capacities.min() ?? 0)...(state.capacities.max() ?? 0)
-        var parts=["Level \(number) / \(Self.allCases.count)","\(state.stacks.count) vials","\(Set(state.colors).count) colors"]
+        var parts=["Level \(number) / \(discipline.levels.count)","\(state.stacks.count) vials","\(Set(state.colors).count) colors"]
+        if state.behavior.settlesByDensity {parts.append("\(Set(state.densities).count) densities")}
+        if !state.targets.isEmpty {parts.append(state.targets.count==1 ? "1 target":"\(state.targets.count) targets")}
         if range.lowerBound != 4 || range.upperBound != 4 { parts.append(range.lowerBound==range.upperBound ? "\(range.lowerBound) units":"\(range.lowerBound)–\(range.upperBound) units") }
         let valves=state.rules.filter {$0 == .receiveOnly}.count
         if valves>0 { parts.append("\(valves) fill-only") }
@@ -65,7 +96,116 @@ enum LabBoardPuzzle:String,CaseIterable,Codable {
             layers:[[1,3,3,0,0],[3],[0,3,3],[4,1,3,2,2,2],[1],[3,1,0,4,3,0],[3],[2,4,3,2,0]],
             capacities:[5,6,3,6,4,6,4,5],
             rules:[.normal,.normal,.normal,.normal,.receiveOnly,.normal,.receiveOnly,.normal])
+        case .heavyLanding: LabBoardState(
+            layers:[[0,8],[],[]],capacities:[2,2,2],
+            densityLayers:[[.light,.heavy],[],[]],behavior:.density,
+            targets:[LabVialTarget(vial:2,layers:[.init(8,.heavy),.init(0,.light)])])
+        case .threeDeep: LabBoardState(
+            layers:[[0,4,8],[],[]],capacities:[3,3,3],
+            densityLayers:[[.light,.medium,.heavy],[],[]],behavior:.density,
+            targets:[LabVialTarget(vial:2,layers:[.init(8,.heavy),.init(4,.medium),.init(0,.light)])])
+        case .shadesOfBlue: LabBoardState(
+            layers:[[0,0,0],[],[]],capacities:[3,3,3],
+            densityLayers:[[.light,.medium,.heavy],[],[]],behavior:.density,
+            targets:[LabVialTarget(vial:2,layers:[.init(0,.heavy),.init(0,.medium),.init(0,.light)])])
+        case .twinColumns: LabBoardState(
+            layers:[[0,8],[4,2],[],[],[]],capacities:[2,2,2,2,2],
+            densityLayers:[[.light,.heavy],[.medium,.heavy],[],[],[]],behavior:.density,
+            targets:[LabVialTarget(vial:2,layers:[.init(8,.heavy),.init(0,.light)]),LabVialTarget(vial:3,layers:[.init(2,.heavy),.init(4,.medium)])])
+        case .againstThePour: LabBoardState(
+            layers:[[0,4,8],[2,6,1],[],[],[]],capacities:[3,3,3,3,3],
+            densityLayers:[[.light,.medium,.heavy],[.heavy,.light,.medium],[],[],[]],behavior:.density,
+            targets:[LabVialTarget(vial:2,layers:[.init(8,.heavy),.init(4,.medium),.init(0,.light)]),LabVialTarget(vial:3,layers:[.init(2,.heavy),.init(1,.medium),.init(6,.light)])])
+        case .warmBlend: Self.mixingLevel(first:8,second:4,product:1)
+        case .coolBlend: Self.mixingLevel(first:4,second:0,product:2)
+        case .violetReaction: Self.mixingLevel(first:0,second:8,product:6)
+        case .colorWheel: LabBoardState(
+            layers:[[8,8],[4,4],[0,0],[],[],[],[],[],[]],capacities:[2,2,2,1,1,2,2,2,2],
+            rules:[.normal,.normal,.normal,.normal,.normal,.sourceOnly,.normal,.normal,.normal],behavior:.mixing,
+            targets:[LabVialTarget(vial:6,layers:[.init(1),.init(1)]),LabVialTarget(vial:7,layers:[.init(2),.init(2)]),LabVialTarget(vial:8,layers:[.init(6),.init(6)])],
+            apparatus:[.mixer(inputs:[3,4],output:5)])
+        case .measuredBatch: LabBoardState(
+            layers:[[8,8],[4,4,4],[0],[],[],[],[],[]],capacities:[2,3,1,1,1,2,4,2],
+            rules:[.normal,.normal,.normal,.normal,.normal,.sourceOnly,.normal,.normal],behavior:.mixing,
+            targets:[LabVialTarget(vial:6,layers:Array(repeating:.init(1),count:4)),LabVialTarget(vial:7,layers:Array(repeating:.init(2),count:2))],
+            apparatus:[.mixer(inputs:[3,4],output:5)])
+        case .equalPartners: LabBoardState(
+            layers:[[8],[4],[],[],[],[],[]],capacities:[1,1,1,1,1,2,2],
+            rules:[.normal,.normal,.normal,.normal,.normal,.sourceOnly,.normal],densityLayers:[[.light],[.medium],[],[],[],[],[]],behavior:.crossover,
+            targets:[LabVialTarget(vial:6,layers:[.init(1,.medium),.init(1,.medium)])],
+            apparatus:[.modifier(id:0,chamber:2,direction:.heavier),.mixer(id:1,inputs:[3,4],output:5)])
+        case .weightedOrange: LabBoardState(
+            layers:[[8],[4],[],[],[],[],[]],capacities:[1,1,1,1,2,2,2],
+            rules:[.normal,.normal,.normal,.normal,.sourceOnly,.normal,.normal],behavior:.crossover,
+            targets:[LabVialTarget(vial:6,layers:[.init(1,.heavy),.init(1,.heavy)])],
+            apparatus:[.mixer(id:0,inputs:[2,3],output:4),.modifier(id:1,chamber:5,direction:.heavier)])
+        case .layerCake: LabBoardState(
+            layers:[[8],[4],[0],[],[],[],[],[]],capacities:[1,1,1,1,1,2,2,3],
+            rules:[.normal,.normal,.normal,.normal,.normal,.sourceOnly,.normal,.normal],densityLayers:[[.medium],[.medium],[.light],[],[],[],[],[]],behavior:.crossover,
+            targets:[LabVialTarget(vial:7,layers:[.init(1,.heavy),.init(1,.heavy),.init(0,.light)])],
+            apparatus:[.mixer(id:0,inputs:[3,4],output:5),.modifier(id:1,chamber:6,direction:.heavier)])
+        case .twinProducts: LabBoardState(
+            layers:[[8],[4,4],[0],[],[],[],[],[],[],[]],capacities:[1,2,1,1,1,2,2,2,2,2],
+            rules:[.normal,.normal,.normal,.normal,.normal,.sourceOnly,.normal,.normal,.normal,.normal],behavior:.crossover,
+            targets:[LabVialTarget(vial:8,layers:[.init(1,.heavy),.init(1,.heavy)]),LabVialTarget(vial:9,layers:[.init(2,.light),.init(2,.light)])],
+            apparatus:[.mixer(id:0,inputs:[3,4],output:5),.modifier(id:1,chamber:6,direction:.heavier),.modifier(id:2,chamber:7,direction:.lighter)])
+        case .fullSpectrum: LabBoardState(
+            layers:[[8],[4,4],[0],[0],[],[],[],[],[],[]],capacities:[1,2,1,1,1,1,2,2,3,2],
+            rules:[.normal,.normal,.normal,.normal,.normal,.normal,.sourceOnly,.normal,.normal,.normal],densityLayers:[[.medium],[.medium,.medium],[.medium],[.light],[],[],[],[],[],[]],behavior:.crossover,
+            targets:[LabVialTarget(vial:8,layers:[.init(1,.heavy),.init(1,.heavy),.init(0,.light)]),LabVialTarget(vial:9,layers:[.init(2,.medium),.init(2,.medium)])],
+            apparatus:[.mixer(id:0,inputs:[4,5],output:6),.modifier(id:1,chamber:7,direction:.heavier)])
         }
+    }
+    private static func mixingLevel(first:Int,second:Int,product:Int)->LabBoardState {
+        LabBoardState(layers:[[first],[second],[],[],[],[]],capacities:[1,1,1,1,2,2],
+            rules:[.normal,.normal,.normal,.normal,.sourceOnly,.normal],behavior:.mixing,
+            targets:[LabVialTarget(vial:5,layers:[.init(product),.init(product)])],apparatus:[.mixer(inputs:[2,3],output:4)])
+    }
+    var authoredSteps:[LabAuthoredStep]? {
+        switch self {
+        case .heavyLanding:return [.pour(0,2),.pour(0,2)]
+        case .threeDeep,.shadesOfBlue:return [.pour(0,2),.pour(0,2),.pour(0,2)]
+        case .twinColumns:return [.pour(0,2),.pour(0,2),.pour(1,3),.pour(1,3)]
+        case .againstThePour:return [.pour(0,2),.pour(0,2),.pour(0,2),.pour(1,3),.pour(1,3),.pour(1,3)]
+        case .warmBlend,.coolBlend,.violetReaction:
+            return [.pour(0,2),.pour(1,3),.activate(0),.pour(4,5)]
+        case .colorWheel:
+            return [.pour(0,3),.pour(1,4),.activate(0),.pour(5,6),
+                    .pour(1,3),.pour(2,4),.activate(0),.pour(5,7),
+                    .pour(0,3),.pour(2,4),.activate(0),.pour(5,8)]
+        case .measuredBatch:
+            return [.pour(0,3),.pour(1,4),.activate(0),.pour(5,6),
+                    .pour(0,3),.pour(1,4),.activate(0),.pour(5,6),
+                    .pour(2,3),.pour(1,4),.activate(0),.pour(5,7)]
+        case .equalPartners:
+            return [.pour(0,2),.activate(0),.pour(2,3),.pour(1,4),.activate(1),.pour(5,6)]
+        case .weightedOrange:
+            return [.pour(0,2),.pour(1,3),.activate(0),.pour(4,5),.activate(1),.pour(5,6)]
+        case .layerCake:
+            return [.pour(0,3),.pour(1,4),.activate(0),.pour(5,6),.activate(1),.pour(6,7),.pour(2,7)]
+        case .twinProducts:
+            return [.pour(0,3),.pour(1,4),.activate(0),.pour(5,6),.activate(1),.pour(6,8),
+                    .pour(2,3),.pour(1,4),.activate(0),.pour(5,7),.activate(2),.pour(7,9)]
+        case .fullSpectrum:
+            return [.pour(2,4),.pour(1,5),.activate(0),.pour(6,9),
+                    .pour(0,4),.pour(1,5),.activate(0),.pour(6,7),.activate(1),.pour(7,8),.pour(3,8)]
+        default:return nil
+        }
+    }
+    func authoredRoute(from initial:LabBoardState?=nil)->[LabBoardOperation]? {
+        guard let steps=authoredSteps else {return nil}
+        var state=initial ?? self.initial,result:[LabBoardOperation]=[]
+        for step in steps {
+            let operation:LabBoardOperation
+            switch step {
+            case .pour(let source,let destination):
+                guard let move=state.move(from:source,to:destination) else {return nil};operation = .pour(move)
+            case .activate(let id):operation = .activate(.init(apparatusID:id))
+            }
+            guard let next=state.applying(operation) else {return nil}
+            result.append(operation);state=next
+        }
+        return state.solved ? result:nil
     }
 }
 struct LabComparisonSave:Codable {
@@ -73,6 +213,19 @@ struct LabComparisonSave:Codable {
     var pace:LabBoardPace = .relaxed
     var puzzle:LabBoardPuzzle = .firstSort
     var games:[String:LabBoardGame] = [:]
+    var lastPuzzles:[String:String] = [:]
+    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,games,lastPuzzles}
+    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:]) {
+        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.games=games;self.lastPuzzles=lastPuzzles
+    }
+    init(from decoder:Decoder)throws {
+        let values=try decoder.container(keyedBy:CodingKeys.self)
+        presentation=try values.decodeIfPresent(LabBoardPresentation.self,forKey:.presentation) ?? .fluid
+        pace=try values.decodeIfPresent(LabBoardPace.self,forKey:.pace) ?? .relaxed
+        puzzle=try values.decodeIfPresent(LabBoardPuzzle.self,forKey:.puzzle) ?? .firstSort
+        games=try values.decodeIfPresent([String:LabBoardGame].self,forKey:.games) ?? [:]
+        lastPuzzles=try values.decodeIfPresent([String:String].self,forKey:.lastPuzzles) ?? [:]
+    }
 }
 
 /// A deterministic nonparticle pour. The animation clock pauses with the game.

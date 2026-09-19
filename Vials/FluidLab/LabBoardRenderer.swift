@@ -281,7 +281,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             for (layer,parcel) in stack.enumerated() {
                 for i in 0..<Self.particlesPerUnit {
                     let p=SIMD4(seedPositions[owner][layer*Self.particlesPerUnit+i]+origins[owner],Float(owner))
-                    values.append(LabParticle(position:p,predicted:p,velocity:SIMD4(0,0,0,Float(state.colors[parcel])),visual:SIMD4(0,Float(parcel),0,0)))
+                    values.append(LabParticle(position:p,predicted:p,velocity:SIMD4(0,0,0,Float(state.visualDye(parcel))),visual:SIMD4(0,Float(parcel),0,0)))
                 }
             }
         }
@@ -374,7 +374,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         for (owner,stack) in state.stacks.enumerated() { for id in stack { owners[id]=owner } }
         for p in samples {
             let id=Int(p.visual.y)
-            if !owners.indices.contains(id) || Int(p.position.w) != owners[id] || Int(p.velocity.w) != state.colors[id] { return false }
+            if !owners.indices.contains(id) || Int(p.position.w) != owners[id] || Int(p.velocity.w) != state.visualDye(id) { return false }
             counts[id]+=1
         }
         return counts.allSatisfy { $0 == Self.particlesPerUnit }
@@ -400,7 +400,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             var start=0
             while start<stack.count {
                 var end=start+1
-                while end<stack.count && state.colors[stack[end]] == state.colors[stack[start]] { end+=1 }
+                while end<stack.count && state.sameMaterial(stack[end],stack[start]) { end+=1 }
                 let ids=Set(stack[start..<end])
                 let indices=(0..<particleCount).filter { Int(p[$0].position.w)==owner && ids.contains(Int(p[$0].visual.y)) }.sorted { p[$0].position.y<p[$1].position.y }
                 for (n,i) in indices.enumerated() { p[i].visual.y=Float(stack[start+n/Self.particlesPerUnit]);p[i].visual.z=0;p[i].visual.x=0 }
@@ -464,8 +464,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 let isMoving=selected.contains(id) && cleanupStart == nil
                 var first=layer,last=layer+1
                 if !isMoving {
-                    while first>0 && state.colors[stack[first-1]] == state.colors[id] && !(cleanupStart == nil && selected.contains(stack[first-1])) { first-=1 }
-                    while last<stack.count && state.colors[stack[last]] == state.colors[id] && !(cleanupStart == nil && selected.contains(stack[last])) { last+=1 }
+                    while first>0 && state.sameMaterial(stack[first-1],id) && !(cleanupStart == nil && selected.contains(stack[first-1])) { first-=1 }
+                    while last<stack.count && state.sameMaterial(stack[last],id) && !(cleanupStart == nil && selected.contains(stack[last])) { last+=1 }
                 }
                 let lower=isMoving && owner == move?.source ? levels[max(0,stack.count-(move?.amount ?? 0))]:levels[first]
                 let upper:Float=isMoving || (last==stack.count && cleanupStart != nil) ? 100:levels[last]
@@ -756,8 +756,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             func level(_ unit:Int)->Float { unit==0 ? -100:profile.height(for:fillVolume*Float(unit)/Float(game.state.capacities[owner])) }
             for (layer,id) in stack.enumerated() {
                 var first=layer,last=layer+1
-                while first>0,state.colors[stack[first-1]]==state.colors[id],!selected.contains(stack[first-1]) {first-=1}
-                while last<stack.count,state.colors[stack[last]]==state.colors[id],!selected.contains(stack[last]) {last+=1}
+                while first>0,state.sameMaterial(stack[first-1],id),!selected.contains(stack[first-1]) {first-=1}
+                while last<stack.count,state.sameMaterial(stack[last],id),!selected.contains(stack[last]) {last+=1}
                 let moving=selected.contains(id)
                 let lower=moving ? level(original.count-(outgoing?.amount ?? 0)):level(first)
                 let upper:Float=moving || last==stack.count ? 100:level(last)
@@ -947,8 +947,16 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 SIMD4(0.05,0.58,0.86,1),SIMD4(0.96,0.34,0.07,1),SIMD4(0.20,0.76,0.36,1),SIMD4(0.94,0.34,0.65,1),
                 SIMD4(1.00,0.72,0.08,1),SIMD4(0.98,0.71,0.61,1),SIMD4(0.55,0.30,0.95,1),SIMD4(0.12,0.78,0.62,1),
                 SIMD4(0.72,0.04,0.24,1),SIMD4(0.08,0.24,0.88,1),SIMD4(0.54,0.78,0.06,1),SIMD4(0.82,0.78,0.68,1)]
-            let color=game.state.colors[parcel]
-            return palette[(color % palette.count+palette.count)%palette.count]
+            let visual=game.state.visualDye(parcel)
+            let pigment=(visual % palette.count+palette.count)%palette.count
+            let bank=max(0,visual/palette.count)
+            var color=palette[pigment]
+            if bank==1 {
+                color=SIMD4(color.x*0.60+0.40,color.y*0.60+0.40,color.z*0.60+0.40,1)
+            } else if bank==2 {
+                color=SIMD4(color.x*0.52,color.y*0.52,color.z*0.52,1)
+            }
+            return color
         }
         func bounds(_ i:Int)->CGRect {
             let capRadius=capColor(i)==nil ? Float(0):(profiles[i].radii.last!+0.065)

@@ -25,7 +25,7 @@ struct FluidBoardView:View {
             VStack(spacing:0) {
                 HStack {
                     VStack(alignment:.leading,spacing:4) {
-                        Text("VIALS / FLUID LAB").font(.system(size:10,weight:.semibold,design:.monospaced)).tracking(3).foregroundStyle(ink.opacity(0.5))
+                        Text("VIALS / \(session.discipline.header)").font(.system(size:10,weight:.semibold,design:.monospaced)).tracking(3).foregroundStyle(ink.opacity(0.5))
                         Text(session.puzzle.title).font(.system(size:compact ? 28:34,design:.serif)).foregroundStyle(ink)
                     }
                     Spacer()
@@ -46,6 +46,20 @@ struct FluidBoardView:View {
                     } label: { Image(systemName:"ellipsis.circle").frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Board options")
                 }.padding(.horizontal,compact ? 20:32).padding(.top,20).padding(.bottom,12)
                 HStack(spacing:12) {
+                    if compact {
+                        Menu(session.discipline.title+" Lab") {
+                            ForEach(LabDiscipline.allCases,id:\.self) { discipline in
+                                Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
+                            }
+                        }.buttonStyle(.bordered).accessibilityLabel("Choose laboratory")
+                    } else {
+                        Picker("Laboratory",selection:Binding(get:{session.discipline},set:session.changeDiscipline)) {
+                            ForEach(LabDiscipline.allCases,id:\.self) {Text($0.title).tag($0)}
+                        }.pickerStyle(.segmented).frame(maxWidth:520)
+                    }
+                    Spacer(minLength:0)
+                }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
+                HStack(spacing:12) {
                     Picker("Presentation",selection:Binding(get:{session.presentation},set:session.changePresentation)) {
                         ForEach(LabBoardPresentation.allCases,id:\.self) { Text($0.title).tag($0) }
                     }.pickerStyle(.segmented).frame(maxWidth:330)
@@ -54,7 +68,7 @@ struct FluidBoardView:View {
                     }.pickerStyle(.segmented).frame(maxWidth:220)
                     Spacer(minLength:0)
                     Menu {
-                        ForEach(LabBoardPuzzle.allCases,id:\.self) { puzzle in Button("\(puzzle.number). \(puzzle.title)\(session.hasCompleted(puzzle) ? " ✓":"")") { session.changePuzzle(puzzle) } }
+                        ForEach(session.discipline.levels,id:\.self) { puzzle in Button("\(puzzle.number). \(puzzle.title)\(session.hasCompleted(puzzle) ? " ✓":"")") { session.changePuzzle(puzzle) } }
                     } label: { Image(systemName:"square.grid.2x2").frame(width:28,height:28) }.accessibilityLabel("Choose puzzle")
                 }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
                 HStack { Text(session.puzzle.detail);Spacer();Text("\(session.completedPuzzleCount) complete") }.font(.system(size:10,design:.monospaced)).foregroundStyle(ink.opacity(0.55)).padding(.horizontal,compact ? 20:32)
@@ -81,10 +95,20 @@ struct FluidBoardView:View {
                                             .foregroundStyle(cueColor(index) == .clear ? ink.opacity(0.75):cueColor(index)).opacity(cueLabel(index).isEmpty ? 0:1).offset(y:17)
                                     }
                                     .overlay(alignment:.top) {
-                                        if session.state.rules[index] == .receiveOnly {
+                                        if let apparatus=session.apparatus(forVial:index) {
+                                            Label(apparatusPortLabel(apparatus,index:index),systemImage:apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down")
+                                                .font(.system(size:8,weight:.bold,design:.monospaced))
+                                                .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
+                                                .foregroundStyle(session.hintApparatusID==apparatus.id ? Color.orange:Color.purple).offset(y:-13)
+                                        } else if session.state.rules[index] == .receiveOnly {
                                             Label("FILL",systemImage:"arrow.down").font(.system(size:8,weight:.bold,design:.monospaced))
                                                 .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
                                                 .foregroundStyle(Color.cyan).offset(y:-13)
+                                        } else if session.target(index) != nil {
+                                            Label(session.vialComplete(index) ? "TARGET ✓":"TARGET",systemImage:"scope")
+                                                .font(.system(size:8,weight:.bold,design:.monospaced))
+                                                .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
+                                                .foregroundStyle(session.vialComplete(index) ? Color.green:Color.purple).offset(y:-13)
                                         }
                                     }
                                     .overlay {
@@ -115,11 +139,29 @@ struct FluidBoardView:View {
                                         Text(session.vialComplete(index) ? "✓":"\(session.state.stacks[index].count) / \(session.state.capacity(index))")
                                             .font(.system(size:denseDebug ? 9:11,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
                                         if session.state.rules[index] == .receiveOnly { Image(systemName:"arrow.down").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(Color.cyan) }
+                                        if session.state.rules[index] == .sourceOnly { Image(systemName:"arrow.up").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(Color.purple) }
                                     }
                                     .lineLimit(1).minimumScaleFactor(0.72)
                                     HStack(spacing:denseDebug ? 1.5:3) {
                                         ForEach(0..<session.state.capacity(index),id:\.self) { layer in
-                                            Capsule().fill(layer<session.state.stacks[index].count ? FluidBoardSession.color(session.state.colors[session.state.stacks[index][layer]]):ink.opacity(0.09)).frame(height:4)
+                                            let parcel=layer<session.state.stacks[index].count ? session.state.stacks[index][layer]:nil
+                                            Capsule().fill(parcel.map {FluidBoardSession.color(session.state.visualDye($0))} ?? ink.opacity(0.09))
+                                                .overlay {
+                                                    if let parcel,session.state.behavior.settlesByDensity {
+                                                        Text(session.state.densities[parcel].shortTitle).font(.system(size:5,weight:.bold,design:.monospaced)).foregroundStyle(ink.opacity(0.78))
+                                                    }
+                                                }.frame(height:session.state.behavior.settlesByDensity ? 7:4)
+                                        }
+                                    }
+                                    if let target=session.target(index) {
+                                        HStack(spacing:denseDebug ? 1.5:3) {
+                                            Text("TARGET").font(.system(size:denseDebug ? 6:7,weight:.bold,design:.monospaced)).foregroundStyle(ink.opacity(0.5))
+                                            ForEach(Array(target.layers.enumerated()),id:\.offset) { _,material in
+                                                Capsule().fill(FluidBoardSession.color(material.pigment+material.density.visualBank*12).opacity(0.34))
+                                                    .overlay(Capsule().stroke(ink.opacity(0.35),lineWidth:0.5))
+                                                    .overlay(Text(material.density.shortTitle).font(.system(size:5,weight:.bold,design:.monospaced)).foregroundStyle(ink.opacity(0.75)))
+                                                    .frame(height:7)
+                                            }
                                         }
                                     }
                                 }.frame(maxWidth:.infinity).padding(.vertical,denseDebug ? 8:12).padding(.horizontal,denseDebug ? 3:9)
@@ -132,6 +174,17 @@ struct FluidBoardView:View {
                             }.buttonStyle(LabVialPressStyle()).disabled(!session.canTap(index))
                             .accessibilityLabel("Select "+session.accessibility(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
                         }
+                    }
+                    if !session.state.apparatus.isEmpty {
+                        HStack(spacing:10) {
+                            ForEach(session.state.apparatus) { apparatus in
+                                Button(apparatus.title,systemImage:apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down") {
+                                    session.activateApparatus(apparatus.id)
+                                }
+                                .disabled(session.busy || !session.state.canActivate(.init(apparatusID:apparatus.id)))
+                                .tint(session.hintApparatusID==apparatus.id ? .orange:.purple)
+                            }
+                        }.buttonStyle(.borderedProminent).controlSize(.small)
                     }
                     if session.solved,let next=session.puzzle.next {
                         Button("Next: \(next.title)",systemImage:"arrow.right") { session.nextPuzzle() }.buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
@@ -175,7 +228,7 @@ struct FluidBoardView:View {
     }
     private func cueLabel(_ index:Int)->String {
         if let item=session.pourQueue.items.first(where:{$0.move.source==index}) { return item.started ? "Pouring":"Queued" }
-        if session.busy && !session.allowsConcurrentPours { return "" }
+        if session.busy && !session.concurrentPoursEnabled { return "" }
         if session.rejectedVial==index { return "Cannot pour" }
         if session.selected==index { return "Selected" }
         if session.hintTarget==index { return "Hint" }
@@ -190,10 +243,14 @@ struct FluidBoardView:View {
         return session.validDestinations.contains(index) ? "arrow.down":"checkmark.circle"
     }
     private func cueColor(_ index:Int)->Color {
-        if session.busy && !session.allowsConcurrentPours { return .clear }
+        if session.busy && !session.concurrentPoursEnabled { return .clear }
         if session.rejectedVial==index || session.hintTarget==index { return .orange }
         if session.selected==index || session.validDestinations.contains(index) { return accent }
         return .clear
+    }
+    private func apparatusPortLabel(_ apparatus:LabApparatus,index:Int)->String {
+        if apparatus.kind == .mixer {return apparatus.output==index ? "MIX OUT":"MIX IN"}
+        return apparatus.direction == .heavier ? "HEAVY":"LIGHT"
     }
     private var diagnostics:some View {
         VStack(alignment:.leading,spacing:7) {

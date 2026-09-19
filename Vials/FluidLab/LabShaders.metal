@@ -279,14 +279,19 @@ fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniform
     return particleDepth(in,u,v,profiles);
 }
 float3 boardColor(float dye) {
-    switch(clamp(int(round(dye)),0,11)) {
-        case 0:return float3(0.05,0.58,0.86);case 1:return float3(0.96,0.34,0.07);
-        case 2:return float3(0.20,0.76,0.36);case 3:return float3(0.94,0.34,0.65);
-        case 4:return float3(1.00,0.72,0.08);case 5:return float3(0.98,0.71,0.61);
-        case 6:return float3(0.55,0.30,0.95);case 7:return float3(0.12,0.78,0.62);
-        case 8:return float3(0.72,0.04,0.24);case 9:return float3(0.08,0.24,0.88);
-        case 10:return float3(0.54,0.78,0.06);default:return float3(0.82,0.78,0.68);
+    int encoded=max(0,int(round(dye))),tier=encoded/12,pigment=encoded%12;
+    float3 base;
+    switch(pigment) {
+        case 0:base=float3(0.05,0.58,0.86);break;case 1:base=float3(0.96,0.34,0.07);break;
+        case 2:base=float3(0.20,0.76,0.36);break;case 3:base=float3(0.94,0.34,0.65);break;
+        case 4:base=float3(1.00,0.72,0.08);break;case 5:base=float3(0.98,0.71,0.61);break;
+        case 6:base=float3(0.55,0.30,0.95);break;case 7:base=float3(0.12,0.78,0.62);break;
+        case 8:base=float3(0.72,0.04,0.24);break;case 9:base=float3(0.08,0.24,0.88);break;
+        case 10:base=float3(0.54,0.78,0.06);break;default:base=float3(0.82,0.78,0.68);break;
     }
+    if(tier==1) return mix(base,float3(1),0.40);
+    if(tier==2) return base*0.52;
+    return base;
 }
 struct BoardDepthOut { float depthColor [[color(0)]]; float4 frontDye [[color(1)]]; float depth [[depth(any)]]; };
 fragment BoardDepthOut labBoardParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]]) {

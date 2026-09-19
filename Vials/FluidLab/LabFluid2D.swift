@@ -348,7 +348,7 @@ nonisolated struct LabFluid2D:Sendable {
                     let unit=Float(layer)+(Float(k)+0.5)/Float(Self.particlesPerUnit)
                     let y=profiles[owner].level(unit)
                     let x=(Float(k)*0.61803398875).truncatingRemainder(dividingBy:1)*2-1
-                    result.append(Lab2DParticle(position:home(owner)+SIMD2(x*max(0.02,profiles[owner].radius(y)-radius),y),owner:owner,parcel:parcel,color:state.colors[parcel]))
+                    result.append(Lab2DParticle(position:home(owner)+SIMD2(x*max(0.02,profiles[owner].radius(y)-radius),y),owner:owner,parcel:parcel,color:state.visualDye(parcel)))
                 }
             }
         }
@@ -543,8 +543,8 @@ nonisolated struct LabFluid2D:Sendable {
         if let layer=stack.firstIndex(of:p.parcel) {
             // Same-color units share a band. Unlike dyes remain readable puzzle layers.
             var lo=layer,hi=layer+1
-            while lo>0,game.state.colors[stack[lo-1]]==p.color { lo-=1 }
-            while hi<stack.count,game.state.colors[stack[hi]]==p.color { hi+=1 }
+            while lo>0,game.state.visualDye(stack[lo-1])==p.color { lo-=1 }
+            while hi<stack.count,game.state.visualDye(stack[hi])==p.color { hi+=1 }
             // A partial pour owns the top units, even when the retained fluid
             // has the same color. Keep that outgoing band above the remainder.
             if outgoing,let move { lo=max(lo,stack.count-move.amount) }
@@ -557,7 +557,7 @@ nonisolated struct LabFluid2D:Sendable {
         } else if let move,owner==move.destination {
             let stack=game.state.stacks[owner]
             var lo=stack.count
-            while lo>0,game.state.colors[stack[lo-1]]==p.color { lo-=1 }
+            while lo>0,game.state.visualDye(stack[lo-1])==p.color { lo-=1 }
             lower=max(radius,profile.level(Float(lo))+radius*0.75)
         }
         q.y=max(lower,q.y)

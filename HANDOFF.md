@@ -1,5 +1,15 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 18 keystone laboratory prototype — latest status
+
+- The shared Fluid Lab app now has four independent disciplines: the established 16-level Sorting Lab plus five-level Density, Mixing, and Crossover labs. The four-way selector is independent of Classic / 2D Fluid / 3D Fluid and Relaxed / Quick; each lab remembers its most recent level.
+- Materials now carry pigment plus Light/Medium/Heavy density. Density and Crossover levels accept unlike materials and settle them heavy-to-light. Pastel/normal/dark rendering and explicit L/M/H labels are shared across all three presentations.
+- Experimental completion uses exact bottom-to-top targets on actual board vials and ignores harmless surplus elsewhere. Mixing consumes fixed one-unit primary inputs and emits two secondary-color units. Density modifiers transform a whole homogeneous batch one step. Apparatus operations participate in hints, Undo, persistence, and the operation solver.
+- Fifteen authored experimental levels are playable: five Density, five Mixing, and five Crossover. Every authored route passes model and production-session validation, including initial hints, Classic commits, apparatus activation, completion, full Undo, lab switching, and persistence. Existing saves migrate to medium density.
+- Sorting retains dependency-safe three-or-more simultaneous pours. Experimental labs deliberately serialize operations for deterministic density settlement and apparatus input order during this prototype.
+- All 16 legacy Sorting levels still solve and retain their capacity/valve behavior. A full macOS Debug build, including Metal, succeeds without warnings. Native visual inspection was unavailable at the end because the Mac session was locked; physical iOS validation was intentionally deferred under the approved macOS-first plan.
+- See `Reports/Prototype30/README.md` for implementation details, the suggested review path, remaining experience questions, and exact validation scope. The prototype implements `Reports/keystone-lab-prototype-plan.md`, which is associated with `Reports/3d-fluid-simulation-plan.md` and `Reports/fluid-logic-laboratory-design.md`.
+
 ## September 18 bounded multi-lane physics — latest status
 
 - Stage-specific physical-iPad counters show the full 22,400-particle visible surface is inexpensive (1.33 ms median / 2.71 ms p95 in the matched baseline); compact receiver-lane physics caused the remaining 77 ms p95.

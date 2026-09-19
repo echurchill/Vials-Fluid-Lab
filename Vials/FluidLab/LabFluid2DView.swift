@@ -91,7 +91,7 @@ private struct LabFluid2DLayer:View {
                             let profile=engine.profiles[owner],pose=engine.pose(owner)
                             var cap=context;cap.translateBy(x:screen(pose.base).x,y:screen(pose.base).y);cap.rotate(by:.radians(Double(pose.angle)))
                             drawLabPlanarCap(context:&cap,height:profile.height,radius:profile.radius(profile.height)+0.065,
-                                scale:scale,color:FluidBoardSession.color(engine.game.state.colors[first]))
+                                scale:scale,color:FluidBoardSession.color(engine.game.state.visualDye(first)))
                         }
                     }
                 }
