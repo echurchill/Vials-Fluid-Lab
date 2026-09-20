@@ -109,8 +109,9 @@ private struct LabFluid2DLayer:View {
                     if a==incoming { return false };if b==incoming { return true };return a<b
                 }
                 for color in colors {
+                    let pigment=color%12
                     let group=owned.filter { $0.color==color }
-                    let mix=engine.mixing
+                    let mix=engine.transformation
                     let parcel=group.first!.parcel
                     let changes=mix?.parcels.contains(parcel) == true
                     let ink=FluidBoardSession.color(color,mixedWith:changes ? mix?.after.visualDye(parcel):nil,blend:mix?.blend ?? 0)
@@ -140,12 +141,12 @@ private struct LabFluid2DLayer:View {
                             let speed=sqrt(p.velocity.x*p.velocity.x+p.velocity.y*p.velocity.y)
                             let flying = !p.inBulk
                             let r=scale*CGFloat(engine.separation)*(flying ? 0.62:0.90)
-                            let stretch=flying ? CGFloat(min(color==2 ? 2.0:1.75,1+speed*(color==2 ? 0.30:0.24))):1
+                            let stretch=flying ? CGFloat(min(pigment==2 ? 2.0:1.75,1+speed*(pigment==2 ? 0.30:0.24))):1
                             let angle=flying ? atan2(CGFloat(-p.velocity.y),CGFloat(p.velocity.x)):0
                             let oval=Path(ellipseIn:CGRect(x:-r*stretch,y:-r/stretch,width:2*r*stretch,height:2*r/stretch))
                             blobs.addPath(oval,transform:CGAffineTransform(rotationAngle:angle).concatenating(CGAffineTransform(translationX:point.x,y:point.y)))
-                            if (color==0 && (flying || index%9==0)) || (color==1 && flying && index%4==0) {
-                                let core=scale*CGFloat(engine.radius)*(color==1 ? 0.5:(flying ? 0.28:0.22))
+                            if (pigment==0 && (flying || index%9==0)) || (pigment==1 && flying && index%4==0) {
+                                let core=scale*CGFloat(engine.radius)*(pigment==1 ? 0.5:(flying ? 0.28:0.22))
                                 cores.addEllipse(in:CGRect(x:point.x-core,y:point.y-core,width:core*2,height:core*2))
                             }
                         }
@@ -154,7 +155,7 @@ private struct LabFluid2DLayer:View {
                             ctx.addFilter(.blur(radius:max(0.5,scale*0.033)))
                             ctx.fill(blobs,with:.color(.white))
                         }
-                        if color==0 {
+                        if pigment==0 {
                             liquid.drawLayer { glow in
                                 glow.addFilter(.blur(radius:scale*0.06))
                                 glow.fill(blobs,with:.color(Color.cyan.opacity(0.16)))
@@ -166,8 +167,8 @@ private struct LabFluid2DLayer:View {
                         }
                         var body=liquid
                         let resultColor=changes ? mix!.after.visualDye(parcel):color
-                        let startOpacity:Double=color==0 ? 0.44:(color==2 ? 0.70:0.78)
-                        let endOpacity:Double=resultColor==0 ? 0.44:(resultColor==2 ? 0.70:0.78)
+                        let startOpacity:Double=color%12==0 ? 0.44:(color%12==2 ? 0.70:0.78)
+                        let endOpacity:Double=resultColor%12==0 ? 0.44:(resultColor%12==2 ? 0.70:0.78)
                         body.opacity=startOpacity+(endOpacity-startOpacity)*Double(mix?.blend ?? 0)
                         body.drawLayer { surface in mask(&surface,ink) }
                         var detail=liquid
@@ -176,11 +177,11 @@ private struct LabFluid2DLayer:View {
                             let center=screen(pose.base),r=CGFloat(engine.profiles[owner].source.radii.max()! * engine.profiles[owner].scale)*scale
                             detail.fill(Path(CGRect(origin:.zero,size:size)),with:.linearGradient(Gradient(colors:[.white.opacity(0.09),.clear,.black.opacity(0.12),.white.opacity(0.04)]),startPoint:CGPoint(x:center.x-r,y:center.y),endPoint:CGPoint(x:center.x+r,y:center.y)))
                         }
-                        if color==1 {
+                        if pigment==1 {
                             detail.fill(cores,with:.color(.black.opacity(0.10)))
                             detail.stroke(cores,with:.color(Color(red:1,green:0.88,blue:0.50).opacity(0.5)),lineWidth:0.6)
                         }
-                        if color==0 {
+                        if pigment==0 {
                             detail.drawLayer { glow in
                                 glow.addFilter(.blur(radius:1.3))
                                 glow.stroke(cores,with:.color(Color.cyan.opacity(0.30)),lineWidth:1.8)
@@ -192,7 +193,7 @@ private struct LabFluid2DLayer:View {
                             if let low=local.map(\.y).min(),let high=local.map(\.y).max(),high-low>0.05 {
                                 let t=engine.materialTimes[owner]
                                 let bottom=low-engine.radius,top=high+engine.radius,height=top-bottom
-                                if color==1 {
+                                if pigment==1 {
                                     // Decorative bubbles follow the vessel and are masked to orange liquid.
                                     // They are not simulated air volume and cannot change the fill level.
                                     for n in 0..<10 {
@@ -207,7 +208,8 @@ private struct LabFluid2DLayer:View {
                                         detail.fill(bubble,with:.color(Color(red:1,green:0.85,blue:0.40).opacity(0.09*Double(1-pop))))
                                         detail.stroke(bubble,with:.color(Color(red:1,green:0.88,blue:0.50).opacity((0.32+0.16*Double(surface.energy*envelope))*Double(1-pop))),lineWidth:0.8)
                                     }
-                                } else {
+                                } else if !engine.game.state.behavior.settlesByDensity {
+                                    // Keep directional density symbols clear of decorative ribbons.
                                     // A few broad, quiet ribbons provide a silky material cue.
                                     for n in 0..<3 {
                                         var ribbon=Path()
@@ -224,6 +226,18 @@ private struct LabFluid2DLayer:View {
                             }
                         }
 
+                        if owner>=0 {
+                            let local=group.filter(\.inBulk).map {pose.local($0.position)}
+                            if let low=local.map(\.y).min(),let high=local.map(\.y).max() {
+                                var patterned=detail
+                                let base=screen(pose.base)
+                                patterned.translateBy(x:base.x,y:base.y);patterned.rotate(by:.radians(Double(pose.angle)))
+                                let r=CGFloat(engine.profiles[owner].source.radii.max() ?? 0.5)*scale
+                                let bounds=CGRect(x:-r,y:-CGFloat(high+engine.radius)*scale,width:r*2,height:CGFloat(high-low+2*engine.radius)*scale)
+                                drawLabDensityPattern(context:patterned,bounds:bounds,scale:scale,dye:color,
+                                    nextDye:changes ? mix?.after.visualDye(parcel):nil,blend:mix?.blend ?? 0,offsets:changes ? (mix?.densityPatternOffsets ?? .zero):.zero)
+                            }
+                        }
                         if waveActive && top>0.05 {
                             var crest=Path()
                             for n in 0...36 {
@@ -232,7 +246,7 @@ private struct LabFluid2DLayer:View {
                                 if n==0 { crest.move(to:point) } else { crest.addLine(to:point) }
                             }
                             liquid.stroke(crest,with:.color(ink.opacity(Double(surface.energy*envelope)*0.75)),style:StrokeStyle(lineWidth:1.5,lineCap:.round))
-                            if color==1 {
+                            if pigment==1 {
                                 // Tiny impact bubbles sit just under the moving surface.
                                 for n in 0..<5 {
                                     let x=min(halfWidth,max(-halfWidth,surface.impactX+Float(n-2)*0.08))

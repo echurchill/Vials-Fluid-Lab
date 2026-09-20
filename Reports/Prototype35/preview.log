@@ -1,0 +1,12 @@
+PASS layers classic
+PASS layers fluid2D
+PASS layers fluid
+PASS wide classic
+PASS wide fluid2D
+PASS wide fluid
+PASS small classic
+PASS small fluid2D
+PASS small fluid
+PASS portrait classic
+PASS portrait fluid2D
+PASS portrait fluid

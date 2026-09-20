@@ -1,5 +1,36 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 20 density checkpoint
+
+This checkpoint includes the density-apparatus animation, hue-independent triangle motifs, larger matching contents/target symbols, directional fades, and the 12-case physical-iPad diagnostic/results. Earlier notes describing these changes as uncommitted or unapproved are historical. Use `git log` and the remote branch to resolve publication status.
+
+Next priorities: complete visual acceptance on the iPad (light/heavy readability, small vessels and dense target cards, portrait/landscape); measure the added 3D density attachment with a controlled before/after device profile; then improve density onboarding with a compact symbol legend and clearer target-mismatch feedback. These are recommendations, not authorization to implement all of them. Sound and new physics mechanics remain deferred.
+
+
+## Latest: physical iPad density checks (September 20)
+
+The signed current build is installed on Eddie's M4 iPad Pro. All 12 live-clock density-control cases pass across Classic/2D/3D, covering Light→Medium, Medium→Heavy, Medium→Light, Reduced Motion, pause/resume, single commit, inventory, renderer errors, Undo and Reset cancellation. New diagnostic flag: `--lab-trial --check-density-controls --keep-awake`; it is isolated from saved progress. Results: `Reports/Prototype35/ipad-density-controls.json`. Both builds pass. Actual iPad visual inspection remains pending because Device Hub/QuickTime CUA repeatedly timed out despite an unlocked Mac; Xcode/Mac-game access worked. This is functional evidence only, not GPU/battery measurement. App relaunched normally afterward. Changes remain local/uncommitted; latest pushed checkpoint remains `083d383`.
+
+
+## Latest: density symbols and directional fade (September 20)
+
+The tiny L/M/H contents/target labels have been replaced by shared 14-point swatches: pale up-triangle for Light, plain Medium, dark down-triangle for Heavy. Target and contents now use matching full pigment color; spoken density descriptions remain. Eddie then requested directional entry animation: density motifs fade in while drifting up for Light/down for Heavy, easing to their stationary positions. Outgoing motifs drift the same way while fading out. Classic/2D/3D share the pause-aware transformation clock; Reduced Motion keeps the fade only. Mac and signed iOS builds plus all 18 focused density-animation cases pass. Intermediate visual fixtures inspected; live Mac 2D/3D pause/resume/completion checked with caffeinate. No iPad test. See Report35. All changes since pushed checkpoint `083d383` remain local/uncommitted.
+
+
+## Latest: density triangle prototype (September 20)
+
+Eddie approved prototyping shape-based density. Classic/2D/3D now retain base pigment hue at every density and use pale upward triangles for light, plain medium, dark downward triangles for heavy. Apparatus transitions crossfade patterns; cap/card hue also uses base pigment. Layer metadata and puzzle rules remain unchanged. 2D density decoration is quieter; 3D uses an rg16Float density-weight attachment in the existing surface pass and antialiased vial-local motifs. No preference toggle. See `Reports/Prototype35/README.md` and `Scripts/preview_density_patterns.sh`.
+
+Mac/iOS builds, 12 visual fixtures, 18 density-animation cases, 48 mixing cases and seven density-pour cases in both particle modes passed. Mac 3D activation/pause/resume/undo succeeded; 2D activation/pause exercised, then UI capture errors/interruptions prevented the final sequence and level switch. Prototype is loaded in the Mac app; review via Density → Shades of blue. No iPad test/profile yet. All density-animation and triangle work remains local/uncommitted; pushed checkpoint is still `083d383`. The older note saying triangles are unapproved is historical and superseded.
+
+
+## Latest: density apparatus animation (September 20)
+
+Mixing and corrected shadows are committed/pushed as `083d383`; remote hash verified. The subsequent Make heavier/Make lighter animation is implemented locally across all three views, with a shared LabApparatusTransition, gradual tint change and gentle internal downward/upward motion. The uniform chamber retains its volume and particles, with no final repack. All 18 authored density cases and 48 mixing cases pass; Mac and signed iOS builds pass. Offscreen renders inspected. Live Mac activation check remains incomplete because CUA screen capture failed with -3811 after the setup pour; no iPad test. See `Reports/Prototype34/README.md`. These density changes are uncommitted/unpushed.
+
+Eddie is considering density triangles (pale upward for light, dark downward for heavy) to keep hue dedicated to pigment and improve accessibility. Discussed but not implemented or explicitly approved. Suggested sparse, readable symbols with modest size variation and plain medium liquid. Preserve this as a future design item.
+
+
 ## September 20: checkpoint pushed; visible mixing prototype ready
 
 Checkpoint `9c86721` is pushed to `origin/codex/fluid-lab` and verified against GitHub. The subsequent local mixing prototype adds pumped input transfer, a vortex and gradual recipe-color blending in Classic/2D/3D. Activation commits exactly once after the pause-aware transition; reset cancels it, undo restores inputs, and checkpoints retain the pre-mix board. Density modifiers stay immediate. All 48 authored animated mixer cases pass, plus post-mix pours for the introductory recipes, and all three modes passed live Mac mixing/pause/resume/undo checks. Mac and signed iOS Release builds pass. iPad hardware is unavailable; no performance claim. See `Reports/Prototype33/README.md` and `Scripts/validate_mixing.sh`. Mixing changes remain uncommitted/unpushed for review.
@@ -256,3 +287,5 @@ Confirm the current branch/status and read this handoff plus Prototype26/25/24/2
 September 20 follow-up: contact shadows now shrink/fade with actual vial lift and follow the floor projection in Classic, 2D and 3D (including standalone study). Per-vial Metal samples replace fixed shadows. Mac/iOS builds and offscreen rendering passed; see Prototype33 report. Local, uncommitted; no iPad hardware validation.
 
 Shadow follow-up: user could not see the initial shadows. Increased footprint/contrast, decoupled most opacity loss from shrink, and moved Metal shadow attenuation after the background vignette (critical for outer vials). Corrected previews visibly show dark resting and lifted shadows.
+
+Latest readability follow-up: tiny density letters in current-content and target strips are replaced by LabDensitySwatch triangles, matching fluid motifs. Light points up, Heavy down, Medium plain; strips are 14 pt high and targets use the same full pigment hue plus outline. Mac live Equal partners screenshot confirms G's heavy-content vs medium-target mismatch is visible. Component previews and builds passed; see Prototype35. Local/uncommitted, no iPad check.

@@ -1,0 +1,15 @@
+heavy-through-light 2d: committed=true landed-before-cleanup=1.0 max-step=0.21542615 crossing=true
+heavy-through-light 3d: committed=true landed-before-cleanup=1.0 max-step=0.11723131 crossing=true
+medium-above-heavy 2d: committed=true landed-before-cleanup=1.0 max-step=0.21786147 crossing=true
+medium-above-heavy 3d: committed=true landed-before-cleanup=1.0 max-step=0.120899916 crossing=true
+medium-above-medium 2d: committed=true landed-before-cleanup=1.0 max-step=0.1730187 crossing=true
+medium-above-medium 3d: committed=true landed-before-cleanup=1.0 max-step=0.116453886 crossing=true
+heavy-above-heavy 2d: committed=true landed-before-cleanup=1.0 max-step=0.1933828 crossing=true
+heavy-above-heavy 3d: committed=true landed-before-cleanup=1.0 max-step=0.121439755 crossing=true
+light-floats 2d: committed=true landed-before-cleanup=1.0 max-step=0.19604087 crossing=false
+light-floats 3d: committed=true landed-before-cleanup=1.0 max-step=0.116362095 crossing=true
+two-heavy-units 2d: committed=true landed-before-cleanup=1.0 max-step=0.20395088 crossing=true
+two-heavy-units 3d: committed=true landed-before-cleanup=1.0 max-step=0.12564182 crossing=true
+crossover-medium 2d: committed=true landed-before-cleanup=1.0 max-step=0.1730187 crossing=true
+crossover-medium 3d: committed=true landed-before-cleanup=1.0 max-step=0.11902499 crossing=true
+Density pour trajectories, stable ties, volume, pause and completion passed.

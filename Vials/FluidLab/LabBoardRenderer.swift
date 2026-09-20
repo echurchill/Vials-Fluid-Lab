@@ -58,9 +58,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     // CPU bookkeeping is read only after the preceding GPU command completes.
     // A particle adds volume below lighter liquid only when it reaches its layer.
     private var densityJoined:Set<Int>=[]
-    private var mixing:LabMixTransition?
-    private var mixFrom:[LabParticle]=[]
-    private var mixTargets:[LabParticle]=[]
+    private var transformation:LabApparatusTransition?
+    private var transformationFrom:[LabParticle]=[]
+    private var transformationTargets:[LabParticle]=[]
     private var groupTransfers:[LabMetalTransfer]=[]
     private(set) var groupResults:[LabLaneResult]=[]
     private(set) var groupOwnedParcels:Set<Int>=[]
@@ -119,6 +119,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var depthState: MTLDepthStencilState!
     private var depth: MTLTexture!
     private var frontDye: MTLTexture!
+    private var densityPattern: MTLTexture!
     private var dyeA: MTLTexture!
     private var dyeB: MTLTexture!
     private var smoothA: MTLTexture!
@@ -200,7 +201,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         d.vertexFunction = library.makeFunction(name: vertex)
         d.fragmentFunction = library.makeFunction(name: fragment)
         d.colorAttachments[0].pixelFormat = format
-        if fragment == "labBoardParticleDepth" { d.colorAttachments[1].pixelFormat = .rgba16Float }
+        if fragment == "labBoardParticleDepth" { d.colorAttachments[1].pixelFormat = .rgba16Float;d.colorAttachments[2].pixelFormat = .rg16Float }
         if depth { d.depthAttachmentPixelFormat = .depth32Float }
         if additive {
             let a = d.colorAttachments[0]!
@@ -233,7 +234,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
 
     private func clearMotion() {
         compositeVessels=nil;groupTransfers=[];groupResults=[];groupOwnedParcels=[];densityJoined=[]
-        mixing=nil;mixFrom=[];mixTargets=[]
+        transformation=nil;transformationFrom=[];transformationTargets=[]
         pourTime=nil;tilt=0;cutoffTime=nil;returnStart=nil;cleanupStart=nil
         settleFrom=nil;settleTargets=nil;groupSettleStart=nil
         previousWorlds=[];accumulator=0;lastWallTime=nil;pausedSignature=nil
@@ -263,33 +264,40 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         if let samples, samples.count==particleCount { particles=makeBuffer(samples) }
     }
 
-    func beginMix(_ transition:LabMixTransition) {
-        mixFrom=particleSamples();mixTargets=mixFrom
+    func beginTransformation(_ transition:LabApparatusTransition) {
+        transformationFrom=particleSamples();transformationTargets=transformationFrom
+        if transition.isDensityChange {
+            let parcels=transition.parcels
+            for i in transformationTargets.indices where parcels.contains(Int(transformationTargets[i].visual.y)) {
+                transformationTargets[i].velocity=SIMD4(0,0,0,Float(transition.after.visualDye(Int(transformationTargets[i].visual.y))))
+            }
+            transformation=transition;pausedSignature=nil;return
+        }
         let canonical=Dictionary(grouping:seed(state:transition.after)) {Int($0.visual.y)}
         var offsets:[Int:Int]=[:]
-        for i in mixFrom.indices {
-            let parcel=Int(mixFrom[i].visual.y),offset=offsets[parcel,default:0]
+        for i in transformationFrom.indices {
+            let parcel=Int(transformationFrom[i].visual.y),offset=offsets[parcel,default:0]
             offsets[parcel]=offset+1
-            if transition.parcels.contains(parcel) {mixTargets[i]=canonical[parcel]![offset]}
+            if transition.parcels.contains(parcel) {transformationTargets[i]=canonical[parcel]![offset]}
         }
-        mixing=transition;pausedSignature=nil
+        transformation=transition;pausedSignature=nil
     }
-    func showMix(_ transition:LabMixTransition) {
-        lastCommand?.waitUntilCompleted();mixing=transition
+    func showTransformation(_ transition:LabApparatusTransition) {
+        lastCommand?.waitUntilCompleted();transformation=transition
         let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
         let owner=transition.output,origin=homes[owner],profile=profiles[owner],parcels=transition.parcels
-        for i in mixFrom.indices where parcels.contains(Int(mixFrom[i].visual.y)) {
-            let from=mixFrom[i],target=mixTargets[i],phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
+        for i in transformationFrom.indices where parcels.contains(Int(transformationFrom[i].visual.y)) {
+            let from=transformationFrom[i],target=transformationTargets[i],phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
             let sample=transition.position(from:from.position.xyz,to:target.position.xyz,origin:origin,profile:profile,phase:phase)
             p[i]=target;p[i].position=SIMD4(sample.point,sample.arrived ? Float(owner):(sample.started ? -1:from.position.w));p[i].predicted=p[i].position
             p[i].visual.z = -from.velocity.w-1
         }
         pausedSignature=nil
     }
-    func finishMix(_ game:LabBoardGame) {
+    func finishTransformation(_ game:LabBoardGame) {
         lastCommand?.waitUntilCompleted()
-        particles=makeBuffer(mixTargets);self.game=game
-        mixing=nil;mixFrom=[];mixTargets=[];pausedSignature=nil
+        particles=makeBuffer(transformationTargets);self.game=game
+        transformation=nil;transformationFrom=[];transformationTargets=[];pausedSignature=nil
     }
     private func radical(_ index:Int,_ base:Int) -> Float {
         var n=index,f:Float=1,result:Float=0
@@ -581,6 +589,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         viewportSize = SIMD2(width,height)
         depth = texture(.r32Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
         frontDye = texture(.rgba16Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
+        densityPattern = texture(.rg16Float,width:width,height:height,usage:[.renderTarget,.shaderRead])
         dyeA = texture(.rgba16Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
         dyeB = texture(.rgba16Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
         smoothA = texture(.r32Float,width:width,height:height,usage:[.shaderRead,.shaderWrite])
@@ -946,13 +955,17 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             // thickness pass. No extra render pass or larger particle budget.
             u.options.y |= 256 | UInt32(game.state.visualDye(move.parcels[0])) << 16 | UInt32(move.destination+1) << 24
         }
-        if let mixing {u.options.y |= 512;u.physics.w=mixing.blend}
+        if let transformation {u.options.y |= 512;u.physics.w=transformation.blend}
         let vessels = currentVessels
         let surfacePass=pass(color:depth,clear:MTLClearColorMake(1,1,1,1),depth:depthTest)
         surfacePass.colorAttachments[1].texture=frontDye
         surfacePass.colorAttachments[1].loadAction = .clear
         surfacePass.colorAttachments[1].storeAction = .store
         surfacePass.colorAttachments[1].clearColor=MTLClearColorMake(-1,0,0,0)
+        surfacePass.colorAttachments[2].texture=densityPattern
+        surfacePass.colorAttachments[2].loadAction = .clear
+        surfacePass.colorAttachments[2].storeAction = .store
+        surfacePass.colorAttachments[2].clearColor=MTLClearColorMake(0,0,0,0)
         let depthEncoder = command.makeRenderCommandEncoder(descriptor:surfacePass)!
         depthEncoder.label = "Particle surface depth"
         depthEncoder.setRenderPipelineState(depthPipeline); depthEncoder.setDepthStencilState(depthState)
@@ -999,12 +1012,21 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         compose.setFragmentTexture(pointMode ? depth : smoothB,index:0)
         compose.setFragmentTexture(thickness,index:1)
         compose.setFragmentTexture(dyeB,index:2)
+        compose.setFragmentTexture(densityPattern,index:3)
+        var patternMotion=SIMD4<Float>.zero
+        if let transformation,transformation.isDensityChange {
+            let drift=transformation.densityPatternOffsets
+            patternMotion=SIMD4(drift.x,drift.y,Float(transformation.output+1),0)
+        }
+        compose.setFragmentBytes(&patternMotion,length:MemoryLayout<SIMD4<Float>>.stride,index:3)
+
+        vessels.withUnsafeBytes { compose.setFragmentBytes($0.baseAddress!,length:$0.count,index:2) }
         compose.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3)
         compose.endEncoding()
         // Batch non-overlapping shells. Only overlapping silhouettes require
         // another sampled layer; a normal resting board is usually one batch.
         let movingCaps=Set(groupMoves.flatMap { [$0.source,$0.destination] }+(game.pending.map { [$0.source,$0.destination] } ?? []))
-        let excludedCaps=capExclusions.union(movingCaps).union(mixing?.vessels ?? [])
+        let excludedCaps=capExclusions.union(movingCaps).union(transformation?.vessels ?? [])
         func capColor(_ index:Int)->SIMD4<Float>? {
             guard !excludedCaps.contains(index),game.state.isComplete(index),let parcel=game.state.stacks[index].first else { return nil }
             let palette:[SIMD4<Float>]=[
@@ -1013,14 +1035,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 SIMD4(0.72,0.04,0.24,1),SIMD4(0.08,0.24,0.88,1),SIMD4(0.54,0.78,0.06,1),SIMD4(0.82,0.78,0.68,1)]
             let visual=game.state.visualDye(parcel)
             let pigment=(visual % palette.count+palette.count)%palette.count
-            let bank=max(0,visual/palette.count)
-            var color=palette[pigment]
-            if bank==1 {
-                color=SIMD4(color.x*0.60+0.40,color.y*0.60+0.40,color.z*0.60+0.40,1)
-            } else if bank==2 {
-                color=SIMD4(color.x*0.52,color.y*0.52,color.z*0.52,1)
-            }
-            return color
+            return palette[pigment]
         }
         func bounds(_ i:Int)->CGRect {
             let capRadius=capColor(i)==nil ? Float(0):(profiles[i].radii.last!+0.065)

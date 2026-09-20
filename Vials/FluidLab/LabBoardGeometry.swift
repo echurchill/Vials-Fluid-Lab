@@ -138,21 +138,57 @@ struct LabBoardLayout {
 
 /// A presentation-only transaction. The game commits once, after the animation;
 /// elapsed time advances only while the board is active and unpaused.
-nonisolated struct LabMixTransition:Sendable {
+nonisolated struct LabApparatusTransition:Sendable {
     let before:LabBoardState
     let after:LabBoardState
     let apparatus:LabApparatus
     var time:Float=0
     var reduceMotion=false
-    static let duration:Float=2.8
-    var output:Int { apparatus.output! }
+    var isDensityChange:Bool { apparatus.kind == .densityModifier }
+    var duration:Float { isDensityChange ? 2.2:2.8 }
+    var output:Int { apparatus.output ?? apparatus.inputs[0] }
     var parcels:Set<Int> { Set(apparatus.inputs.flatMap {before.stacks[$0]}) }
     var vessels:Set<Int> { Set(apparatus.inputs+[output]) }
     var gathered:Float { labSmooth(time/1.15) }
-    var blend:Float { labSmooth((time-0.85)/1.65) }
-    var agitation:Float { reduceMotion ? 0:labSmooth(time/0.7)*(1-labSmooth((time-1.8)/1.0)) }
-    var finished:Bool { time>=Self.duration }
+    var blend:Float { isDensityChange ? labSmooth((time-0.15)/1.6):labSmooth((time-0.85)/1.65) }
+    /// World-Y offsets for light/heavy motifs. Incoming symbols start behind
+    /// their final position and drift in the direction they point as they fade
+    /// in; outgoing symbols continue that way while fading out.
+    var densityPatternOffsets:SIMD2<Float> {
+        guard isDensityChange,!reduceMotion,let parcel=before.stacks[output].first else {return .zero}
+        let old=before.densities[parcel],new=after.densities[parcel],distance:Float=0.18
+        let light:Float=new == .light ? -distance*(1-blend):(old == .light ? distance*blend:0)
+        let heavy:Float=new == .heavy ? distance*(1-blend):(old == .heavy ? -distance*blend:0)
+        return SIMD2(light,heavy)
+    }
+    var agitation:Float {
+        guard !reduceMotion else {return 0}
+        return isDensityChange ? labSmooth(time/0.35)*(1-labSmooth((time-1.25)/0.95)):labSmooth(time/0.7)*(1-labSmooth((time-1.8)/1.0))
+    }
+    var status:String {
+        if !isDensityChange {return time<1.15 ? "Feeding the mixer":"Blending colors"}
+        return time<1.6 ? (apparatus.direction == .heavier ? "Making liquid heavier":"Making liquid lighter"):"Settling the liquid"
+    }
+    var finished:Bool { time>=duration }
     func position(from:SIMD3<Float>,to:SIMD3<Float>,origin:SIMD3<Float>,profile:LabVesselProfile,phase:Float)->(point:SIMD3<Float>,arrived:Bool,started:Bool) {
+        if isDensityChange {
+            // The chamber contains one homogeneous material. Circulate within
+            // its unchanged volume; density does not shrink or expand the fill.
+            var local=from-origin
+            let top=profile.height(for:profile.usableVolume*Float(before.stacks[output].count)/Float(before.capacity(output)))
+            let height=max(0.01,top),y=min(1,max(0,local.y/height))
+            let radius=max(0.01,profile.radius(at:local.y)-0.05)
+            let radial=min(1,simd_length(SIMD2(local.x,local.z))/radius)
+            let direction:Float=apparatus.direction == .heavier ? -1:1
+            // Center travels down/up while the outside returns in the opposite
+            // direction. The envelope returns every sample to its starting pose.
+            local.y+=direction*min(0.16,height*0.12)*sin(Float.pi*y)*(1-2*radial*radial)*agitation
+            let allowed=max(0.01,profile.radius(at:local.y)-0.04)
+            let length=simd_length(SIMD2(local.x,local.z))
+            if length>allowed {local.x*=allowed/length;local.z*=allowed/length}
+            let displaced=origin+local
+            return (simd_mix(from,displaced,SIMD3(repeating:agitation)),true,true)
+        }
         let f=labSmooth((time-phase*0.35)/0.8)
         var local=to-origin
         let top=profile.height(for:profile.usableVolume*2/Float(after.capacity(output)))-0.04

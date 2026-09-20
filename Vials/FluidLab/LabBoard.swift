@@ -5,8 +5,8 @@ nonisolated enum LabDensity:String,CaseIterable,Sendable,Codable {
     var title:String { rawValue.capitalized }
     var shortTitle:String { switch self { case .light:"L";case .medium:"M";case .heavy:"H" } }
     var order:Int { switch self { case .heavy:0;case .medium:1;case .light:2 } }
-    /// Medium retains the original palette IDs. The renderers reserve the next
-    /// two palette banks for light and heavy variants of the same pigment.
+    /// Encodes pigment plus density for rendering. Hue uses pigment modulo 12;
+    /// the higher banks select light/heavy motifs rather than brightness.
     var visualBank:Int { switch self { case .medium:0;case .light:1;case .heavy:2 } }
 }
 

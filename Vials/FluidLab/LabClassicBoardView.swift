@@ -20,7 +20,7 @@ struct LabClassicBoardView:View {
     let pour:LabClassicPour?
     var additionalPours:[LabClassicPour]=[]
     var capExclusions:Set<Int>=[]
-    var mixing:LabMixTransition?
+    var transformation:LabApparatusTransition?
     private var pours:[LabClassicPour] { [pour].compactMap { $0 }+additionalPours }
     private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(capacities:state.capacities) }
     var body:some View {
@@ -37,7 +37,7 @@ struct LabClassicBoardView:View {
             }
             let moving=Set(pours.map { $0.move.source })
             for index in state.stacks.indices where !moving.contains(index) { drawVial(index,context:context,layout:layout) }
-            if let mixing { drawMixStreams(mixing,context:context,layout:layout) }
+            if let transformation { drawMixStreams(transformation,context:context,layout:layout) }
             for pour in pours {
                 let pose=pose(pour,layout:layout)
                 if pour.progress>0 && pour.progress<1 {
@@ -62,12 +62,12 @@ struct LabClassicBoardView:View {
             }
         }.accessibilityHidden(true)
     }
-    private func drawMixStreams(_ mixing:LabMixTransition,context:GraphicsContext,layout:LabClassicLayout) {
-        guard mixing.gathered>0,mixing.gathered<1 else {return}
-        let destination=layout.base(mixing.output),scale=layout.scale
-        let target=CGPoint(x:destination.x,y:destination.y-CGFloat(profiles[mixing.output].height)*scale)
-        let envelope=CGFloat(sin(mixing.gathered*Float.pi))
-        for input in mixing.apparatus.inputs {
+    private func drawMixStreams(_ transformation:LabApparatusTransition,context:GraphicsContext,layout:LabClassicLayout) {
+        guard !transformation.isDensityChange,transformation.gathered>0,transformation.gathered<1 else {return}
+        let destination=layout.base(transformation.output),scale=layout.scale
+        let target=CGPoint(x:destination.x,y:destination.y-CGFloat(profiles[transformation.output].height)*scale)
+        let envelope=CGFloat(sin(transformation.gathered*Float.pi))
+        for input in transformation.apparatus.inputs {
             let base=layout.base(input),mouth=CGPoint(x:base.x,y:base.y-CGFloat(profiles[input].height)*scale)
             let top=min(mouth.y,target.y)-scale*0.65
             var path=Path();path.move(to:mouth)
@@ -126,9 +126,9 @@ struct LabClassicBoardView:View {
                 } else { amounts.append((state.visualDye(pour.move.parcels[0]),Float(pour.move.amount)*pour.progress)) }
             }
         }
-        if let mixing {
-            if mixing.apparatus.inputs.contains(index) {amounts=amounts.map {($0.0,$0.1*(1-mixing.gathered))}}
-            if index==mixing.output {amounts=mixing.apparatus.inputs.map {(state.visualDye(state.stacks[$0][0]),mixing.gathered)}}
+        if let transformation,!transformation.isDensityChange {
+            if transformation.apparatus.inputs.contains(index) {amounts=amounts.map {($0.0,$0.1*(1-transformation.gathered))}}
+            if index==transformation.output {amounts=transformation.apparatus.inputs.map {(state.visualDye(state.stacks[$0][0]),transformation.gathered)}}
         }
         var units:Float=0,run=0
         while run<amounts.count {
@@ -139,11 +139,14 @@ struct LabClassicBoardView:View {
             let lower=CGFloat(profile.height(for:profile.usableVolume*units/capacity))*scale
             units+=amount
             let upper=CGFloat(profile.height(for:profile.usableVolume*units/capacity))*scale
-            let mixingOutput=mixing?.output==index
-            let finalDye=mixingOutput ? mixing.map {$0.after.visualDye($0.after.stacks[index][0])}:nil
-            let color=FluidBoardSession.color(colorID,mixedWith:finalDye,blend:mixing?.blend ?? 0)
+            let mixingOutput=transformation?.output==index
+            let finalDye=mixingOutput ? transformation.map {$0.after.visualDye($0.after.stacks[index][0])}:nil
+            let color=FluidBoardSession.color(colorID,mixedWith:finalDye,blend:transformation?.blend ?? 0)
             let band=CGRect(x:-radius,y:-upper,width:radius*2,height:max(0,upper-lower))
             liquid.fill(Path(band),with:.linearGradient(Gradient(colors:[color.opacity(0.96),color,color.opacity(0.95)]),startPoint:CGPoint(x:-radius,y:0),endPoint:CGPoint(x:radius,y:0)))
+            var patterned=liquid;patterned.clip(to:Path(band))
+            drawLabDensityPattern(context:patterned,bounds:band,scale:scale,dye:colorID,
+                nextDye:finalDye,blend:transformation?.blend ?? 0,offsets:mixingOutput ? (transformation?.densityPatternOffsets ?? .zero):.zero)
             if amount>0.001 {
                 let r=CGFloat(profile.radius(at:Float(upper/scale)))*scale
                 liquid.fill(Path(ellipseIn:CGRect(x:-r,y:-upper-2,width:r*2,height:4)),with:.color(color.opacity(0.9)))
@@ -152,21 +155,34 @@ struct LabClassicBoardView:View {
             }
             run=end
         }
-        if let mixing,index==mixing.output,mixing.agitation>0 {
-            let top=CGFloat(profile.height(for:profile.usableVolume*2*mixing.gathered/Float(state.capacity(index))))*scale
+        if let transformation,transformation.isDensityChange,index==transformation.output,transformation.agitation>0 {
+            let top=CGFloat(profile.height(for:profile.usableVolume*Float(state.stacks[index].count)/Float(state.capacity(index))))*scale
+            var current=liquid;current.clip(to:Path(CGRect(x:-radius,y:-top,width:radius*2,height:top)))
+            let direction:CGFloat=transformation.apparatus.direction == .heavier ? -1:1
+            for n in 0..<4 {
+                let travel=CGFloat(transformation.time)*0.42*direction+CGFloat(n)/4
+                let f=travel-floor(travel),y=top*f
+                let r=CGFloat(profile.radius(at:Float(y/scale)))*scale*0.78
+                var path=Path();path.move(to:CGPoint(x:-r,y:-y))
+                path.addQuadCurve(to:CGPoint(x:r,y:-y),control:CGPoint(x:0,y:-y-direction*scale*0.18))
+                current.stroke(path,with:.color(.white.opacity(Double(transformation.agitation)*0.13)),style:StrokeStyle(lineWidth:1.5,lineCap:.round))
+            }
+        }
+        if let transformation,!transformation.isDensityChange,index==transformation.output,transformation.agitation>0 {
+            let top=CGFloat(profile.height(for:profile.usableVolume*2*transformation.gathered/Float(state.capacity(index))))*scale
             var swirl=liquid;swirl.clip(to:Path(CGRect(x:-radius,y:-top,width:radius*2,height:top)))
-            for (n,input) in mixing.apparatus.inputs.enumerated() {
-                let parcel=state.stacks[input][0],color=FluidBoardSession.color(state.visualDye(parcel),mixedWith:mixing.after.visualDye(parcel),blend:mixing.blend)
+            for (n,input) in transformation.apparatus.inputs.enumerated() {
+                let parcel=state.stacks[input][0],color=FluidBoardSession.color(state.visualDye(parcel),mixedWith:transformation.after.visualDye(parcel),blend:transformation.blend)
                 for ribbon in 0..<3 {
                     var path=Path()
                     for k in 0...48 {
                         let f=CGFloat(k)/48,y=top*f
-                        let phase=Double(f)*8+Double(mixing.time)*6+Double(n)*Double.pi+Double(ribbon)*0.8
+                        let phase=Double(f)*8+Double(transformation.time)*6+Double(n)*Double.pi+Double(ribbon)*0.8
                         let x=sin(phase)*CGFloat(profile.radius(at:Float(y/scale)))*scale*0.75
                         let point=CGPoint(x:x,y:-y)
                         if k==0 {path.move(to:point)} else {path.addLine(to:point)}
                     }
-                    swirl.stroke(path,with:.color(color.opacity(Double(mixing.agitation)*0.8)),style:StrokeStyle(lineWidth:scale*0.12,lineCap:.round))
+                    swirl.stroke(path,with:.color(color.opacity(Double(transformation.agitation)*0.8)),style:StrokeStyle(lineWidth:scale*0.12,lineCap:.round))
                 }
             }
         }
@@ -193,7 +209,7 @@ struct LabClassicBoardView:View {
             var mark=Path();mark.move(to:CGPoint(x:r*0.53,y:-CGFloat(y)*scale));mark.addLine(to:CGPoint(x:r*0.90,y:-CGFloat(y)*scale))
             ctx.stroke(mark,with:.color(.white.opacity(0.23)),lineWidth:1)
         }
-        let excluded=capExclusions.union(pours.flatMap { [$0.move.source,$0.move.destination] }).union(mixing?.vessels ?? [])
+        let excluded=capExclusions.union(pours.flatMap { [$0.move.source,$0.move.destination] }).union(transformation?.vessels ?? [])
         if !excluded.contains(index),state.isComplete(index),let first=state.stacks[index].first {
             drawLabPlanarCap(context:&ctx,height:profile.height,radius:profile.radii.last!+0.065,
                 scale:scale,color:FluidBoardSession.color(state.visualDye(first)))
@@ -282,4 +298,39 @@ func drawLabContactShadow(context:GraphicsContext,center:CGPoint,radius:CGFloat,
         with:.radialGradient(Gradient(stops:[.init(color:.black.opacity(Double(shadow.opacity)),location:0),
                 .init(color:.black.opacity(Double(shadow.opacity)*0.85),location:0.5),.init(color:.clear,location:1)]),
             center:.zero,startRadius:0,endRadius:1))
+}
+
+/// Density changes the motif, never the pigment. A row is centered in even a
+/// thin layer, with bounded symbol sizes and a small, deterministic variation.
+@MainActor func drawLabDensityPattern(context:GraphicsContext,bounds:CGRect,scale:CGFloat,dye:Int,nextDye:Int?=nil,blend:Float=0,offsets:SIMD2<Float> = .zero) {
+    let f=Double(min(1,max(0,blend))),before=max(0,dye/12),after=max(0,(nextDye ?? dye)/12)
+    let light=(before==1 ? 1-f:0)+(after==1 ? f:0),heavy=(before==2 ? 1-f:0)+(after==2 ? f:0)
+    guard light+heavy>0.001,bounds.height>2,bounds.width>2 else {return}
+    let spacing=max(12,min(21,scale*0.34)),rows=max(1,Int(bounds.height/spacing))
+    let pigment=FluidBoardSession.color(dye,mixedWith:nextDye,blend:blend)
+    for row in 0..<rows {
+        let y=bounds.minY+bounds.height*(CGFloat(row)+0.5)/CGFloat(rows)
+        let offset:CGFloat=row%2==0 ? 0:spacing*0.5
+        let columns=Int(ceil(bounds.width/spacing))+1
+        for column in -columns...columns {
+            let x=bounds.midX+CGFloat(column)*spacing+offset
+            guard x>=bounds.minX,x<=bounds.maxX else {continue}
+            let variation=CGFloat(abs(column*7+row*3)%5)/4
+            let radius=min(max(3,scale*(0.070+0.019*variation)),bounds.height*0.42)
+            func triangle(_ direction:CGFloat,_ offset:Float)->Path {
+                let center=y-CGFloat(offset)*scale
+                return Path {p in p.move(to:CGPoint(x:x,y:center-direction*radius));p.addLine(to:CGPoint(x:x-radius*0.866,y:center+direction*radius*0.5));p.addLine(to:CGPoint(x:x+radius*0.866,y:center+direction*radius*0.5));p.closeSubpath()}
+            }
+            if light>0 {
+                let p=triangle(1,offsets.x)
+                context.fill(p,with:.color(.white.opacity(0.88*light)))
+                context.stroke(p,with:.color(pigment.opacity(0.95*light)),style:StrokeStyle(lineWidth:0.85,lineJoin:.round))
+            }
+            if heavy>0 {
+                let p=triangle(-1,offsets.y)
+                context.fill(p,with:.color(pigment.opacity(heavy)))
+                context.fill(p,with:.color(.black.opacity(0.78*heavy)))
+            }
+        }
+    }
 }

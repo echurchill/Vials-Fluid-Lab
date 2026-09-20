@@ -80,7 +80,7 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     let capExclusions=Set([session.selected].compactMap { $0 }+session.activeMoves.flatMap { [$0.source,$0.destination] })
                     ZStack {
-                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions,mixing:session.mixing) }
+                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions,transformation:session.transformation) }
                         else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial,capExclusions:capExclusions) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer,capExclusions:capExclusions).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
@@ -148,22 +148,17 @@ struct FluidBoardView:View {
                                     HStack(spacing:denseDebug ? 1.5:3) {
                                         ForEach(0..<session.state.capacity(index),id:\.self) { layer in
                                             let parcel=layer<session.state.stacks[index].count ? session.state.stacks[index][layer]:nil
-                                            Capsule().fill(parcel.map {FluidBoardSession.color(session.state.visualDye($0))} ?? ink.opacity(0.09))
-                                                .overlay {
-                                                    if let parcel,session.state.behavior.settlesByDensity {
-                                                        Text(session.state.densities[parcel].shortTitle).font(.system(size:5,weight:.bold,design:.monospaced)).foregroundStyle(ink.opacity(0.78))
-                                                    }
-                                                }.frame(height:session.state.behavior.settlesByDensity ? 7:4)
+                                            LabDensitySwatch(color:parcel.map {FluidBoardSession.color(session.state.visualDye($0))} ?? ink.opacity(0.09),
+                                                density:session.state.behavior.settlesByDensity ? parcel.map {session.state.densities[$0]}:nil)
+                                                .frame(height:session.state.behavior.settlesByDensity ? 14:4)
                                         }
                                     }
                                     if let target=session.target(index) {
                                         HStack(spacing:denseDebug ? 1.5:3) {
                                             Text("TARGET").font(.system(size:denseDebug ? 6:7,weight:.bold,design:.monospaced)).foregroundStyle(ink.opacity(0.5))
                                             ForEach(Array(target.layers.enumerated()),id:\.offset) { _,material in
-                                                Capsule().fill(FluidBoardSession.color(material.pigment+material.density.visualBank*12).opacity(0.34))
-                                                    .overlay(Capsule().stroke(ink.opacity(0.35),lineWidth:0.5))
-                                                    .overlay(Text(material.density.shortTitle).font(.system(size:5,weight:.bold,design:.monospaced)).foregroundStyle(ink.opacity(0.75)))
-                                                    .frame(height:7)
+                                                LabDensitySwatch(color:FluidBoardSession.color(material.pigment),density:material.density,target:true)
+                                                    .frame(height:14)
                                             }
                                         }
                                     }
@@ -227,7 +222,7 @@ struct FluidBoardView:View {
         .task { await session.runTrialIfRequested() }
         .onChange(of:reduceTransparency,initial:true) { _,value in session.renderer?.reduceTransparency=value }
         .onChange(of:session.presentation) { _,_ in session.renderer?.reduceTransparency=reduceTransparency }
-        .onChange(of:reduceMotion,initial:true) { _,value in session.reduceMixMotion=value }
+        .onChange(of:reduceMotion,initial:true) { _,value in session.reduceTransformationMotion=value }
         .onAppear { if reduceMotion { session.paused=true;session.renderer?.paused=true } }
         .onChange(of:sheet) { _,value in session.setSuspended(value != nil || comparison != nil || showResetProgress || scenePhase != .active) }
         .onChange(of:scenePhase) { _,value in session.setSuspended(value != .active || sheet != nil || comparison != nil || showResetProgress) }

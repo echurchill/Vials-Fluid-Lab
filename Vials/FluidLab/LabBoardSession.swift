@@ -20,8 +20,8 @@ import Combine
     var discipline:LabDiscipline {puzzle.discipline}
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
-    @Published private(set) var mixing:LabMixTransition?
-    var reduceMixMotion=false
+    @Published private(set) var transformation:LabApparatusTransition?
+    var reduceTransformationMotion=false
     let allowsConcurrentPours:Bool
     /// The established sorting boards support independent simultaneous pours.
     /// Experimental material transforms remain sequential so density settlement
@@ -96,7 +96,7 @@ import Combine
     private var clockRevision=0
     var state:LabBoardState { game.state }
     var moveCount:Int { game.moveCount }
-    var busy:Bool { mixing != nil || game.pending != nil || pourQueue.busy }
+    var busy:Bool { transformation != nil || game.pending != nil || pourQueue.busy }
     var active3DSimulationParticleCount:Int {metalGroups.values.reduce(0) {$0+$1.particleCount}}
     var effectiveSpeed:Float { (comparisonSpeed ?? pace.speed)*(slow ? 0.35:1) }
     var validDestinations:Set<Int> {
@@ -243,7 +243,7 @@ import Combine
             nextPhase=state.targets.isEmpty ? "Sorted beautifully":"Targets complete"
             let solvedNotice=state.targets.isEmpty ? "Every color has a home. Undo to explore, or play again.":"Every requested material is in place. Undo to explore, or play again."
             if notice != solvedNotice { notice=solvedNotice }
-        } else if let mixing { nextPhase=mixing.time<1.15 ? "Feeding the mixer":"Blending colors"
+        } else if let transformation { nextPhase=transformation.status
         } else if concurrentPoursEnabled,busy {
             let active=pourQueue.active.count,waiting=pourQueue.items.count-active
             nextPhase="\(active) \(active == 1 ? "pour":"pours")"+(waiting>0 ? " · \(waiting) queued":"")
@@ -254,7 +254,7 @@ import Combine
         if phase != nextPhase { phase=nextPhase;performance.tracePhase(nextPhase) }
     }
     private func fluidUpdate() {
-        guard mixing == nil,!concurrentPoursEnabled,presentation == .fluid,let renderer else { return }
+        guard transformation == nil,!concurrentPoursEnabled,presentation == .fluid,let renderer else { return }
         metrics=renderer.lastMetrics;correction=renderer.correctionCount;captured=renderer.arrivalBeforeCorrection
         if busy,renderer.game.pending == nil {
             let amount=game.pending?.amount ?? 1
@@ -414,7 +414,7 @@ import Combine
     func reset() {
         cancelHint()
         cancelConcurrent()
-        mixing=nil
+        transformation=nil
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         feedback.stop()
         classicTask?.cancel();classicTask=nil;classicPour=nil
@@ -489,21 +489,21 @@ import Combine
         guard let after=state.applying(activation),let tool=state.apparatus.first(where:{$0.id==id}) else {notice="That apparatus is not ready.";return}
         let followsHint=hintPlan.first == .activate(activation)
         cancelHint(clearPlan:!followsHint)
-        if animated,tool.kind == .mixer {
-            let transition=LabMixTransition(before:state,after:after,apparatus:tool,reduceMotion:reduceMixMotion)
-            mixing=transition;selected=nil;hintTarget=nil;hintApparatusID=nil
-            if presentation == .fluid { renderer?.beginMix(transition) }
-            if presentation == .fluid2D { fluid2D.beginMix(transition);planarDisplay.publish(fluid2D) }
-            notice="The two inputs blend into one new color.";refresh()
+        if animated {
+            let transition=LabApparatusTransition(before:state,after:after,apparatus:tool,reduceMotion:reduceTransformationMotion)
+            transformation=transition;selected=nil;hintTarget=nil;hintApparatusID=nil
+            if presentation == .fluid { renderer?.beginTransformation(transition) }
+            if presentation == .fluid2D { fluid2D.beginTransformation(transition);planarDisplay.publish(fluid2D) }
+            notice=transition.isDensityChange ? (tool.direction == .heavier ? "The liquid becomes heavier; its volume stays the same.":"The liquid becomes lighter; its volume stays the same."):"The two inputs blend into one new color.";refresh()
             if automaticClock {
                 classicTask?.cancel()
                 classicTask=Task { @MainActor [weak self] in
                     var last=ProcessInfo.processInfo.systemUptime
                     while !Task.isCancelled {
                         try? await Task.sleep(for:.milliseconds(16))
-                        guard !Task.isCancelled,let self,self.mixing != nil else {return}
+                        guard !Task.isCancelled,let self,self.transformation != nil else {return}
                         let now=ProcessInfo.processInfo.systemUptime
-                        self.advanceMix(deltaTime:Float(now-last));last=now
+                        self.advanceTransformation(deltaTime:Float(now-last));last=now
                     }
                 }
             }
@@ -511,12 +511,12 @@ import Combine
         }
         finishActivation(activation)
     }
-    func advanceMix(deltaTime:Float) {
-        guard !paused,!suspended,deltaTime.isFinite,var transition=mixing else {return}
+    func advanceTransformation(deltaTime:Float) {
+        guard !paused,!suspended,deltaTime.isFinite,var transition=transformation else {return}
         transition.time+=min(0.05,max(0,deltaTime))*effectiveSpeed
-        mixing=transition
-        if presentation == .fluid {renderer?.showMix(transition)}
-        if presentation == .fluid2D {fluid2D.showMix(transition);planarDisplay.publish(fluid2D)}
+        transformation=transition
+        if presentation == .fluid {renderer?.showTransformation(transition)}
+        if presentation == .fluid2D {fluid2D.showTransformation(transition);planarDisplay.publish(fluid2D)}
         if transition.finished {
             finishActivation(.init(apparatusID:transition.apparatus.id))
         } else {refresh()}
@@ -524,15 +524,15 @@ import Combine
     private func finishActivation(_ activation:LabApparatusActivation) {
         guard game.activate(activation) else {return}
         if hintPlan.first == .activate(activation) {hintPlan.removeFirst()}
-        let wasMixing=mixing != nil
-        mixing=nil;classicTask?.cancel();classicTask=nil
+        let wasTransforming=transformation != nil
+        transformation=nil;classicTask?.cancel();classicTask=nil
         undoParticles.append(nil);settledParticles=nil;selected=nil;hintTarget=nil;hintApparatusID=nil
         if presentation == .fluid {
-            if wasMixing {renderer?.finishMix(game);settledParticles=renderer?.particleSamples()}
+            if wasTransforming {renderer?.finishTransformation(game);settledParticles=renderer?.particleSamples()}
             else {prepareFluid()}
         }
         if presentation == .fluid2D {
-            if wasMixing {fluid2D.finishMix(game)} else {fluid2D.install(game)}
+            if wasTransforming {fluid2D.finishTransformation(game)} else {fluid2D.install(game)}
             planarDisplay.publish(fluid2D)
         }
         notice="Transformation complete.";feedback.completed(solved:state.solved);checkpoint();refresh()
@@ -542,7 +542,7 @@ import Combine
         guard defaults == nil else { return }
         cancelConcurrent()
         classicTask?.cancel();classicTask=nil;clockRevision+=1
-        if mixing != nil {mixing=nil;renderer?.install(game:game)}
+        if transformation != nil {transformation=nil;renderer?.install(game:game)}
         game.cancel();classicPour=nil;renderer?.paused=true;suspended=true;feedback.stop()
     }
     func setSuspended(_ value:Bool) { suspended=value;updatePause() }
@@ -617,6 +617,83 @@ import Combine
         reset()
         return ["pause":pauseOK,"suspension":suspendOK,"resume":resumeOK,"reset":resetOK,"commit":commitOK,"undo":undoOK,"saveReload":saveOK]
     }
+    // Explicit device diagnostic, isolated from saved play by --lab-trial.
+    // Uses the live presentation and normal clock, rather than fast-forwarding
+    // the offscreen harness. It is a functional check, not a battery benchmark.
+    private func checkDensityTrial() async {
+        let originalReducedMotion=reduceTransformationMotion
+        defer {reduceTransformationMotion=originalReducedMotion}
+        var results:[[String:Any]]=[]
+        var failures:[String]=[]
+        func check(_ condition:Bool,_ message:String) {if !condition {failures.append(message)}}
+        func install(_ fixture:LabBoardState,_ level:LabBoardPuzzle,_ mode:LabBoardPresentation) {
+            reset();puzzle=level;game=LabBoardGame(state:fixture)
+            undoParticles=[];settledParticles=nil;presentation=mode;error=nil
+            if mode == .fluid {prepareFluid()} else {renderer?.paused=true}
+            if mode == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
+            updatePause();refresh()
+        }
+        for mode in LabBoardPresentation.allCases {
+            for (level,index,reduced) in [(LabBoardPuzzle.equalPartners,1,false),(.weightedOrange,4,false),(.twinProducts,10,false),(.weightedOrange,4,true)] {
+                guard !Task.isCancelled,!suspended else {failures.append("Device trial interrupted");break}
+                let label="\(mode.rawValue)/\(level.rawValue)/\(reduced ? "reduced":"normal")"
+                let failureStart=failures.count
+                guard let route=level.authoredRoute(),route.indices.contains(index) else {failures.append(label+": missing route");continue}
+                var before=level.initial
+                for operation in route.prefix(index) {before=before.applying(operation)!}
+                guard case .activate(let activation)=route[index],let after=before.applying(route[index]) else {failures.append(label+": missing activation");continue}
+                install(before,level,mode);reduceTransformationMotion=reduced
+                try? await Task.sleep(for:.milliseconds(300))
+                activateApparatus(activation.apparatusID)
+                activateApparatus(activation.apparatusID) // Must not double-commit.
+                check(transformation?.isDensityChange == true,label+": did not start")
+                try? await Task.sleep(for:.milliseconds(300))
+                togglePause()
+                let frozen=transformation,planar=fluid2D.particles
+                let metal=mode == .fluid ? renderer?.particleSamples().map(\.position):nil
+                try? await Task.sleep(for:.milliseconds(250))
+                check(frozen != nil && transformation?.time==frozen?.time && transformation?.densityPatternOffsets==frozen?.densityPatternOffsets,label+": pause advanced symbols")
+                check(fluid2D.particles==planar,label+": pause advanced planar particles")
+                if let metal {check(renderer?.particleSamples().map(\.position)==metal,label+": pause advanced Metal particles")}
+                togglePause()
+                let started=ProcessInfo.processInfo.systemUptime
+                var previous=frozen?.densityPatternOffsets
+                var samples=0
+                while busy && !suspended && !Task.isCancelled && ProcessInfo.processInfo.systemUptime-started<10 {
+                    if let transition=transformation {
+                        let offsets=transition.densityPatternOffsets
+                        check(state==before && moveCount==0,label+": premature commit")
+                        if let previous {check(offsets.x>=previous.x-0.00001 && offsets.y<=previous.y+0.00001,label+": reversed drift")}
+                        if reduced {check(offsets == .zero,label+": Reduced Motion drifted")}
+                        previous=offsets;samples+=1
+                    }
+                    try? await Task.sleep(for:.milliseconds(30))
+                }
+                check(samples>0,label+": no resumed animation samples")
+                check(!busy && state==after && moveCount==1,label+": final state or single commit failed")
+                check(error == nil,label+": renderer error: \(error ?? "")")
+                if mode == .fluid {check(renderer?.particleCount==before.colors.count*LabBoardRenderer.particlesPerUnit,label+": Metal inventory changed")}
+                if mode == .fluid2D {check(fluid2D.particles.count==before.colors.count*LabFluid2D.particlesPerUnit,label+": planar inventory changed")}
+                if !busy {undo();check(state==before && moveCount==0,label+": undo failed")}
+                activateApparatus(activation.apparatusID)
+                try? await Task.sleep(for:.milliseconds(100));reset()
+                try? await Task.sleep(for:.milliseconds(100))
+                check(!busy && state==level.initial && moveCount==0,label+": reset left a delayed commit")
+                results.append(["case":label,"passed":failures.count==failureStart,"resumedSamples":samples])
+            }
+        }
+        let report:[String:Any]=["date":ISO8601DateFormatter().string(from:Date()),"passed":failures.isEmpty && results.count==12,"cases":results,"failures":failures,"environment":performance.environment(),"notes":"Live app, automatic animation clocks, all three presentations. Functional checks only; no claim of visual acceptance, displayed frame rate or battery consumption."]
+        do {
+            let directory=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("FluidLabReports",isDirectory:true)
+            try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
+            let url=directory.appendingPathComponent("density-device-check.json")
+            try JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]).write(to:url,options:.atomic)
+            reportURL=url
+        } catch {self.error=error.localizedDescription}
+        reset()
+        notice=failures.isEmpty && results.count==12 ? "Density checks passed in all three views.":"Density checks need attention. See diagnostic report."
+    }
+
     func runTrialIfRequested() async {
         guard !trialStarted,let trial=LabTrialConfiguration.current else { return }
         trialStarted=true
@@ -627,6 +704,7 @@ import Combine
         defer { UIApplication.shared.isIdleTimerDisabled=previousIdleTimer }
         #endif
         try? await Task.sleep(for:.seconds(2))
+        if arguments.contains("--check-density-controls") {await checkDensityTrial();return}
         // Freeze the two tester-reported transitions at useful inspection
         // points on a physical device. These diagnostic replays are isolated
         // from saved play by the trial configuration above.
@@ -739,9 +817,7 @@ import Combine
     }
     private static func colorComponents(_ value:Int)->SIMD3<Double> {
         let palette:[(Double,Double,Double)]=[(0.05,0.58,0.86),(0.96,0.34,0.07),(0.20,0.76,0.36),(0.94,0.34,0.65),(1.00,0.72,0.08),(0.98,0.71,0.61),(0.55,0.30,0.95),(0.12,0.78,0.62),(0.72,0.04,0.24),(0.08,0.24,0.88),(0.54,0.78,0.06),(0.82,0.78,0.68)]
-        let pigment=(value%12+12)%12,bank=max(0,value/12),base=palette[pigment]
-        if bank==1 {return SIMD3(base.0*0.60+0.40,base.1*0.60+0.40,base.2*0.60+0.40)}
-        if bank==2 {return SIMD3(base.0*0.52,base.1*0.52,base.2*0.52)}
+        let pigment=(value%12+12)%12,base=palette[pigment]
         return SIMD3(base.0,base.1,base.2)
     }
     func accessibility(_ index:Int) -> String {

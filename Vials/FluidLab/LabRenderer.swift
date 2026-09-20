@@ -402,6 +402,10 @@ final class LabRenderer: NSObject, MTKViewDelegate {
         compose.setFragmentTexture(pointMode ? depth : smoothB,index:0)
         compose.setFragmentTexture(thickness,index:1)
         compose.setFragmentTexture(thickness,index:2) // unused identity texture in legacy mode
+        compose.setFragmentTexture(thickness,index:3) // unused density pattern in legacy mode
+        var patternMotion=SIMD4<Float>.zero
+        compose.setFragmentBytes(&patternMotion,length:MemoryLayout<SIMD4<Float>>.stride,index:3)
+        vessels.withUnsafeBytes { compose.setFragmentBytes($0.baseAddress!,length:$0.count,index:2) }
         compose.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:3)
         compose.endEncoding()
         let final=command.makeRenderCommandEncoder(descriptor:pass(color:target,depth:glassDepth))!

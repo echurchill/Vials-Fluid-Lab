@@ -279,7 +279,7 @@ fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniform
     return particleDepth(in,u,v,profiles);
 }
 float3 boardColor(float dye) {
-    int encoded=max(0,int(round(dye))),tier=encoded/12,pigment=encoded%12;
+    int encoded=max(0,int(round(dye))),pigment=encoded%12;
     float3 base;
     switch(pigment) {
         case 0:base=float3(0.05,0.58,0.86);break;case 1:base=float3(0.96,0.34,0.07);break;
@@ -289,8 +289,6 @@ float3 boardColor(float dye) {
         case 8:base=float3(0.72,0.04,0.24);break;case 9:base=float3(0.08,0.24,0.88);break;
         case 10:base=float3(0.54,0.78,0.06);break;default:base=float3(0.82,0.78,0.68);break;
     }
-    if(tier==1) return mix(base,float3(1),0.40);
-    if(tier==2) return base*0.52;
     return base;
 }
 float3 particleColor(ParticleOut in,constant Uniforms &u) {
@@ -298,10 +296,16 @@ float3 particleColor(ParticleOut in,constant Uniforms &u) {
     if((u.options.y&512u) && in.selected<0) color=mix(boardColor(-in.selected-1),color,clamp(u.physics.w,0.0f,1.0f));
     return color;
 }
-struct BoardDepthOut { float depthColor [[color(0)]]; float4 frontDye [[color(1)]]; float depth [[depth(any)]]; };
+float2 densityWeights(float dye) {
+    int bank=max(0,int(round(dye)))/12;
+    return float2(bank==1 ? 1.0f:0.0f,bank==2 ? 1.0f:0.0f);
+}
+struct BoardDepthOut { float depthColor [[color(0)]]; float4 frontDye [[color(1)]]; float2 density [[color(2)]]; float depth [[depth(any)]]; };
 fragment BoardDepthOut labBoardParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
     DepthOut surface=particleDepth(in,u,v,profiles);
-    return {surface.depthColor,float4(particleColor(in,u),in.owner+1),surface.depth};
+    float2 density=densityWeights(in.dye);
+    if((u.options.y&512u) && in.selected<0) density=mix(densityWeights(-in.selected-1),density,clamp(u.physics.w,0.0f,1.0f));
+    return {surface.depthColor,float4(particleColor(in,u),in.owner+1),density,surface.depth};
 }
 
 fragment float4 labParticleThickness(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]]) {
@@ -409,8 +413,33 @@ float3 background(float2 uv, constant Uniforms &u, constant float4 *shadows) {
     }
     return color;
 }
-fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffer(0)]], constant float4 *shadows [[buffer(1)]],
-                            texture2d<float> depth [[texture(0)]], texture2d<float> thickness [[texture(1)]], texture2d<float> frontDye [[texture(2)]]) {
+// Analytic, antialiased motifs are evaluated once on the reconstructed
+// surface, rather than stamped on every particle. No extra render pass.
+float triangleDistance(float2 q,float radius) {
+    return max(abs(q.x)*0.8660254f+q.y*0.5f-radius*0.5f,-q.y-radius*0.5f);
+}
+float densityMotifDistance(float2 local,bool light) {
+    const float spacing=0.34f;
+    float row=floor(local.y/spacing);
+    float2 grid=float2(local.x/spacing+0.5f+fmod(abs(row),2.0f)*0.5f,local.y/spacing);
+    float2 cell=floor(grid),q=(fract(grid)-0.5f)*spacing;
+    float variation=fract(sin(dot(cell,float2(12.9898,78.233)))*43758.5453f);
+    float radius=mix(0.070f,0.089f,variation);
+    return triangleDistance(float2(q.x,light ? q.y:-q.y),radius);
+}
+float3 densityMotifs(float3 color,float3 pigment,float2 local,float2 weights,float2 offsets) {
+    float aa=max(0.002f,length(fwidth(local))*0.65f);
+    float up=densityMotifDistance(local-float2(0,offsets.x),true);
+    float down=densityMotifDistance(local-float2(0,offsets.y),false);
+    float outline=1-smoothstep(-aa,aa,up);
+    float interior=1-smoothstep(-aa,aa,up+0.016f);
+    color=mix(color,pigment*0.24f,outline*weights.x*0.75f);
+    color=mix(color,float3(0.94,0.98,1),interior*weights.x*0.90f);
+    float filled=1-smoothstep(-aa,aa,down);
+    return mix(color,pigment*0.15f,filled*weights.y*0.90f);
+}
+fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffer(0)]], constant float4 *shadows [[buffer(1)]], constant Vessel *vessels [[buffer(2)]], constant float4 &patternMotion [[buffer(3)]],
+                            texture2d<float> depth [[texture(0)]], texture2d<float> thickness [[texture(1)]], texture2d<float> frontDye [[texture(2)]], texture2d<float> densityPattern [[texture(3)]]) {
     constexpr sampler s(coord::normalized,address::clamp_to_edge,filter::linear);
     float2 uv=in.uv, pixel=1/u.viewport.xy;
     float d=depth.sample(s,uv).x;
@@ -448,6 +477,16 @@ fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffe
     color=mix(color,studio(reflect(-eye,n)),fresnel*0.70);
     float spec=pow(max(dot(reflect(-normalize(float3(-0.6,1,1)),n),eye),0.0f),90.0f);
     color+=float3(0.75,0.95,1)*spec*0.65;
+    if(u.options.w&1u) {
+        constexpr sampler nearest(coord::normalized,address::clamp_to_edge,filter::nearest);
+        float2 weights=densityPattern.sample(nearest,uv).rg;
+        int owner=int(round(frontDye.sample(nearest,uv).a))-1;
+        if(owner>=0 && owner<int(u.options.z) && weights.x+weights.y>0.001f) {
+            float3 local=(vessels[owner].inverseWorld*float4(p,1)).xyz;
+            float2 offsets=int(round(patternMotion.z))==owner+1 ? patternMotion.xy:float2(0);
+            color=densityMotifs(color,tint,local.xy,weights,offsets);
+        }
+    }
     return float4(color,1);
 }
 struct GlassOut { float4 position [[position]]; float3 world; float3 normal; float3 local; };

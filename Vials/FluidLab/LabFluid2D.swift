@@ -83,9 +83,9 @@ nonisolated struct Lab2DTransfer:Sendable {
 }
 
 nonisolated struct LabFluid2D:Sendable {
-    private(set) var mixing:LabMixTransition?
-    private var mixFrom:[Lab2DParticle]=[]
-    private var mixTargets:[Lab2DParticle]=[]
+    private(set) var transformation:LabApparatusTransition?
+    private var transformationFrom:[Lab2DParticle]=[]
+    private var transformationTargets:[Lab2DParticle]=[]
     private var transfers:[Lab2DTransfer]=[]
     private var groupMode=false
     private(set) var groupResults:[LabLaneResult]=[]
@@ -195,7 +195,7 @@ nonisolated struct LabFluid2D:Sendable {
     }
     mutating func install(_ game:LabBoardGame) {
         let preserve = !busy && self.game.state==game.state && !particles.isEmpty
-        mixing=nil;mixFrom=[];mixTargets=[]
+        transformation=nil;transformationFrom=[];transformationTargets=[]
         displayPoses=[:];displayMoves=[];displayEnvelope=nil;displayStreamActive=nil
         transfers=[];groupMode=false;groupResults=[]
         self.game=game;self.game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
@@ -211,18 +211,27 @@ nonisolated struct LabFluid2D:Sendable {
         for _ in 0..<240 { solve(active:Set(game.state.stacks.indices),dt:Self.step,poses:profiles.indices.map { pose($0) }) }
         for i in particles.indices { particles[i].velocity = .zero }
     }
-    mutating func beginMix(_ transition:LabMixTransition) {
-        mixFrom=particles
+    mutating func beginTransformation(_ transition:LabApparatusTransition) {
+        transformationFrom=particles
+        if transition.isDensityChange {
+            transformationTargets=particles
+            let parcels=transition.parcels
+            for i in transformationTargets.indices where parcels.contains(transformationTargets[i].parcel) {
+                let p=transformationTargets[i]
+                transformationTargets[i]=Lab2DParticle(position:p.position,owner:p.owner,inBulk:p.inBulk,parcel:p.parcel,color:transition.after.visualDye(p.parcel))
+            }
+            transformation=transition;return
+        }
         let final=LabFluid2D(game:LabBoardGame(state:transition.after))
-        mixTargets=final.particles
-        // Both arrays are stably sorted by parcel; material identities survive mixing.
-        mixing=transition
+        transformationTargets=final.particles
+        // Both arrays are stably sorted by parcel; material identities survive transformation.
+        transformation=transition
     }
-    mutating func showMix(_ transition:LabMixTransition) {
-        mixing=transition
+    mutating func showTransformation(_ transition:LabApparatusTransition) {
+        transformation=transition
         let output=transition.output,origin=SIMD3(home(output).x,Float(0),Float(0)),profile=profiles[output].source,parcels=transition.parcels
         for i in particles.indices where parcels.contains(particles[i].parcel) {
-            let from=mixFrom[i],target=mixTargets[i]
+            let from=transformationFrom[i],target=transformationTargets[i]
             let phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
             let sample=transition.position(from:SIMD3(from.position.x,from.position.y,0),to:SIMD3(target.position.x,target.position.y,0),origin:origin,profile:profile,phase:phase)
             particles[i].position=SIMD2(sample.point.x,sample.point.y)
@@ -231,10 +240,10 @@ nonisolated struct LabFluid2D:Sendable {
             particles[i].velocity = .zero
         }
     }
-    mutating func finishMix(_ game:LabBoardGame) {
-        let parcels=mixing?.parcels ?? []
-        for i in particles.indices where parcels.contains(particles[i].parcel) {particles[i]=mixTargets[i]}
-        self.game=game;mixing=nil;mixFrom=[];mixTargets=[]
+    mutating func finishTransformation(_ game:LabBoardGame) {
+        let parcels=transformation?.parcels ?? []
+        for i in particles.indices where parcels.contains(particles[i].parcel) {particles[i]=transformationTargets[i]}
+        self.game=game;transformation=nil;transformationFrom=[];transformationTargets=[]
     }
     /// Reuse the settled particles without reseeding or relaxing at touch-down.
     mutating func adoptConcurrent(_ game:LabBoardGame,vessels:Set<Int>) {

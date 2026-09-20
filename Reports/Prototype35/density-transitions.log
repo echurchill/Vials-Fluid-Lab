@@ -1,0 +1,19 @@
+PASS classic equalPartners density operation 1
+PASS classic weightedOrange density operation 4
+PASS classic layerCake density operation 4
+PASS classic twinProducts density operation 4
+PASS classic twinProducts density operation 10
+PASS classic fullSpectrum density operation 8
+PASS fluid2D equalPartners density operation 1
+PASS fluid2D weightedOrange density operation 4
+PASS fluid2D layerCake density operation 4
+PASS fluid2D twinProducts density operation 4
+PASS fluid2D twinProducts density operation 10
+PASS fluid2D fullSpectrum density operation 8
+PASS fluid equalPartners density operation 1
+PASS fluid weightedOrange density operation 4
+PASS fluid layerCake density operation 4
+PASS fluid twinProducts density operation 4
+PASS fluid twinProducts density operation 10
+PASS fluid fullSpectrum density operation 8
+PASS: 18 animated density cases; state, particle inventory, pause/suspension, save, double activation, final continuity, undo and reset
