@@ -20,6 +20,7 @@ struct LabClassicBoardView:View {
     let pour:LabClassicPour?
     var additionalPours:[LabClassicPour]=[]
     var capExclusions:Set<Int>=[]
+    var mixing:LabMixTransition?
     private var pours:[LabClassicPour] { [pour].compactMap { $0 }+additionalPours }
     private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(capacities:state.capacities) }
     var body:some View {
@@ -27,8 +28,16 @@ struct LabClassicBoardView:View {
             let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count),scale=layout.scale
             let tray=CGRect(x:size.width*0.06,y:layout.base(0).y-10,width:size.width*0.88,height:40)
             context.stroke(Path(ellipseIn:tray),with:.color(.white.opacity(0.08)),lineWidth:1)
+            for index in state.stacks.indices {
+                let home=layout.base(index)
+                let base=pours.first(where:{$0.move.source==index}).map {pose($0,layout:layout).base} ?? home
+                drawLabContactShadow(context:context,center:CGPoint(x:base.x,y:home.y+6.5),
+                    radius:CGFloat(profiles[index].radii.max() ?? 0.5)*scale*1.45,
+                    elevation:Float((home.y-base.y)/scale))
+            }
             let moving=Set(pours.map { $0.move.source })
             for index in state.stacks.indices where !moving.contains(index) { drawVial(index,context:context,layout:layout) }
+            if let mixing { drawMixStreams(mixing,context:context,layout:layout) }
             for pour in pours {
                 let pose=pose(pour,layout:layout)
                 if pour.progress>0 && pour.progress<1 {
@@ -52,6 +61,21 @@ struct LabClassicBoardView:View {
                 drawVial(pour.move.source,context:context,layout:layout)
             }
         }.accessibilityHidden(true)
+    }
+    private func drawMixStreams(_ mixing:LabMixTransition,context:GraphicsContext,layout:LabClassicLayout) {
+        guard mixing.gathered>0,mixing.gathered<1 else {return}
+        let destination=layout.base(mixing.output),scale=layout.scale
+        let target=CGPoint(x:destination.x,y:destination.y-CGFloat(profiles[mixing.output].height)*scale)
+        let envelope=CGFloat(sin(mixing.gathered*Float.pi))
+        for input in mixing.apparatus.inputs {
+            let base=layout.base(input),mouth=CGPoint(x:base.x,y:base.y-CGFloat(profiles[input].height)*scale)
+            let top=min(mouth.y,target.y)-scale*0.65
+            var path=Path();path.move(to:mouth)
+            path.addCurve(to:target,control1:CGPoint(x:mouth.x,y:top),control2:CGPoint(x:target.x,y:top))
+            let color=FluidBoardSession.color(state.visualDye(state.stacks[input][0]))
+            context.stroke(path,with:.color(color.opacity(0.25)),style:StrokeStyle(lineWidth:scale*0.22*envelope,lineCap:.round))
+            context.stroke(path,with:.color(color.opacity(0.9)),style:StrokeStyle(lineWidth:scale*0.10*envelope,lineCap:.round))
+        }
     }
     private func densityJoinedUnits(_ pour:LabClassicPour)->Float {
         let crossesLighter=state.densityInsertionIndex(for:pour.move)<state.stacks[pour.move.destination].count
@@ -102,6 +126,10 @@ struct LabClassicBoardView:View {
                 } else { amounts.append((state.visualDye(pour.move.parcels[0]),Float(pour.move.amount)*pour.progress)) }
             }
         }
+        if let mixing {
+            if mixing.apparatus.inputs.contains(index) {amounts=amounts.map {($0.0,$0.1*(1-mixing.gathered))}}
+            if index==mixing.output {amounts=mixing.apparatus.inputs.map {(state.visualDye(state.stacks[$0][0]),mixing.gathered)}}
+        }
         var units:Float=0,run=0
         while run<amounts.count {
             let colorID=amounts[run].0
@@ -111,7 +139,9 @@ struct LabClassicBoardView:View {
             let lower=CGFloat(profile.height(for:profile.usableVolume*units/capacity))*scale
             units+=amount
             let upper=CGFloat(profile.height(for:profile.usableVolume*units/capacity))*scale
-            let color=FluidBoardSession.color(colorID)
+            let mixingOutput=mixing?.output==index
+            let finalDye=mixingOutput ? mixing.map {$0.after.visualDye($0.after.stacks[index][0])}:nil
+            let color=FluidBoardSession.color(colorID,mixedWith:finalDye,blend:mixing?.blend ?? 0)
             let band=CGRect(x:-radius,y:-upper,width:radius*2,height:max(0,upper-lower))
             liquid.fill(Path(band),with:.linearGradient(Gradient(colors:[color.opacity(0.96),color,color.opacity(0.95)]),startPoint:CGPoint(x:-radius,y:0),endPoint:CGPoint(x:radius,y:0)))
             if amount>0.001 {
@@ -121,6 +151,24 @@ struct LabClassicBoardView:View {
                 liquid.stroke(highlight,with:.color(.white.opacity(0.20)),lineWidth:1)
             }
             run=end
+        }
+        if let mixing,index==mixing.output,mixing.agitation>0 {
+            let top=CGFloat(profile.height(for:profile.usableVolume*2*mixing.gathered/Float(state.capacity(index))))*scale
+            var swirl=liquid;swirl.clip(to:Path(CGRect(x:-radius,y:-top,width:radius*2,height:top)))
+            for (n,input) in mixing.apparatus.inputs.enumerated() {
+                let parcel=state.stacks[input][0],color=FluidBoardSession.color(state.visualDye(parcel),mixedWith:mixing.after.visualDye(parcel),blend:mixing.blend)
+                for ribbon in 0..<3 {
+                    var path=Path()
+                    for k in 0...48 {
+                        let f=CGFloat(k)/48,y=top*f
+                        let phase=Double(f)*8+Double(mixing.time)*6+Double(n)*Double.pi+Double(ribbon)*0.8
+                        let x=sin(phase)*CGFloat(profile.radius(at:Float(y/scale)))*scale*0.75
+                        let point=CGPoint(x:x,y:-y)
+                        if k==0 {path.move(to:point)} else {path.addLine(to:point)}
+                    }
+                    swirl.stroke(path,with:.color(color.opacity(Double(mixing.agitation)*0.8)),style:StrokeStyle(lineWidth:scale*0.12,lineCap:.round))
+                }
+            }
         }
         if state.behavior.settlesByDensity {
             for pour in pours where pour.move.destination==index && pour.progress>0 && pour.progress<1 {
@@ -145,7 +193,7 @@ struct LabClassicBoardView:View {
             var mark=Path();mark.move(to:CGPoint(x:r*0.53,y:-CGFloat(y)*scale));mark.addLine(to:CGPoint(x:r*0.90,y:-CGFloat(y)*scale))
             ctx.stroke(mark,with:.color(.white.opacity(0.23)),lineWidth:1)
         }
-        let excluded=capExclusions.union(pours.flatMap { [$0.move.source,$0.move.destination] })
+        let excluded=capExclusions.union(pours.flatMap { [$0.move.source,$0.move.destination] }).union(mixing?.vessels ?? [])
         if !excluded.contains(index),state.isComplete(index),let first=state.stacks[index].first {
             drawLabPlanarCap(context:&ctx,height:profile.height,radius:profile.radii.last!+0.065,
                 scale:scale,color:FluidBoardSession.color(state.visualDye(first)))
@@ -215,4 +263,23 @@ func drawLabPlanarCap(context:inout GraphicsContext,height:Float,radius:Float,sc
     context.fill(lid,with:.linearGradient(Gradient(colors:[.white.opacity(0.5),.white.opacity(0.12),.black.opacity(0.15)]),startPoint:left,endPoint:right))
     context.stroke(lid,with:.color(.white.opacity(0.55)),lineWidth:0.8)
     context.stroke(path(ring(height+0.182,radius*0.79)),with:.color(.black.opacity(0.20)),lineWidth:0.7)
+}
+
+/// Flatten a soft radial footprint into a floor ellipse; no offscreen blur pass.
+func drawLabContactShadow(context:GraphicsContext,center:CGPoint,radius:CGFloat,elevation:Float) {
+    let shadow=LabContactShadow(elevation:elevation),width=radius*CGFloat(shadow.scale)
+    var ctx=context
+    ctx.translateBy(x:center.x,y:center.y)
+    ctx.scaleBy(x:width,y:6*CGFloat(shadow.scale))
+    // A softly lit patch of floor gives the dark contact core contrast even
+    // on the almost-black planar board; no hard ring or outline.
+    ctx.fill(Path(ellipseIn:CGRect(x:-1.35,y:-1.35,width:2.7,height:2.7)),
+        with:.radialGradient(Gradient(stops:[
+            .init(color:Color(red:0.30,green:0.40,blue:0.44).opacity(0.38),location:0),
+            .init(color:Color(red:0.30,green:0.40,blue:0.44).opacity(0.30),location:0.55),
+            .init(color:.clear,location:1)]),center:.zero,startRadius:0,endRadius:1.35))
+    ctx.fill(Path(ellipseIn:CGRect(x:-1,y:-1,width:2,height:2)),
+        with:.radialGradient(Gradient(stops:[.init(color:.black.opacity(Double(shadow.opacity)),location:0),
+                .init(color:.black.opacity(Double(shadow.opacity)*0.85),location:0.5),.init(color:.clear,location:1)]),
+            center:.zero,startRadius:0,endRadius:1))
 }

@@ -83,6 +83,9 @@ nonisolated struct Lab2DTransfer:Sendable {
 }
 
 nonisolated struct LabFluid2D:Sendable {
+    private(set) var mixing:LabMixTransition?
+    private var mixFrom:[Lab2DParticle]=[]
+    private var mixTargets:[Lab2DParticle]=[]
     private var transfers:[Lab2DTransfer]=[]
     private var groupMode=false
     private(set) var groupResults:[LabLaneResult]=[]
@@ -192,6 +195,7 @@ nonisolated struct LabFluid2D:Sendable {
     }
     mutating func install(_ game:LabBoardGame) {
         let preserve = !busy && self.game.state==game.state && !particles.isEmpty
+        mixing=nil;mixFrom=[];mixTargets=[]
         displayPoses=[:];displayMoves=[];displayEnvelope=nil;displayStreamActive=nil
         transfers=[];groupMode=false;groupResults=[]
         self.game=game;self.game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
@@ -206,6 +210,31 @@ nonisolated struct LabFluid2D:Sendable {
         // Relax the deterministic area-stratified seed without advancing a game move.
         for _ in 0..<240 { solve(active:Set(game.state.stacks.indices),dt:Self.step,poses:profiles.indices.map { pose($0) }) }
         for i in particles.indices { particles[i].velocity = .zero }
+    }
+    mutating func beginMix(_ transition:LabMixTransition) {
+        mixFrom=particles
+        let final=LabFluid2D(game:LabBoardGame(state:transition.after))
+        mixTargets=final.particles
+        // Both arrays are stably sorted by parcel; material identities survive mixing.
+        mixing=transition
+    }
+    mutating func showMix(_ transition:LabMixTransition) {
+        mixing=transition
+        let output=transition.output,origin=SIMD3(home(output).x,Float(0),Float(0)),profile=profiles[output].source,parcels=transition.parcels
+        for i in particles.indices where parcels.contains(particles[i].parcel) {
+            let from=mixFrom[i],target=mixTargets[i]
+            let phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
+            let sample=transition.position(from:SIMD3(from.position.x,from.position.y,0),to:SIMD3(target.position.x,target.position.y,0),origin:origin,profile:profile,phase:phase)
+            particles[i].position=SIMD2(sample.point.x,sample.point.y)
+            particles[i].owner=sample.arrived ? output:(sample.started ? -1:from.owner)
+            particles[i].inBulk=sample.arrived || !sample.started
+            particles[i].velocity = .zero
+        }
+    }
+    mutating func finishMix(_ game:LabBoardGame) {
+        let parcels=mixing?.parcels ?? []
+        for i in particles.indices where parcels.contains(particles[i].parcel) {particles[i]=mixTargets[i]}
+        self.game=game;mixing=nil;mixFrom=[];mixTargets=[]
     }
     /// Reuse the settled particles without reseeding or relaxing at touch-down.
     mutating func adoptConcurrent(_ game:LabBoardGame,vessels:Set<Int>) {

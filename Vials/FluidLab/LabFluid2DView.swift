@@ -74,8 +74,11 @@ private struct LabFluid2DLayer:View {
                 var baseline=Path();baseline.move(to:CGPoint(x:size.width*0.06,y:origin.y+7));baseline.addLine(to:CGPoint(x:size.width*0.94,y:origin.y+7))
                 context.stroke(baseline,with:.color(.white.opacity(0.08)),lineWidth:1)
                 for index in engine.profiles.indices {
-                    let base=screen(engine.home(index)),width=CGFloat(engine.profiles[index].radius(0.3))*scale*2.4
-                    context.fill(Path(ellipseIn:CGRect(x:base.x-width/2,y:base.y+3,width:width,height:7)),with:.color(.black.opacity(0.30)))
+                    let home=engine.home(index),pose=poses[index]
+                    let floor=screen(SIMD2(pose.base.x,home.y))
+                    drawLabContactShadow(context:context,center:CGPoint(x:floor.x,y:floor.y+6.5),
+                        radius:CGFloat(engine.profiles[index].source.radii.max() ?? 0.5)*scale*1.45,
+                        elevation:pose.base.y-home.y)
                 }
             }
             for owner in Array(engine.profiles.indices)+[-1] where owners.contains(owner) {
@@ -106,8 +109,11 @@ private struct LabFluid2DLayer:View {
                     if a==incoming { return false };if b==incoming { return true };return a<b
                 }
                 for color in colors {
-                    let ink=FluidBoardSession.color(color)
                     let group=owned.filter { $0.color==color }
+                    let mix=engine.mixing
+                    let parcel=group.first!.parcel
+                    let changes=mix?.parcels.contains(parcel) == true
+                    let ink=FluidBoardSession.color(color,mixedWith:changes ? mix?.after.visualDye(parcel):nil,blend:mix?.blend ?? 0)
                     let pose=owner>=0 ? engine.pose(owner):Lab2DPose(base:.zero)
                     let top=group.filter(\.inBulk).map { pose.local($0.position).y }.max().map { $0+engine.radius } ?? 0
                     let surface=owner>=0 ? engine.surfaces[owner]:Lab2DSurfaceState()
@@ -159,7 +165,10 @@ private struct LabFluid2DLayer:View {
                             separation.drawLayer { surface in mask(&surface,Color(red:0.025,green:0.05,blue:0.065)) }
                         }
                         var body=liquid
-                        body.opacity=color==0 ? 0.44:(color==2 ? 0.70:0.78)
+                        let resultColor=changes ? mix!.after.visualDye(parcel):color
+                        let startOpacity:Double=color==0 ? 0.44:(color==2 ? 0.70:0.78)
+                        let endOpacity:Double=resultColor==0 ? 0.44:(resultColor==2 ? 0.70:0.78)
+                        body.opacity=startOpacity+(endOpacity-startOpacity)*Double(mix?.blend ?? 0)
                         body.drawLayer { surface in mask(&surface,ink) }
                         var detail=liquid
                         detail.clipToLayer { clip in mask(&clip,.white) }

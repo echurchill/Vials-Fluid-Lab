@@ -14,7 +14,7 @@ struct LabPlanarSurface:View {
         ZStack {
             LabFluid2DView(engine:display.snapshot,points:points,frame:display.frame,selected:selected,destinations:destinations,rejected:rejected,capExclusions:capExclusions)
             if !points {
-                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,occluding:display.snapshot,excluded:Set((display.snapshot.displayMoves+[display.snapshot.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] }))
+                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,occluding:display.snapshot,excluded:Set((display.snapshot.displayMoves+[display.snapshot.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] }).union(display.snapshot.mixing?.vessels ?? []))
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
         }

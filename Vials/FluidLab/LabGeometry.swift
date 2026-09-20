@@ -98,6 +98,26 @@ struct LabVesselUniform {
     var shape: SIMD4<Float> // reserved, fifth/sixth graduation heights, capacity
 }
 
+/// A stylized contact cue driven by pose, so pause, return and concurrent
+/// pours need no separate animation clock. Height is above the resting base.
+nonisolated struct LabContactShadow {
+    let scale:Float
+    let opacity:Float
+    init(elevation:Float) {
+        scale=1/(1+max(0,elevation)*0.50)
+        // Shrink primarily through size: multiplying opacity by size again
+        // made lifted shadows disappear against the dark board.
+        opacity=0.78*(0.75+0.25*scale)
+    }
+    static func floorSamples(vessels:[LabVesselUniform],profiles:[LabVesselProfile])->[SIMD4<Float>] {
+        zip(vessels,profiles).map { vessel,profile in
+            let base=vessel.world.columns.3
+            let shadow=LabContactShadow(elevation:base.y-0.18)
+            return SIMD4(base.x,base.z,(profile.radii.max() ?? 0.5)*1.45*shadow.scale,shadow.opacity)
+        }
+    }
+}
+
 struct LabUniforms {
     var viewProjection: simd_float4x4
     var inverseViewProjection: simd_float4x4

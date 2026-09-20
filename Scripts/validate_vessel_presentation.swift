@@ -53,7 +53,7 @@ import AppKit
     let texture=device.makeTexture(descriptor:d)!
     for (index,operation) in route.enumerated() {
      switch operation {
-     case .activate(let activation): session.activateApparatus(activation.apparatusID)
+     case .activate(let activation): session.activateApparatus(activation.apparatusID,animated:false)
      case .pour(let move):
       let previous=session.moveCount
       precondition(session.begin(move,automaticClock:false))

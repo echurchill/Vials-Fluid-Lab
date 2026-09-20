@@ -293,17 +293,22 @@ float3 boardColor(float dye) {
     if(tier==2) return base*0.52;
     return base;
 }
+float3 particleColor(ParticleOut in,constant Uniforms &u) {
+    float3 color=boardColor(in.dye);
+    if((u.options.y&512u) && in.selected<0) color=mix(boardColor(-in.selected-1),color,clamp(u.physics.w,0.0f,1.0f));
+    return color;
+}
 struct BoardDepthOut { float depthColor [[color(0)]]; float4 frontDye [[color(1)]]; float depth [[depth(any)]]; };
 fragment BoardDepthOut labBoardParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
     DepthOut surface=particleDepth(in,u,v,profiles);
-    return {surface.depthColor,float4(boardColor(in.dye),in.owner+1),surface.depth};
+    return {surface.depthColor,float4(particleColor(in,u),in.owner+1),surface.depth};
 }
 
 fragment float4 labParticleThickness(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]]) {
     float r2=dot(in.corner,in.corner);
     if(r2>1) discard_fragment();
     float thickness=2*in.radius*sqrt(1-r2);
-    float3 color=(u.options.w&1u) ? boardColor(in.dye) : mix(float3(0.04,0.69,0.72),float3(1.0,0.45,0.09),in.dye);
+    float3 color=(u.options.w&1u) ? particleColor(in,u) : mix(float3(0.04,0.69,0.72),float3(1.0,0.45,0.09),in.dye);
     // Board color comes from the front surface, leaving RGB available for a
     // density plume during a pour. Alpha still accumulates all liquid thickness.
     if(u.options.y&256u) {
@@ -374,7 +379,7 @@ float3 studio(float3 direction) {
     float strip=exp(-pow((direction.x+0.46f)*14,2.0f))*smoothstep(-0.25f,0.25f,direction.y)*smoothstep(-0.2f,0.3f,direction.z);
     return color+key*float3(2.0,2.0,1.8)+edge*float3(0.5,1.25,1.6)+strip*float3(0.7,0.85,0.9);
 }
-float3 background(float2 uv, constant Uniforms &u) {
+float3 background(float2 uv, constant Uniforms &u, constant float4 *shadows) {
     float3 origin=u.camera.xyz;
     float3 ray=normalize(worldAt(uv,0.99,u)-origin);
     float3 color=mix(float3(0.004,0.009,0.017),float3(0.012,0.025,0.035),uv.y);
@@ -382,9 +387,18 @@ float3 background(float2 uv, constant Uniforms &u) {
         float t=-origin.y/ray.y;
         float3 p=origin+ray*t;
         float vignette=exp(-dot(p.xz,p.xz)*0.025);
-        float shadow=0.35*exp(-dot((p.xz-float2(-1.25,0))*float2(1,1.5),(p.xz-float2(-1.25,0))*float2(1,1.5))*2.2);
-        shadow+=0.40*exp(-dot((p.xz-float2(1.1,0))*float2(1,1.5),(p.xz-float2(1.1,0))*float2(1,1.5))*1.8);
-        color=mix(color,float3(0.022,0.035,0.045)*(1-shadow),vignette);
+        float shadow=0;
+        uint count=(u.options.w&1u) ? u.options.z:2u;
+        for(uint i=0;i<count;i++) {
+            float2 delta=(p.xz-shadows[i].xy)/max(shadows[i].z,0.001f);
+            float distanceSquared=dot(delta,delta);
+            if(distanceSquared<9) shadow+=shadows[i].w*exp(-distanceSquared*1.5);
+        }
+        shadow=min(shadow,0.75f);
+        color=mix(color,float3(0.022,0.035,0.045),vignette);
+        // Contact contrast must survive at the outside vials too. Applying
+        // shadow inside the vignette mix erased it on wide boards.
+        color*=1-shadow;
         // The board already has contact shadows and no longer needs the large
         // floor ellipse. Retain the smaller marker in the standalone pour
         // study, whose two-vessel composition still uses it for orientation.
@@ -395,12 +409,12 @@ float3 background(float2 uv, constant Uniforms &u) {
     }
     return color;
 }
-fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffer(0)]],
+fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffer(0)]], constant float4 *shadows [[buffer(1)]],
                             texture2d<float> depth [[texture(0)]], texture2d<float> thickness [[texture(1)]], texture2d<float> frontDye [[texture(2)]]) {
     constexpr sampler s(coord::normalized,address::clamp_to_edge,filter::linear);
     float2 uv=in.uv, pixel=1/u.viewport.xy;
     float d=depth.sample(s,uv).x;
-    float3 bg=background(uv,u);
+    float3 bg=background(uv,u,shadows);
     if(d>=0.99999) return float4(bg,1);
     float3 p=worldAt(uv,d,u);
     float dl=depth.sample(s,uv-float2(pixel.x,0)).x, dr=depth.sample(s,uv+float2(pixel.x,0)).x;
@@ -427,7 +441,7 @@ fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffe
     }
     float opticalDepth=medium.a*0.55;
     float3 absorption=exp(-(1-tint)*opticalDepth*2.8);
-    float3 refracted=background(uv+n.xy*0.016,u);
+    float3 refracted=background(uv+n.xy*0.016,u,shadows);
     float diffuse=0.3+0.7*max(dot(n,normalize(float3(-0.5,1,1))),0.0f);
     float fresnel=0.025+0.975*pow(1-max(dot(n,eye),0.0f),5.0f);
     float3 color=refracted*absorption+tint*((u.options.w&1u) ? float3(1-exp(-opticalDepth*2.0f)):(1-absorption))*diffuse;

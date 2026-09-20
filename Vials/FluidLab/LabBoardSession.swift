@@ -20,6 +20,8 @@ import Combine
     var discipline:LabDiscipline {puzzle.discipline}
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
+    @Published private(set) var mixing:LabMixTransition?
+    var reduceMixMotion=false
     let allowsConcurrentPours:Bool
     /// The established sorting boards support independent simultaneous pours.
     /// Experimental material transforms remain sequential so density settlement
@@ -94,7 +96,7 @@ import Combine
     private var clockRevision=0
     var state:LabBoardState { game.state }
     var moveCount:Int { game.moveCount }
-    var busy:Bool { game.pending != nil || pourQueue.busy }
+    var busy:Bool { mixing != nil || game.pending != nil || pourQueue.busy }
     var active3DSimulationParticleCount:Int {metalGroups.values.reduce(0) {$0+$1.particleCount}}
     var effectiveSpeed:Float { (comparisonSpeed ?? pace.speed)*(slow ? 0.35:1) }
     var validDestinations:Set<Int> {
@@ -241,6 +243,7 @@ import Combine
             nextPhase=state.targets.isEmpty ? "Sorted beautifully":"Targets complete"
             let solvedNotice=state.targets.isEmpty ? "Every color has a home. Undo to explore, or play again.":"Every requested material is in place. Undo to explore, or play again."
             if notice != solvedNotice { notice=solvedNotice }
+        } else if let mixing { nextPhase=mixing.time<1.15 ? "Feeding the mixer":"Blending colors"
         } else if concurrentPoursEnabled,busy {
             let active=pourQueue.active.count,waiting=pourQueue.items.count-active
             nextPhase="\(active) \(active == 1 ? "pour":"pours")"+(waiting>0 ? " · \(waiting) queued":"")
@@ -251,7 +254,7 @@ import Combine
         if phase != nextPhase { phase=nextPhase;performance.tracePhase(nextPhase) }
     }
     private func fluidUpdate() {
-        guard !concurrentPoursEnabled,presentation == .fluid,let renderer else { return }
+        guard mixing == nil,!concurrentPoursEnabled,presentation == .fluid,let renderer else { return }
         metrics=renderer.lastMetrics;correction=renderer.correctionCount;captured=renderer.arrivalBeforeCorrection
         if busy,renderer.game.pending == nil {
             let amount=game.pending?.amount ?? 1
@@ -411,6 +414,7 @@ import Combine
     func reset() {
         cancelHint()
         cancelConcurrent()
+        mixing=nil
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         feedback.stop()
         classicTask?.cancel();classicTask=nil;classicPour=nil
@@ -479,16 +483,58 @@ import Combine
             notice="Activate \(state.apparatus.first(where:{$0.id==activation.apparatusID})?.title ?? "the apparatus")."
         }
     }
-    func activateApparatus(_ id:Int) {
+    func activateApparatus(_ id:Int,animated:Bool=true,automaticClock:Bool=true) {
         guard !busy else {return}
         let activation=LabApparatusActivation(apparatusID:id)
+        guard let after=state.applying(activation),let tool=state.apparatus.first(where:{$0.id==id}) else {notice="That apparatus is not ready.";return}
         let followsHint=hintPlan.first == .activate(activation)
         cancelHint(clearPlan:!followsHint)
-        guard game.activate(activation) else {notice="That apparatus is not ready.";return}
-        if followsHint {hintPlan.removeFirst()}
+        if animated,tool.kind == .mixer {
+            let transition=LabMixTransition(before:state,after:after,apparatus:tool,reduceMotion:reduceMixMotion)
+            mixing=transition;selected=nil;hintTarget=nil;hintApparatusID=nil
+            if presentation == .fluid { renderer?.beginMix(transition) }
+            if presentation == .fluid2D { fluid2D.beginMix(transition);planarDisplay.publish(fluid2D) }
+            notice="The two inputs blend into one new color.";refresh()
+            if automaticClock {
+                classicTask?.cancel()
+                classicTask=Task { @MainActor [weak self] in
+                    var last=ProcessInfo.processInfo.systemUptime
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for:.milliseconds(16))
+                        guard !Task.isCancelled,let self,self.mixing != nil else {return}
+                        let now=ProcessInfo.processInfo.systemUptime
+                        self.advanceMix(deltaTime:Float(now-last));last=now
+                    }
+                }
+            }
+            return
+        }
+        finishActivation(activation)
+    }
+    func advanceMix(deltaTime:Float) {
+        guard !paused,!suspended,deltaTime.isFinite,var transition=mixing else {return}
+        transition.time+=min(0.05,max(0,deltaTime))*effectiveSpeed
+        mixing=transition
+        if presentation == .fluid {renderer?.showMix(transition)}
+        if presentation == .fluid2D {fluid2D.showMix(transition);planarDisplay.publish(fluid2D)}
+        if transition.finished {
+            finishActivation(.init(apparatusID:transition.apparatus.id))
+        } else {refresh()}
+    }
+    private func finishActivation(_ activation:LabApparatusActivation) {
+        guard game.activate(activation) else {return}
+        if hintPlan.first == .activate(activation) {hintPlan.removeFirst()}
+        let wasMixing=mixing != nil
+        mixing=nil;classicTask?.cancel();classicTask=nil
         undoParticles.append(nil);settledParticles=nil;selected=nil;hintTarget=nil;hintApparatusID=nil
-        if presentation == .fluid {prepareFluid()}
-        if presentation == .fluid2D {fluid2D.install(game);planarDisplay.publish(fluid2D)}
+        if presentation == .fluid {
+            if wasMixing {renderer?.finishMix(game);settledParticles=renderer?.particleSamples()}
+            else {prepareFluid()}
+        }
+        if presentation == .fluid2D {
+            if wasMixing {fluid2D.finishMix(game)} else {fluid2D.install(game)}
+            planarDisplay.publish(fluid2D)
+        }
         notice="Transformation complete.";feedback.completed(solved:state.solved);checkpoint();refresh()
     }
     // A dismissed preview must release its clock even when it closes mid-pour.
@@ -496,6 +542,7 @@ import Combine
         guard defaults == nil else { return }
         cancelConcurrent()
         classicTask?.cancel();classicTask=nil;clockRevision+=1
+        if mixing != nil {mixing=nil;renderer?.install(game:game)}
         game.cancel();classicPour=nil;renderer?.paused=true;suspended=true;feedback.stop()
     }
     func setSuspended(_ value:Bool) { suspended=value;updatePause() }
@@ -685,12 +732,17 @@ import Combine
         let names=["Tide","Ember","Leaf","Petal","Sun","Cream","Violet","Mint","Ruby","Cobalt","Lime","Pearl"]
         return names[(color % names.count+names.count)%names.count]
     }
-    static func color(_ value:Int) -> Color {
+    static func color(_ value:Int,mixedWith:Int?=nil,blend:Float=0) -> Color {
+        let a=colorComponents(value),b=colorComponents(mixedWith ?? value),f=Double(min(1,max(0,blend)))
+        let c=a+(b-a)*f
+        return Color(red:c.x,green:c.y,blue:c.z)
+    }
+    private static func colorComponents(_ value:Int)->SIMD3<Double> {
         let palette:[(Double,Double,Double)]=[(0.05,0.58,0.86),(0.96,0.34,0.07),(0.20,0.76,0.36),(0.94,0.34,0.65),(1.00,0.72,0.08),(0.98,0.71,0.61),(0.55,0.30,0.95),(0.12,0.78,0.62),(0.72,0.04,0.24),(0.08,0.24,0.88),(0.54,0.78,0.06),(0.82,0.78,0.68)]
         let pigment=(value%12+12)%12,bank=max(0,value/12),base=palette[pigment]
-        if bank==1 {return Color(red:base.0*0.60+0.40,green:base.1*0.60+0.40,blue:base.2*0.60+0.40)}
-        if bank==2 {return Color(red:base.0*0.52,green:base.1*0.52,blue:base.2*0.52)}
-        return Color(red:base.0,green:base.1,blue:base.2)
+        if bank==1 {return SIMD3(base.0*0.60+0.40,base.1*0.60+0.40,base.2*0.60+0.40)}
+        if bank==2 {return SIMD3(base.0*0.52,base.1*0.52,base.2*0.52)}
+        return SIMD3(base.0,base.1,base.2)
     }
     func accessibility(_ index:Int) -> String {
         let layers=state.stacks[index].reversed().map { "\(state.densities[$0].title) \(Self.name(state.colors[$0]))" }.joined(separator:", ")

@@ -58,6 +58,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     // CPU bookkeeping is read only after the preceding GPU command completes.
     // A particle adds volume below lighter liquid only when it reaches its layer.
     private var densityJoined:Set<Int>=[]
+    private var mixing:LabMixTransition?
+    private var mixFrom:[LabParticle]=[]
+    private var mixTargets:[LabParticle]=[]
     private var groupTransfers:[LabMetalTransfer]=[]
     private(set) var groupResults:[LabLaneResult]=[]
     private(set) var groupOwnedParcels:Set<Int>=[]
@@ -230,6 +233,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
 
     private func clearMotion() {
         compositeVessels=nil;groupTransfers=[];groupResults=[];groupOwnedParcels=[];densityJoined=[]
+        mixing=nil;mixFrom=[];mixTargets=[]
         pourTime=nil;tilt=0;cutoffTime=nil;returnStart=nil;cleanupStart=nil
         settleFrom=nil;settleTargets=nil;groupSettleStart=nil
         previousWorlds=[];accumulator=0;lastWallTime=nil;pausedSignature=nil
@@ -259,6 +263,34 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         if let samples, samples.count==particleCount { particles=makeBuffer(samples) }
     }
 
+    func beginMix(_ transition:LabMixTransition) {
+        mixFrom=particleSamples();mixTargets=mixFrom
+        let canonical=Dictionary(grouping:seed(state:transition.after)) {Int($0.visual.y)}
+        var offsets:[Int:Int]=[:]
+        for i in mixFrom.indices {
+            let parcel=Int(mixFrom[i].visual.y),offset=offsets[parcel,default:0]
+            offsets[parcel]=offset+1
+            if transition.parcels.contains(parcel) {mixTargets[i]=canonical[parcel]![offset]}
+        }
+        mixing=transition;pausedSignature=nil
+    }
+    func showMix(_ transition:LabMixTransition) {
+        lastCommand?.waitUntilCompleted();mixing=transition
+        let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+        let owner=transition.output,origin=homes[owner],profile=profiles[owner],parcels=transition.parcels
+        for i in mixFrom.indices where parcels.contains(Int(mixFrom[i].visual.y)) {
+            let from=mixFrom[i],target=mixTargets[i],phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
+            let sample=transition.position(from:from.position.xyz,to:target.position.xyz,origin:origin,profile:profile,phase:phase)
+            p[i]=target;p[i].position=SIMD4(sample.point,sample.arrived ? Float(owner):(sample.started ? -1:from.position.w));p[i].predicted=p[i].position
+            p[i].visual.z = -from.velocity.w-1
+        }
+        pausedSignature=nil
+    }
+    func finishMix(_ game:LabBoardGame) {
+        lastCommand?.waitUntilCompleted()
+        particles=makeBuffer(mixTargets);self.game=game
+        mixing=nil;mixFrom=[];mixTargets=[];pausedSignature=nil
+    }
     private func radical(_ index:Int,_ base:Int) -> Float {
         var n=index,f:Float=1,result:Float=0
         while n>0 { f/=Float(base);result+=f*Float(n%base);n/=base }
@@ -914,6 +946,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             // thickness pass. No extra render pass or larger particle budget.
             u.options.y |= 256 | UInt32(game.state.visualDye(move.parcels[0])) << 16 | UInt32(move.destination+1) << 24
         }
+        if let mixing {u.options.y |= 512;u.physics.w=mixing.blend}
         let vessels = currentVessels
         let surfacePass=pass(color:depth,clear:MTLClearColorMake(1,1,1,1),depth:depthTest)
         surfacePass.colorAttachments[1].texture=frontDye
@@ -961,6 +994,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         compose.label = "Reconstruct and shade liquid"
         compose.setRenderPipelineState(composePipeline)
         compose.setFragmentBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:0)
+        let shadows=LabContactShadow.floorSamples(vessels:vessels,profiles:profiles)
+        shadows.withUnsafeBytes { compose.setFragmentBytes($0.baseAddress!,length:$0.count,index:1) }
         compose.setFragmentTexture(pointMode ? depth : smoothB,index:0)
         compose.setFragmentTexture(thickness,index:1)
         compose.setFragmentTexture(dyeB,index:2)
@@ -969,7 +1004,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         // Batch non-overlapping shells. Only overlapping silhouettes require
         // another sampled layer; a normal resting board is usually one batch.
         let movingCaps=Set(groupMoves.flatMap { [$0.source,$0.destination] }+(game.pending.map { [$0.source,$0.destination] } ?? []))
-        let excludedCaps=capExclusions.union(movingCaps)
+        let excludedCaps=capExclusions.union(movingCaps).union(mixing?.vessels ?? [])
         func capColor(_ index:Int)->SIMD4<Float>? {
             guard !excludedCaps.contains(index),game.state.isComplete(index),let parcel=game.state.stacks[index].first else { return nil }
             let palette:[SIMD4<Float>]=[

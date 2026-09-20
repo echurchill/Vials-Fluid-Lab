@@ -35,7 +35,7 @@ import Metal
                         require(!session.busy,"\(puzzle.rawValue): Classic pour did not finish")
                     case .activate(let activation):
                         require(session.state.canActivate(activation),"\(puzzle.rawValue): apparatus not ready")
-                        session.activateApparatus(activation.apparatusID)
+                        session.activateApparatus(activation.apparatusID,animated:false)
                     }
                 }
                 require(session.solved,"\(puzzle.rawValue): session route did not solve")

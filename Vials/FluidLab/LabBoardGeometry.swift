@@ -135,3 +135,45 @@ struct LabBoardLayout {
         return (p*view,view,eye)
     }
 }
+
+/// A presentation-only transaction. The game commits once, after the animation;
+/// elapsed time advances only while the board is active and unpaused.
+nonisolated struct LabMixTransition:Sendable {
+    let before:LabBoardState
+    let after:LabBoardState
+    let apparatus:LabApparatus
+    var time:Float=0
+    var reduceMotion=false
+    static let duration:Float=2.8
+    var output:Int { apparatus.output! }
+    var parcels:Set<Int> { Set(apparatus.inputs.flatMap {before.stacks[$0]}) }
+    var vessels:Set<Int> { Set(apparatus.inputs+[output]) }
+    var gathered:Float { labSmooth(time/1.15) }
+    var blend:Float { labSmooth((time-0.85)/1.65) }
+    var agitation:Float { reduceMotion ? 0:labSmooth(time/0.7)*(1-labSmooth((time-1.8)/1.0)) }
+    var finished:Bool { time>=Self.duration }
+    func position(from:SIMD3<Float>,to:SIMD3<Float>,origin:SIMD3<Float>,profile:LabVesselProfile,phase:Float)->(point:SIMD3<Float>,arrived:Bool,started:Bool) {
+        let f=labSmooth((time-phase*0.35)/0.8)
+        var local=to-origin
+        let top=profile.height(for:profile.usableVolume*2/Float(after.capacity(output)))-0.04
+        let middle=(top+0.04)*0.5,halfHeight=max(0.02,(top-0.04)*0.5)
+        let initialRadius=max(0.02,profile.radius(at:local.y)-0.05)
+        let nx=local.x/initialRadius,ny=(local.y-middle)/halfHeight
+        // Turn the whole cross-section, not just horizontal rings: colors fold
+        // through one another vertically before they become the same material.
+        let angle=time*5+ny*0.65
+        let rotatedX=nx*cos(angle)-ny*sin(angle)
+        local.y=min(top,max(0.04,middle+(nx*sin(angle)+ny*cos(angle))*halfHeight))
+        local.x=rotatedX*max(0.01,profile.radius(at:local.y)-0.05)
+        let radius=max(0.01,profile.radius(at:local.y)-0.05),length=simd_length(SIMD2(local.x,local.z))
+        if length>radius { local.x*=radius/length;local.z*=radius/length }
+        local=simd_mix(to-origin,local,SIMD3(repeating:agitation))
+        let target=origin+local
+        // Pumped arcs connect the two input ports to the output. Each particle
+        // retains its identity and original color until it enters the mixer.
+        let clearance=max(from.y,profile.height)+0.65
+        let a=SIMD3(from.x,clearance,from.z),b=SIMD3(origin.x,clearance,origin.z)
+        let point=pow(1-f,3)*from+3*pow(1-f,2)*f*a+3*(1-f)*f*f*b+f*f*f*target
+        return (point,f>=1,f>0)
+    }
+}

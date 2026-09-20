@@ -94,7 +94,7 @@ import AppKit
      let initial=session.state,route=puzzle.authoredRoute(from:initial)!
      for (index,operation) in route.enumerated() {
       switch operation {
-      case .activate(let activation):session.activateApparatus(activation.apparatusID)
+      case .activate(let activation):session.activateApparatus(activation.apparatusID,animated:false)
       case .pour(let move):
        let expected=session.state.applying(move)!
        precondition(session.begin(move,automaticClock:false))

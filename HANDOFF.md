@@ -1,5 +1,9 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 20: checkpoint pushed; visible mixing prototype ready
+
+Checkpoint `9c86721` is pushed to `origin/codex/fluid-lab` and verified against GitHub. The subsequent local mixing prototype adds pumped input transfer, a vortex and gradual recipe-color blending in Classic/2D/3D. Activation commits exactly once after the pause-aware transition; reset cancels it, undo restores inputs, and checkpoints retain the pre-mix board. Density modifiers stay immediate. All 48 authored animated mixer cases pass, plus post-mix pours for the introductory recipes, and all three modes passed live Mac mixing/pause/resume/undo checks. Mac and signed iOS Release builds pass. iPad hardware is unavailable; no performance claim. See `Reports/Prototype33/README.md` and `Scripts/validate_mixing.sh`. Mixing changes remain uncommitted/unpushed for review.
+
 ## Latest: final-level completion control
 
 Final levels now show a clear “Final level complete” notice and a prominent “Choose level” menu in the reserved bottom toolbar slot. This applies to all four labs and three presentations; earlier levels retain Next. Actual Mac Full spectrum completion, unchanged layout, menu contents and navigation pass in Classic/2D/3D. Mac and signed iOS builds pass; no iPad install. See `Reports/Prototype32/final-level-completion.md`. Changes remain local and uncommitted.
@@ -248,3 +252,7 @@ A stray uncommitted `xz` before `import Foundation` in `LabBoardRenderer.swift` 
 ## Suggested opening for the next chat
 
 Confirm the current branch/status and read this handoff plus Prototype26/25/24/23. The immediate technical follow-up is optimizing the GPU-bound 22,400-particle Sixfold workload, then repeating the same controlled device profile. Longer unplugged energy testing remains separate. Do not reopen the completed cap-ordering or solver work, restart the project, or describe speculative fluid-rule ideas as already approved work.
+
+September 20 follow-up: contact shadows now shrink/fade with actual vial lift and follow the floor projection in Classic, 2D and 3D (including standalone study). Per-vial Metal samples replace fixed shadows. Mac/iOS builds and offscreen rendering passed; see Prototype33 report. Local, uncommitted; no iPad hardware validation.
+
+Shadow follow-up: user could not see the initial shadows. Increased footprint/contrast, decoupled most opacity loss from shrink, and moved Metal shadow attenuation after the background vignette (critical for outer vials). Corrected previews visibly show dark resting and lifted shadows.

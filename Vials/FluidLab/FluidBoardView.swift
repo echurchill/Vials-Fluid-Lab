@@ -80,7 +80,7 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     let capExclusions=Set([session.selected].compactMap { $0 }+session.activeMoves.flatMap { [$0.source,$0.destination] })
                     ZStack {
-                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions) }
+                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions,mixing:session.mixing) }
                         else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial,capExclusions:capExclusions) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer,capExclusions:capExclusions).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
@@ -227,6 +227,7 @@ struct FluidBoardView:View {
         .task { await session.runTrialIfRequested() }
         .onChange(of:reduceTransparency,initial:true) { _,value in session.renderer?.reduceTransparency=value }
         .onChange(of:session.presentation) { _,_ in session.renderer?.reduceTransparency=reduceTransparency }
+        .onChange(of:reduceMotion,initial:true) { _,value in session.reduceMixMotion=value }
         .onAppear { if reduceMotion { session.paused=true;session.renderer?.paused=true } }
         .onChange(of:sheet) { _,value in session.setSuspended(value != nil || comparison != nil || showResetProgress || scenePhase != .active) }
         .onChange(of:scenePhase) { _,value in session.setSuspended(value != .active || sheet != nil || comparison != nil || showResetProgress) }

@@ -397,6 +397,8 @@ final class LabRenderer: NSObject, MTKViewDelegate {
         compose.label = "Reconstruct and shade liquid"
         compose.setRenderPipelineState(composePipeline)
         compose.setFragmentBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:0)
+        let shadows=LabContactShadow.floorSamples(vessels:vessels,profiles:profiles)
+        shadows.withUnsafeBytes { compose.setFragmentBytes($0.baseAddress!,length:$0.count,index:1) }
         compose.setFragmentTexture(pointMode ? depth : smoothB,index:0)
         compose.setFragmentTexture(thickness,index:1)
         compose.setFragmentTexture(thickness,index:2) // unused identity texture in legacy mode
