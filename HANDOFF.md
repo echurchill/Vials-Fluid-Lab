@@ -1,5 +1,14 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## Latest: iPad portrait/landscape review complete (September 20)
+
+QuickTime now works: open New Movie Recording, then select **Screen → Eddie’s iPad Pro** (the iPad is under Screen, not Camera on this OS). No reboot was needed. CUA live-preview inspection passed Shades of blue in Classic/2D/3D in landscape and portrait, plus ten-vial Twin products in 2D landscape and all three modes in portrait. Density symbols are distinguishable; targets, legend and controls fit without clipping. 3D symbols are softer than 2D but recognizable. This was passive visual inspection, not a new touch-latency test. See Reports/Prototype36/README.md. Prior visual-blocker notes below are superseded; GPU comparison and the 12-case live density-control diagnostic were already complete and were not repeated.
+
+Found and fixed an initial/restored-launch instruction bug: experimental labs now show “Match the outlined target vials” instead of Sorting’s matching-color instruction. Added an assertion across all 15 experimental session routes; validation plus Mac/signed iOS Release builds pass. Installed and visually verified the fix on iPad. No vial geometry, framing or rendering changes. Guidance/profile/design work is pushed as d7a8875; this later text fix, test and review documentation form the subsequent publication checkpoint requested by Eddie. Use the Git log and remote head for its publication status.
+
+The obscured-fluid proposal remains documentation only. Sound and new physics mechanics remain deferred; the scheduled performance monitor remains paused. For future UI testing, use caffeinate on the Mac and the working QuickTime live preview. Do not repeat the completed GPU profile without a rendering change or new concern.
+
+
 ## September 20 guidance and design checkpoint
 
 This checkpoint includes the density legend, target-mismatch explanations, corresponding model/session tests, completed physical-iPad surface comparison and diagnostic results, and the future obscured-fluids design proposal. Earlier local/uncommitted status notes for those changes are historical; use the Git log and remote head for publication status. Direct physical-iPad visual acceptance remains pending because QuickTime/Device Hub automation times out; no reboot or app termination was performed as part of investigating that issue.

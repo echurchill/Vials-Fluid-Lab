@@ -35,10 +35,20 @@ The density-heavy fixtures are within about 0.02 ms / 1% of baseline. This compa
 
 Reports: [summary](surface-summary.json), [baseline 1](ipad-surface-before-1.json), [current 1](ipad-surface-after-1.json), [current 2](ipad-surface-after-2.json), [baseline 2](ipad-surface-before-2.json).
 
-## Visual review status
+## Physical-iPad visual review completed
 
-The new signed app was installed and launched on the connected physical iPad. Direct visual acceptance of small-vial arrows, dense target cards and portrait/landscape remains open: CUA could inspect the Mac game and Xcode, but Device Hub/QuickTime returned timeoutReached repeatedly, including launching Device Hub from Xcode's menu. A request to open an iPad camera preview in QuickTime is pending. Mac AX checks verified the guide text, shared density legend, the post-pour mismatch notice and the same state in Classic/2D/3D; the returned Mac screenshots were too small for reliable pixel-level sign-off. Do not treat automated state checks or GPU profiles as physical-iPad visual acceptance.
+The QuickTime preview became accessible after opening an actual New Movie Recording window and selecting **Screen → Eddie’s iPad Pro**. No reboot was required. Earlier timeout reports below/in the handoff are historical. Inspection used the live iPad preview through CUA, with Eddie rotating the device; no recording was started or saved by the agent.
+
+Inspected Shades of blue in Classic, 2D and 3D in landscape and portrait: Light up-triangles, plain Medium and Heavy down-triangles remain distinguishable, with visible legend and target swatches. The 3D motifs are softer than their 2D counterparts but recognizable. Inspected the ten-vial Twin products layout in 2D landscape and all three presentations in portrait: both target cards, quantity feedback, legend, apparatus controls and bottom toolbar fit without clipping or overlap. Small portrait vials retain the established board framing; no geometry/camera changes were made.
+
+A launch-only wording bug was found: initially opening/restoring an experimental lab retained Sorting’s “matching color” instruction. The shared session initializer now selects the appropriate instruction by discipline, matching the existing reset/switch behavior. All 15 experimental-session routes assert the correct launch guidance and pass. Mac and signed iOS Release builds pass. The updated build was installed, and “Match the outlined target vials” was visually verified on Density and Crossover on the physical iPad.
+
+This closes the pending layout/symbol inspection. These were passive live-preview checks with diagnostic fixture launches, not a new touch-latency or frame-by-frame animation acceptance test. The earlier 12-case live density-control result and controlled GPU comparison remain the functional/performance evidence; neither was rerun for this text-only fix. Inline CUA captures were inspected; no screenshot files were added. Mac automation used caffeinate.
 
 ## Final validation
 
 Both final Mac and signed iOS Release builds passed. The guidance build passed all 12 live iPad density-control cases (ipad-density-controls.json); the final layout-only refinement puts the legend beside apparatus buttons where they fit and stacks them on narrower windows. Its final Mac relaunch confirms guide, legend, target accessibility and controls are present. Fill-only target inspection also passes without allowing it to pour. The final signed build is installed and launched normally on iPad, with no trial arguments. caffeinate was used during Mac automation. Eddie subsequently requested that this guidance, validation and design work be committed and pushed together.
+
+## Publication status after visual review
+
+Guidance, GPU results and the obscured-fluid proposal were pushed as d7a88757575f14767423a5a8663606e1a61137fe. Eddie requested that the subsequent launch-instruction fix, its regression assertion and this visual-review update be committed and pushed together as the next checkpoint. Use the Git log and remote head for its publication status.

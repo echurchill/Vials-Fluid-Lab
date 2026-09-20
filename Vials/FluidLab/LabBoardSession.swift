@@ -173,6 +173,7 @@ import Combine
         restored.cancel() // A launch restores the last committed move.
         game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
         feedback.soundEnabled=soundEnabled;feedback.hapticsEnabled=hapticsEnabled
+        notice=puzzle.discipline == .sorting ? "Tap a filled vial, then a matching color or an empty vial.":"Match the outlined target vials."
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         refresh()

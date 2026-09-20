@@ -15,6 +15,7 @@ import Metal
                 // deliberately serialize operations even though Sorting retains
                 // its dependency-safe multi-pour behavior.
                 let session=FluidBoardSession(defaults:defaults,device:nil,restoredSave:save,allowsConcurrentPours:true)
+                require(session.notice=="Match the outlined target vials.","\(puzzle.rawValue): launch showed Sorting instructions")
                 require(!session.concurrentPoursEnabled,"\(puzzle.rawValue): experimental concurrency should be deterministic")
                 let route=puzzle.authoredRoute(from:session.state) ?? session.state.operationSolution(limit:800_000)
                 require(route != nil,"\(puzzle.rawValue): missing session route")
