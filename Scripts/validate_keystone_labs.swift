@@ -4,6 +4,28 @@ import Foundation
     static func emit(_ value:String) { FileHandle.standardOutput.write(Data((value+"\n").utf8)) }
     static func main() {
         var failures:[String]=[]
+        // Explanations must never claim a color/density match from hue alone.
+        func assessment(_ actual:[LabMaterialSpec],_ wanted:[LabMaterialSpec])->LabTargetAssessment? {
+            let fixture=LabBoardState(layers:[actual.map(\.pigment)],capacities:[max(1,max(actual.count,wanted.count))],
+                densityLayers:[actual.map(\.density)],behavior:.crossover,targets:[.init(vial:0,layers:wanted)])
+            let result=fixture.targetAssessment(0)
+            if (result == .matched) != fixture.solved {failures.append("feedback disagrees with exact target completion")}
+            return result
+        }
+        let target:[LabMaterialSpec]=[.init(1),.init(1)]
+        let cases:[(LabTargetAssessment?,LabTargetAssessment)]=[
+            (assessment(target,target),.matched),
+            (assessment([],target),.needsUnits(2)),
+            (assessment([.init(1)],target),.needsUnits(1)),
+            (assessment(target+[.init(1)],target),.extraUnits(1)),
+            (assessment([.init(0),.init(1)],target),.wrongColors),
+            (assessment([.init(1,.heavy),.init(1,.heavy)],target),.tooHeavy),
+            (assessment([.init(1,.light),.init(1,.light)],target),.tooLight),
+            (assessment([.init(1,.heavy),.init(1)],target),.tooHeavy),
+            (assessment([.init(1,.heavy),.init(1,.light)],target),.mixedDensity),
+            (assessment([.init(0),.init(1)],[.init(1),.init(0)]),.wrongOrder)]
+        for (actual,expected) in cases where actual != expected {failures.append("target assessment: expected \(expected), got \(String(describing:actual))")}
+        if LabBoardState.firstSort.targetAssessment(0) != nil {failures.append("sorting invented a target")}
         let densityFixture=LabBoardState(
             layers:[[0],[8],[]],capacities:[1,1,2],densityLayers:[[.light],[.heavy],[]],behavior:.density)
         if let light=densityFixture.move(from:0,to:2),let afterLight=densityFixture.applying(light),

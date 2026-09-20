@@ -1,5 +1,24 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 20 guidance and design checkpoint
+
+This checkpoint includes the density legend, target-mismatch explanations, corresponding model/session tests, completed physical-iPad surface comparison and diagnostic results, and the future obscured-fluids design proposal. Earlier local/uncommitted status notes for those changes are historical; use the Git log and remote head for publication status. Direct physical-iPad visual acceptance remains pending because QuickTime/Device Hub automation times out; no reboot or app termination was performed as part of investigating that issue.
+
+
+## Future design addition: obscured fluids (September 20)
+
+Eddie supplied examples of hidden lower fluid portions that become identifiable as upper material is poured away. Added an optional Sorting-first discovery experiment to `Reports/fluid-logic-laboratory-design.md`, section “Future Experiment: Obscured Fluids.” It also explores visible-density/hidden-pigment puzzles and later identification tools for Mixing/Crossover. Fixed hidden identities, retained discoveries, free Undo, knowledge-aware hints and avoiding visual/accessibility leaks are central. Documentation only; no implementation authorization or game-code changes for this idea. The existing guidance implementation and pending iPad visual review remain as described below.
+
+
+## Latest: density guide, target explanations and iPad GPU comparison (September 20)
+
+Eddie authorized recommendation 3 (guidance), then 1 (iPad visuals) and 2 (GPU cost). Shared UI now has Light/Medium/Heavy swatch legend + info popover; target cards explain quantity, color, order and density mismatches. Committed target pours and selecting a target show the full explanation, also in VoiceOver. Fill-only targets can be inspected without becoming sources. Fixed status/notice heights avoid completion-driven layout jumps. Model and session checks pass, and live Mac mismatch feedback/guide/view switching were exercised.
+
+A physical M4 iPad baseline/current/current/baseline GPU comparison passed on frozen identical 6-/10-vial density scenes and Sixfold at 720×432/1000×600. All thermal states nominal. Density-scene median GPU deltas are −0.2% to +1.0% (about 0.02 ms or less); no material surface regression. It is offscreen command-buffer timing, not displayed FPS or battery evidence. New opt-in flag: `--lab-trial --profile-density-surface --keep-awake`. Baseline 083d383 lives in ignored build/density-surface-baseline with identical harness. See Reports/Prototype36 for raw results and exact limitations.
+
+Direct iPad visual acceptance is still pending because Device Hub/QuickTime CUA time out. Asked Eddie to open QuickTime → New Movie Recording and choose iPad as camera; no reply yet. Mac screenshots also came back as tiny previews, so do not claim a full pixel-level layout review. Both final builds pass. The guidance build passed all 12 live iPad density-control cases; the final compact legend/control layout is built, installed and launched normally on iPad. These changes are local/uncommitted; last pushed commit is f612b33. Finish physical visual review when the preview is available; do not repeat the completed GPU work merely because the visual check remains open.
+
+
 ## September 20 density checkpoint
 
 This checkpoint includes the density-apparatus animation, hue-independent triangle motifs, larger matching contents/target symbols, directional fades, and the 12-case physical-iPad diagnostic/results. Earlier notes describing these changes as uncommitted or unapproved are historical. Use `git log` and the remote branch to resolve publication status.

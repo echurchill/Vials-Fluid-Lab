@@ -14,6 +14,18 @@ struct FluidBoardView:View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private let ink=Color(red:0.80,green:0.88,blue:0.90)
     private let accent=Color(red:0.28,green:0.85,blue:0.79)
+    private var apparatusControls:some View {
+        HStack(spacing:10) {
+            ForEach(session.state.apparatus) { apparatus in
+                Button(apparatus.title,systemImage:apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down") {
+                    session.activateApparatus(apparatus.id)
+                }
+                .disabled(session.busy || !session.state.canActivate(.init(apparatusID:apparatus.id)))
+                .tint(session.hintApparatusID==apparatus.id ? .orange:.purple)
+            }
+        }.buttonStyle(.borderedProminent).controlSize(.small)
+    }
+
     var body:some View {
         GeometryReader { geometry in
             let compact=geometry.size.width<680
@@ -161,6 +173,10 @@ struct FluidBoardView:View {
                                                     .frame(height:14)
                                             }
                                         }
+                                        Text(session.busy ? "Updating…":(session.state.targetAssessment(index)?.shortLabel ?? ""))
+                                            .font(.system(size:denseDebug ? 9:11,weight:.medium))
+                                            .foregroundStyle(session.vialComplete(index) ? Color.green:ink.opacity(0.85))
+                                            .lineLimit(1).minimumScaleFactor(0.8).frame(height:14)
                                     }
                                 }.frame(maxWidth:.infinity).padding(.vertical,denseDebug ? 8:12).padding(.horizontal,denseDebug ? 3:9)
                                     .background(cueLabel(index).isEmpty ? ink.opacity(0.04):cueColor(index).opacity(0.13),in:RoundedRectangle(cornerRadius:10))
@@ -173,18 +189,19 @@ struct FluidBoardView:View {
                             .accessibilityLabel("Select "+session.accessibility(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
                         }
                     }
-                    if !session.state.apparatus.isEmpty {
-                        HStack(spacing:10) {
-                            ForEach(session.state.apparatus) { apparatus in
-                                Button(apparatus.title,systemImage:apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down") {
-                                    session.activateApparatus(apparatus.id)
-                                }
-                                .disabled(session.busy || !session.state.canActivate(.init(apparatusID:apparatus.id)))
-                                .tint(session.hintApparatusID==apparatus.id ? .orange:.purple)
+                    if session.state.behavior.settlesByDensity || !session.state.apparatus.isEmpty {
+                        ViewThatFits(in:.horizontal) {
+                            HStack(spacing:16) {
+                                if session.state.behavior.settlesByDensity {LabDensityLegend().fixedSize()}
+                                if !session.state.apparatus.isEmpty {apparatusControls.fixedSize()}
                             }
-                        }.buttonStyle(.borderedProminent).controlSize(.small)
+                            VStack(spacing:8) {
+                                if session.state.behavior.settlesByDensity {LabDensityLegend()}
+                                if !session.state.apparatus.isEmpty {apparatusControls}
+                            }
+                        }
                     }
-                    Text(session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity,minHeight:30).multilineTextAlignment(.center)
+                    Text(session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity).lineLimit(2).frame(height:34).multilineTextAlignment(.center)
                     HStack(spacing:12) {
                         Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || session.moveCount == 0)
                         Button(session.findingHint ? "Finding…":"Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved || session.findingHint)

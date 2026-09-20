@@ -34,3 +34,30 @@ struct LabDensitySwatch:View {
         }.accessibilityHidden(true)
     }
 }
+
+/// Always present in density labs, so transitions never insert a legend row.
+struct LabDensityLegend:View {
+    @State private var showingHelp=false
+    var body:some View {
+        HStack(spacing:14) {
+            ForEach(LabDensity.allCases,id:\.self) { density in
+                HStack(spacing:4) {
+                    LabDensitySwatch(color:Color(red:0.05,green:0.58,blue:0.86),density:density).frame(width:20,height:14)
+                    Text(density.title).font(.system(size:11))
+                }.accessibilityElement(children:.ignore)
+                    .accessibilityLabel(density == .light ? "Light: pale upward triangle":(density == .heavy ? "Heavy: dark downward triangle":"Medium: no triangle"))
+            }
+            Button {showingHelp.toggle()} label: {Image(systemName:"info.circle").frame(width:28,height:24)}
+                .buttonStyle(.plain).accessibilityLabel("Density and target guide")
+                .popover(isPresented:$showingHelp) {
+                    VStack(alignment:.leading,spacing:12) {
+                        Text("Reading the liquids").font(.headline)
+                        Text("Color identifies the liquid. Triangles identify density: pale upward triangles are light, plain liquid is medium, and dark downward triangles are heavy.")
+                        Text("Contents and target strips read left to right, from the bottom of the vial to the top. Match the color, amount and density of every target layer.")
+                        Text("A target can look like the right color and still be too heavy or too light. Select its vial to read the difference.")
+                    }.font(.callout).padding(20).frame(width:300)
+                        .presentationCompactAdaptation(.popover)
+                }
+        }.foregroundStyle(Color(red:0.80,green:0.88,blue:0.90).opacity(0.85))
+    }
+}

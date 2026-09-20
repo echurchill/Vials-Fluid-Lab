@@ -45,6 +45,25 @@ import Metal
             }
         }
 
+        let wrongDensity=LabBoardState(layers:[[1,1],[]],capacities:[2,2],densityLayers:[[.heavy,.heavy],[]],
+            behavior:.crossover,targets:[.init(vial:1,layers:[.init(1),.init(1)])])
+        let mismatch=FluidBoardSession(defaults:nil,device:nil,restoredSave:LabComparisonSave(presentation:.classic,pace:.quick,puzzle:.equalPartners,
+            games:[LabBoardPuzzle.equalPartners.rawValue:LabBoardGame(state:wrongDensity)]))
+        let move=wrongDensity.move(from:0,to:1)!
+        require(mismatch.begin(move,automaticClock:false),"Mismatch pour rejected")
+        for _ in 0..<200 where mismatch.busy {mismatch.advanceClassic(deltaTime:0.05)}
+        require(!mismatch.busy && !mismatch.solved && mismatch.notice=="Target B: Correct color and amount; the liquid is too heavy.","Post-pour mismatch explanation missing")
+        mismatch.select(1)
+        require(mismatch.notice.contains("too heavy") && mismatch.accessibility(1).contains("too heavy"),"Selection/VoiceOver lost mismatch explanation")
+        mismatch.undo();require(mismatch.state==wrongDensity,"Feedback affected Undo")
+        let fillOnly=LabBoardState(layers:[[]],capacities:[2],rules:[.receiveOnly],behavior:.density,targets:[.init(vial:0,layers:[.init(1),.init(1)])])
+        let inspector=FluidBoardSession(defaults:nil,device:nil,restoredSave:LabComparisonSave(presentation:.classic,puzzle:.heavyLanding,
+            games:[LabBoardPuzzle.heavyLanding.rawValue:LabBoardGame(state:fillOnly)]))
+        require(inspector.canTap(0),"Fill-only target cannot be inspected")
+        inspector.select(0)
+        require(inspector.selected==nil && inspector.notice.contains("Needs 2 more units"),"Inspecting a fill-only target changed pour rules")
+
+
         // The 2D silhouette must use the same glass width as Classic/3D.
         // Normalizing its area to the capacity fraction collapsed one-unit
         // mixing vials into almost line-thin slivers.

@@ -1,0 +1,78 @@
+{
+  "cases" : [
+    {
+      "case" : "classic\/equalPartners\/normal",
+      "passed" : true,
+      "resumedSamples" : 59
+    },
+    {
+      "case" : "classic\/weightedOrange\/normal",
+      "passed" : true,
+      "resumedSamples" : 59
+    },
+    {
+      "case" : "classic\/twinProducts\/normal",
+      "passed" : true,
+      "resumedSamples" : 58
+    },
+    {
+      "case" : "classic\/weightedOrange\/reduced",
+      "passed" : true,
+      "resumedSamples" : 59
+    },
+    {
+      "case" : "fluid2D\/equalPartners\/normal",
+      "passed" : true,
+      "resumedSamples" : 59
+    },
+    {
+      "case" : "fluid2D\/weightedOrange\/normal",
+      "passed" : true,
+      "resumedSamples" : 59
+    },
+    {
+      "case" : "fluid2D\/twinProducts\/normal",
+      "passed" : true,
+      "resumedSamples" : 55
+    },
+    {
+      "case" : "fluid2D\/weightedOrange\/reduced",
+      "passed" : true,
+      "resumedSamples" : 58
+    },
+    {
+      "case" : "fluid\/equalPartners\/normal",
+      "passed" : true,
+      "resumedSamples" : 60
+    },
+    {
+      "case" : "fluid\/weightedOrange\/normal",
+      "passed" : true,
+      "resumedSamples" : 60
+    },
+    {
+      "case" : "fluid\/twinProducts\/normal",
+      "passed" : true,
+      "resumedSamples" : 60
+    },
+    {
+      "case" : "fluid\/weightedOrange\/reduced",
+      "passed" : true,
+      "resumedSamples" : 60
+    }
+  ],
+  "date" : "2026-09-20T23:08:03Z",
+  "environment" : {
+    "batteryLevel" : null,
+    "batteryState" : "unknown",
+    "deviceModel" : "iPad",
+    "elapsedSeconds" : 0,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "failures" : [
+
+  ],
+  "notes" : "Live app, automatic animation clocks, all three presentations. Functional checks only; no claim of visual acceptance, displayed frame rate or battery consumption.",
+  "passed" : true
+}

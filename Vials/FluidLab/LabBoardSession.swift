@@ -41,7 +41,7 @@ import Combine
     var solved:Bool { state.solved && !busy }
     func canTap(_ index:Int)->Bool {
         guard !solved else { return false }
-        if !concurrentPoursEnabled { return !busy && (selected != nil || state.canPourOut(index)) }
+        if !concurrentPoursEnabled { return !busy && (selected != nil || state.canPourOut(index) || target(index) != nil) }
         return selected == nil ? state.canPourOut(index) && !pourQueue.lockedSources.contains(index):!pourQueue.movingSources.contains(index)
     }
     func availableMove(from:Int,to:Int)->LabBoardMove? {
@@ -105,6 +105,9 @@ import Combine
     }
     var activatableApparatus:[LabApparatus] {state.apparatus.filter {state.canActivate(.init(apparatusID:$0.id))}}
     func target(_ index:Int)->LabVialTarget? {state.target(index)}
+    func targetExplanation(_ index:Int)->String? {
+        state.targetAssessment(index).map {"Target \(Self.letter(index)): \($0.explanation)"}
+    }
     func apparatus(forVial index:Int)->LabApparatus? {state.apparatus.first {$0.inputs.contains(index) || $0.output==index}}
     func vialComplete(_ index:Int)->Bool {
         state.isComplete(index)
@@ -144,7 +147,11 @@ import Combine
         if clearPlan { hintPlan=[] }
     }
     private func rememberPour(_ committed:Bool) {
-        if committed { lastPour=pendingExample };pendingExample=nil
+        if committed {
+            lastPour=pendingExample
+            if let destination=pendingExample?.move.destination,let message=targetExplanation(destination) {notice=message}
+        }
+        pendingExample=nil
     }
 
     init(defaults:UserDefaults? = .standard,device:MTLDevice? = MTLCreateSystemDefaultDevice(),library:MTLLibrary? = nil,restoredSave:LabComparisonSave? = nil,allowsConcurrentPours:Bool=false) {
@@ -285,10 +292,10 @@ import Combine
             }
         } else {
             guard !concurrentPoursEnabled || !pourQueue.lockedSources.contains(index) else { reject(index);notice="That vial is already in use.";return }
-            guard state.canPourOut(index) else { reject(index);notice="That valve is fill only. Choose a vial that can pour out.";return }
-            guard !state.stacks[index].isEmpty else { reject(index);notice="Choose a vial that contains liquid first.";return }
+            guard state.canPourOut(index) else { reject(index);notice=targetExplanation(index) ?? "That valve is fill only. Choose a vial that can pour out.";return }
+            guard !state.stacks[index].isEmpty else { reject(index);notice=targetExplanation(index) ?? "Choose a vial that contains liquid first.";return }
             clearSelectionFeedback();feedback.selection();selected=index;hintTarget=nil;hintApparatusID=nil
-            notice=state.behavior.unrestrictedDestinations ? "Now choose any non-full destination.":"Now choose a matching material, apparatus input, or empty vial."
+            notice=targetExplanation(index) ?? (state.behavior.unrestrictedDestinations ? "Now choose any non-full destination.":"Now choose a matching material, apparatus input, or empty vial.")
         }
     }
     @discardableResult func begin(_ move:LabBoardMove,automaticClock:Bool = true) -> Bool {
@@ -694,6 +701,52 @@ import Combine
         notice=failures.isEmpty && results.count==12 ? "Density checks passed in all three views.":"Density checks need attention. See diagnostic report."
     }
 
+    // Opt-in, fixed-workload GPU comparison. No simulation or screen capture
+    // runs in the measured command buffers; this is not displayed frame rate.
+    private func profileDensitySurface() async {
+        guard let device else {error="Metal unavailable for density profile";return}
+        paused=true;updatePause()
+        let environment=LabPerformanceRecorder(),start=environment.environment()
+        var rows:[[String:Any]]=[]
+        do {
+            let pigments=[0,1,2,8,9,4]
+            let layered=LabBoardState(layers:pigments.map {Array(repeating:$0,count:3)},capacities:Array(repeating:3,count:6),
+                densityLayers:Array(repeating:[.heavy,.medium,.light],count:6),behavior:.density)
+            let dense=LabBoardState(layers:(0..<10).map {Array(repeating:pigments[$0%6],count:3)},capacities:Array(repeating:3,count:10),
+                densityLayers:Array(repeating:[.heavy,.medium,.light],count:10),behavior:.density)
+            for (name,fixture) in [("six-density-vials",layered),("ten-density-vials",dense),("sixfold",LabBoardPuzzle.sixfold.initial)] {
+                let surface=try LabBoardRenderer(device:device,library:library)
+                surface.install(game:LabBoardGame(state:fixture));surface.paused=true;surface.quality = .high;surface.orbit=0.12
+                for width in [720,1000] {
+                    let height=width*3/5
+                    let descriptor=MTLTextureDescriptor.texture2DDescriptor(pixelFormat:.bgra8Unorm_srgb,width:width,height:height,mipmapped:false)
+                    descriptor.storageMode = .private;descriptor.usage=[.renderTarget,.shaderRead]
+                    guard let target=device.makeTexture(descriptor:descriptor) else {throw NSError(domain:"DensityProfile",code:1,userInfo:[NSLocalizedDescriptionKey:"Target allocation failed"])}
+                    var gpu:[Double]=[],host:[Double]=[]
+                    for frame in 0..<140 {
+                        guard !Task.isCancelled,!suspended else {throw NSError(domain:"DensityProfile",code:2,userInfo:[NSLocalizedDescriptionKey:"Profile interrupted"])}
+                        let began=ProcessInfo.processInfo.systemUptime
+                        let command=surface.encodeFrame(target:target,deltaTime:0)
+                        command.waitUntilCompleted()
+                        guard command.status == .completed,command.gpuEndTime>command.gpuStartTime else {throw command.error ?? NSError(domain:"DensityProfile",code:3,userInfo:[NSLocalizedDescriptionKey:"No valid GPU timing"])}
+                        if frame>=20 {gpu.append((command.gpuEndTime-command.gpuStartTime)*1000);host.append((ProcessInfo.processInfo.systemUptime-began)*1000)}
+                        try await Task.sleep(for:.milliseconds(16))
+                    }
+                    gpu.sort();host.sort()
+                    rows.append(["scene":name,"width":width,"height":height,"particleCount":surface.particleCount,"samples":gpu.count,
+                        "gpuMedianMS":gpu[gpu.count/2],"gpuP95MS":gpu[Int(Double(gpu.count)*0.95)],"hostMedianMS":host[host.count/2],"gpuSamplesMS":gpu])
+                }
+            }
+            let result:[String:Any]=["date":ISO8601DateFormatter().string(from:Date()),"start":start,"end":environment.environment(),"results":rows,
+                "scope":"Physical-device offscreen surface command buffers. Frozen identical particle fixtures, 20 warm-up plus 120 samples per scene/resolution. Includes fluid reconstruction, glass and composition; excludes solver, presentation and UI. Not displayed FPS or battery evidence."]
+            let folder=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("FluidLabReports",isDirectory:true)
+            try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
+            let url=folder.appendingPathComponent("density-surface-profile.json")
+            try JSONSerialization.data(withJSONObject:result,options:[.prettyPrinted,.sortedKeys]).write(to:url,options:.atomic)
+            reportURL=url;notice="Surface profile saved. Reset to play again."
+        } catch {self.error=error.localizedDescription;notice="Surface profile did not finish."}
+    }
+
     func runTrialIfRequested() async {
         guard !trialStarted,let trial=LabTrialConfiguration.current else { return }
         trialStarted=true
@@ -704,6 +757,8 @@ import Combine
         defer { UIApplication.shared.isIdleTimerDisabled=previousIdleTimer }
         #endif
         try? await Task.sleep(for:.seconds(2))
+        if arguments.contains("--profile-density-surface") {await profileDensitySurface();return}
+        if arguments.contains("--visual-review") {return}
         if arguments.contains("--check-density-controls") {await checkDensityTrial();return}
         // Freeze the two tester-reported transitions at useful inspection
         // points on a physical device. These diagnostic replays are isolated
@@ -826,7 +881,7 @@ import Combine
         let target=state.target(index).map { target in
             " Target bottom to top: "+target.layers.map { "\($0.density.title) \(Self.name($0.pigment))" }.joined(separator:", ")+"."
         } ?? ""
-        return "Vial \(Self.letter(index)), \(state.stacks[index].count) of \(state.capacity(index)) units.\(rule) \(layers.isEmpty ? "Empty":"Top to bottom: "+layers).\(target)"
+        return "Vial \(Self.letter(index)), \(state.stacks[index].count) of \(state.capacity(index)) units.\(rule) \(layers.isEmpty ? "Empty":"Top to bottom: "+layers).\(target)"+(targetExplanation(index).map {" "+$0} ?? "")
     }
 }
 

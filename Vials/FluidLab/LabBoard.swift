@@ -22,6 +22,35 @@ nonisolated struct LabMaterialSpec:Sendable,Equatable,Hashable,Codable {
     init(_ pigment:Int,_ density:LabDensity = .medium) { self.pigment=pigment;self.density=density }
 }
 
+/// Explains the first useful difference without changing exact target matching.
+nonisolated enum LabTargetAssessment:Equatable,Sendable {
+    case matched,needsUnits(Int),extraUnits(Int),wrongColors,wrongOrder,tooHeavy,tooLight,mixedDensity
+    var shortLabel:String {
+        switch self {
+        case .matched:"Matched"
+        case .needsUnits(let n):"Needs \(n)"
+        case .extraUnits(let n):"\(n) extra"
+        case .wrongColors:"Check color"
+        case .wrongOrder:"Check layers"
+        case .tooHeavy:"Too heavy"
+        case .tooLight:"Too light"
+        case .mixedDensity:"Check density"
+        }
+    }
+    var explanation:String {
+        switch self {
+        case .matched:"Color, amount and layers match."
+        case .needsUnits(let n):"Needs \(n) more \(n == 1 ? "unit":"units"). Then check color and density."
+        case .extraUnits(let n):"Contains \(n) extra \(n == 1 ? "unit":"units")."
+        case .wrongColors:"Correct amount; the colors do not match the target."
+        case .wrongOrder:"Correct colors and amount; match the target's layer order and densities."
+        case .tooHeavy:"Correct color and amount; the liquid is too heavy."
+        case .tooLight:"Correct color and amount; the liquid is too light."
+        case .mixedDensity:"Correct colors and amount; some layers need a different density."
+        }
+    }
+}
+
 nonisolated struct LabVialTarget:Sendable,Equatable,Codable {
     let vial:Int
     let layers:[LabMaterialSpec] // bottom to top
@@ -148,6 +177,19 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     func target(_ index:Int)->LabVialTarget? { targets.first {$0.vial==index} }
     func matchesTarget(_ target:LabVialTarget)->Bool {
         stacks.indices.contains(target.vial) && stacks[target.vial].map(material)==target.layers
+    }
+    func targetAssessment(_ index:Int)->LabTargetAssessment? {
+        guard stacks.indices.contains(index),let target=target(index) else {return nil}
+        let actual=stacks[index].map(material),wanted=target.layers
+        if actual==wanted {return .matched}
+        if actual.count<wanted.count {return .needsUnits(wanted.count-actual.count)}
+        if actual.count>wanted.count {return .extraUnits(actual.count-wanted.count)}
+        if actual.map(\.pigment).sorted() != wanted.map(\.pigment).sorted() {return .wrongColors}
+        if actual.map(\.pigment) != wanted.map(\.pigment) {return .wrongOrder}
+        let differences=zip(actual,wanted).map {$0.density.order-$1.density.order}.filter {$0 != 0}
+        if differences.allSatisfy({$0<0}) {return .tooHeavy}
+        if differences.allSatisfy({$0>0}) {return .tooLight}
+        return .mixedDensity
     }
     func isComplete(_ index:Int) -> Bool {
         guard stacks.indices.contains(index) else { return false }

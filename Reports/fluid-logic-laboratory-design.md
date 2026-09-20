@@ -34,6 +34,8 @@ Every mechanic should behave consistently enough that the player can use it as a
 
 The player should be able to identify color, quantity, density, and important machine state before acting. No puzzle should depend upon remembering invisible material properties.
 
+A possible explicit exception is the optional **Obscured Fluids** experiment below. Unknown material must be clearly marked, discovery rules taught, and discovered information retained. It should not make ordinary laboratory puzzles conceal essential state.
+
 ### Keep outcomes deterministic
 
 The same state and action must always produce the same result. Determinism is essential for Undo, hints, solution verification, authored difficulty, save restoration, and trustworthy animation.
@@ -523,6 +525,71 @@ This sequence deliberately delays an elaborate laboratory interface. The game sh
 - Is unwanted material drained, recycled, or required as a target byproduct?
 - How much information appears on the one-row vial cards without reducing board clarity?
 - At what point does fixed machine topology become more interesting than freely moving vials?
+
+## Future Experiment: Obscured Fluids
+
+Added September 20, 2026, following Eddie's three reference screenshots. Design candidate only; this is not an instruction to implement it or to copy the reference game's visual style, economy, or progression.
+
+### Core idea
+
+Some fluid portions begin unidentified. Their quantity and occupied space remain visible, but their pigment is concealed until the player exposes them by pouring away the known material above. Discovery becomes another reason to make a move.
+
+The references show question-marked lower portions with visible material above, and later states with additional colors exposed. They illustrate the concept; the exact reveal, Undo and scoring rules of that game have not been established.
+
+This is an information mechanic, not another fluid property. The actual material is fixed when the puzzle is created. It must never change to help or punish the player's choices.
+
+### Recommended first prototype: Sorting discovery
+
+- A small optional set of authored Sorting puzzles, starting with one obscured portion and ample empty storage. Keep all materials at the same density.
+- Keep capacities, fill heights, unit quantities, empty space and already known material clear. Mask material identity, not how much liquid exists.
+- Begin with the top unit identified. Reveal the next portion when it becomes exposed as a pour drains the source. Once identified, it stays identified even if covered again or transferred elsewhere.
+- Do not let a grouped pour silently consume an unidentified portion just because the engine knows that its color matches. For the first prototype, stop at the boundary of the known batch; reveal the newly exposed portion, then let the next player action use it. This deliberately introduces a discovery boundary into grouped pouring and needs a pace check.
+- Make the reveal a short, pause-aware transition from a neutral unknown appearance to the true pigment. Match reveal timing across Classic, 2D and 3D; provisional animation frames must not leak the next identity early.
+- Retain discovered identities through Undo, Reset and save/relaunch for that puzzle. Undo restores the liquid arrangement; it cannot realistically undo the player's knowledge. Clearly distinguish a new puzzle from retrying the same fixed puzzle.
+- Keep Undo freely available. Do not add charges, timers, paid reveals or blind irreversible choices to this first experiment.
+
+Suggested teaching sequence: uncover one hidden unit; choose which of two vials to investigate; use a discovered color to free space; combine discovery with a familiar capacity constraint. Test four to six short puzzles before expanding the mechanic.
+
+### Applicability beyond Sorting
+
+| Lab | Possible version | Main concern |
+| --- | --- | --- |
+| Sorting | Unknown lower pigments; uncover and regroup them | Best first experiment. Avoid mandatory guessing into dead ends. |
+| Density | Hide pigment while keeping the Light/Medium/Heavy arrows and quantity visible | Settling can bury or expose portions without pouring them out. Define exposure consistently and retain knowledge by portion identity. |
+| Mixing | Unidentified ingredients must be exposed or inspected before entering a mixer | Concealed input identities can turn recipe planning into blind trial and error; introduce an identification tool before this variant. |
+| Crossover | Known recipes and density rules applied to partially identified ingredients | Combine only after discovery and identification have proved readable separately. |
+
+Do not hide both pigment and density in the initial Density variant. Keep targets fully visible in every first prototype: uncertainty should concern the ingredients, not what success means. A later scanner or sampling station could identify an ingredient at a spatial or move cost, giving the laboratory a deliberate investigation tool.
+
+### Visual direction for our presentations
+
+- **Classic:** a neutral filled region with a restrained unknown symbol, following the actual vial shape and preserving unit-height cues.
+- **2D:** use the same unknown-region language over the fluid surface. Neutralize pigment-specific particles, glows, ribbons and bubbles in unidentified portions so they cannot give away the material.
+- **3D:** prototype a neutral opaque treatment on the obscured fluid region, keeping the glass rim and outline readable. Merely frosting the glass or reducing opacity could still reveal the hidden pigment through tint, refraction or reflections. Keep concealed portions clearly distinct from empty glass and from known plain Medium fluid.
+
+Use one shared unknown-material symbol in the fluid, contents strip and spoken descriptions. It must remain distinct from the existing density triangles, selection outlines and completed-vial caps. Known portions retain today's pigment and density treatment.
+
+### Fairness, hints and implementation implications
+
+The full board and the player's knowledge are separate state. Stable parcel IDs are a useful starting point, but material changes and any future split/merge operation need explicit rules for which knowledge carries forward.
+
+A full-information solver finding a solution is insufficient: that solution may require choosing correctly between indistinguishable hidden states. For small authored puzzles, examine the possible states consistent with the player's observations and ensure there is a safe discovery strategy, or an easily recoverable branch with free Undo. Avoid optional minimum-move medals that quietly assume advance knowledge of the hidden arrangement.
+
+Player hints must respect current knowledge. They may recommend a legal exploratory move, but must not silently reveal hidden colors through a prescient move choice. If a future hint explicitly reveals a portion, present that as a taught reveal action. Developer validation may still inspect the full fixed board.
+
+Review every information channel: material labels, contents strips, VoiceOver, destination highlights, target-mismatch explanations, recipe previews, pour previews, particle effects, completion caps and saved examples. The new detailed target feedback must not expose an unknown ingredient's pigment or density prematurely. Developer-only diagnostics may retain full information, but must remain clearly separate from player hints.
+
+This will require model/knowledge state, reveal events, knowledge-aware hints, persistence, Undo policy and renderer masking. It is not safely implemented as a visual overlay alone. Existing concurrent Sorting pours should apply reveal events to their own participating portions in deterministic order.
+
+### Questions for the prototype
+
+1. Does uncovering a color create an enjoyable planning decision, or mainly add repetitive pours?
+2. Is the known-batch stopping rule understandable and compatible with the accepted pace?
+3. Can players distinguish unknown liquid, known Medium liquid and empty space instantly?
+4. Does retaining discoveries through Undo/Reset make retries pleasant without turning every puzzle into a memorization chore?
+5. Can all three renderers conceal identity consistently without making the 3D fluid look muddy or unreadable?
+
+Prefer an optional Sorting discovery set first. Revisit Density and an identification apparatus only after that set earns positive feedback.
 
 ## Reserve Shelf
 

@@ -1,0 +1,95 @@
+{
+  "method": "Mean of the two per-run medians in baseline/current/current/baseline order; inspect individual runs for variability.",
+  "rows": [
+    {
+      "scene": "six-density-vials",
+      "width": 720,
+      "beforeMedianMS": 1.741729211062193,
+      "afterMedianMS": 1.75912503618747,
+      "percentChange": 0.9987674900777677,
+      "beforeRunMedians": [
+        1.7839584033936262,
+        1.6995000187307596
+      ],
+      "afterRunMedians": [
+        1.7267500516027212,
+        1.7915000207722187
+      ]
+    },
+    {
+      "scene": "six-density-vials",
+      "width": 1000,
+      "beforeMedianMS": 2.383062557782978,
+      "afterMedianMS": 2.402666606940329,
+      "percentChange": 0.8226409790764944,
+      "beforeRunMedians": [
+        2.3640000727027655,
+        2.40212504286319
+      ],
+      "afterRunMedians": [
+        2.330124960280955,
+        2.4752082535997033
+      ]
+    },
+    {
+      "scene": "ten-density-vials",
+      "width": 720,
+      "beforeMedianMS": 2.2540416684933007,
+      "afterMedianMS": 2.2728749900124967,
+      "percentChange": 0.8355356417073301,
+      "beforeRunMedians": [
+        2.2813333198428154,
+        2.226750017143786
+      ],
+      "afterRunMedians": [
+        2.2828750079497695,
+        2.262874972075224
+      ]
+    },
+    {
+      "scene": "ten-density-vials",
+      "width": 1000,
+      "beforeMedianMS": 2.730791689828038,
+      "afterMedianMS": 2.726208360400051,
+      "percentChange": -0.16783885219293637,
+      "beforeRunMedians": [
+        2.778333378955722,
+        2.6832500007003546
+      ],
+      "afterRunMedians": [
+        2.7996667195111513,
+        2.6527500012889504
+      ]
+    },
+    {
+      "scene": "sixfold",
+      "width": 720,
+      "beforeMedianMS": 2.577770850621164,
+      "afterMedianMS": 2.5586041738279164,
+      "percentChange": -0.7435368736762982,
+      "beforeRunMedians": [
+        2.574875019490719,
+        2.580666681751609
+      ],
+      "afterRunMedians": [
+        2.504166681319475,
+        2.6130416663363576
+      ]
+    },
+    {
+      "scene": "sixfold",
+      "width": 1000,
+      "beforeMedianMS": 3.9095624815672636,
+      "afterMedianMS": 3.4558333572931588,
+      "percentChange": -11.605624066972686,
+      "beforeRunMedians": [
+        4.137874930165708,
+        3.681250032968819
+      ],
+      "afterRunMedians": [
+        3.6461667623370886,
+        3.265499952249229
+      ]
+    }
+  ]
+}
