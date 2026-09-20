@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Round vessels and consistent fill heights](Reports/Prototype31/README.md) replace the rejected flattened-vial workaround. Mac comparisons and checks are available for visual review.
+
 [Matched 3D board scale and a quieter floor](Reports/Prototype27/README.md) bring resting 3D vials into visual parity with Classic/2D across portrait, landscape and 4–10-vial boards, align the common floor baseline, and remove the unnecessary 3D floor ellipse while retaining contact shadows. Its latest follow-up also carries Classic streams down to the accumulating fluid and preserves visible 3D headspace beneath completed caps. Full complexity, concurrency and overlap regressions pass.
 
 [Physical fill verification and expanded-level profiling](Reports/Prototype26/README.md) remove the remaining one-frame correction jump, confirm the Level 16 shared receiver and completion cap on the M4 iPad, revalidate depth-ordered caps, and measure the 10-vial Sixfold workload on device.

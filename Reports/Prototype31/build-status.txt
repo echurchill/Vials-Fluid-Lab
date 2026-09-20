@@ -1,0 +1,5 @@
+macOS Release: BUILD SUCCEEDED
+iOS signed Release: BUILD SUCCEEDED
+Mac app UI: 3D A→D pause/resume, presentation switching, reset; final 2D A→D, Undo, back to 3D passed.
+iPad: installation/checks pending availability.
+Changes remain uncommitted; no push performed.

@@ -7,7 +7,7 @@ struct Uniforms {
     float4 camera, viewport, physics;
     uint4 options;
 };
-struct Vessel { float4x4 world, inverseWorld, previousWorld; float4 dimensions, marks; };
+struct Vessel { float4x4 world, inverseWorld, previousWorld; float4 dimensions, marks, shape; };
 struct Vertex { float4 position, normal; };
 // Include sources approaching the outside of either edge receiver.
 constant uint gridCount = 128*48*40;
@@ -244,7 +244,7 @@ vertex QuadOut labFullscreen(uint id [[vertex_id]]) {
     float2 uv=float2((id<<1)&2,id&2);
     return {float4(uv*float2(2,-2)+float2(-1,1),0,1),uv};
 }
-struct ParticleOut { float4 position [[position]]; float2 corner; float3 center; float dye; float owner; float radius; };
+struct ParticleOut { float4 position [[position]]; float2 corner; float3 center; float dye; float owner; float radius; float selected; };
 vertex ParticleOut labParticleVertex(uint id [[vertex_id]], uint instance [[instance_id]],
                                     device const Particle *p [[buffer(0)]], constant Uniforms &u [[buffer(1)]]) {
     const float2 corners[6]={{-1,-1},{1,-1},{1,1},{-1,-1},{1,1},{-1,1}};
@@ -255,7 +255,7 @@ vertex ParticleOut labParticleVertex(uint id [[vertex_id]], uint instance [[inst
     float fade=p[instance].visual.x>0 ? smoothstep(0.0f,0.30f,u.viewport.w-p[instance].visual.x):1.0f;
     float radius=u.viewport.z*fade;
     float3 world=center+(right*c.x+up*c.y)*radius;
-    return {u.viewProjection*float4(world,1),c,center,p[instance].velocity.w,p[instance].position.w,radius};
+    return {u.viewProjection*float4(world,1),c,center,p[instance].velocity.w,p[instance].position.w,radius,p[instance].visual.z};
 }
 struct DepthOut { float depthColor [[color(0)]]; float depth [[depth(any)]]; };
 DepthOut particleDepth(ParticleOut in, constant Uniforms &u, constant Vessel *vessels, device const float *profiles) {
@@ -296,7 +296,7 @@ float3 boardColor(float dye) {
 struct BoardDepthOut { float depthColor [[color(0)]]; float4 frontDye [[color(1)]]; float depth [[depth(any)]]; };
 fragment BoardDepthOut labBoardParticleDepth(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]], constant Vessel *v [[buffer(2)]], device const float *profiles [[buffer(3)]]) {
     DepthOut surface=particleDepth(in,u,v,profiles);
-    return {surface.depthColor,float4(boardColor(in.dye),1),surface.depth};
+    return {surface.depthColor,float4(boardColor(in.dye),in.owner+1),surface.depth};
 }
 
 fragment float4 labParticleThickness(ParticleOut in [[stage_in]], constant Uniforms &u [[buffer(1)]]) {
@@ -304,6 +304,12 @@ fragment float4 labParticleThickness(ParticleOut in [[stage_in]], constant Unifo
     if(r2>1) discard_fragment();
     float thickness=2*in.radius*sqrt(1-r2);
     float3 color=(u.options.w&1u) ? boardColor(in.dye) : mix(float3(0.04,0.69,0.72),float3(1.0,0.45,0.09),in.dye);
+    // Board color comes from the front surface, leaving RGB available for a
+    // density plume during a pour. Alpha still accumulates all liquid thickness.
+    if(u.options.y&256u) {
+        int receiver=int(u.options.y>>24)-1;
+        if(in.selected<0.5f || int(round(in.owner))!=receiver) color=0;
+    }
     return float4(color*thickness,thickness);
 }
 kernel void labSmoothDepth(texture2d<float,access::read> source [[texture(0)]], texture2d<float,access::write> target [[texture(1)]],
@@ -354,7 +360,7 @@ kernel void labSmoothDye(texture2d<float,access::read> source [[texture(0)]], te
         float weight=exp(-float(k*k)/14.0f-distance*distance);
         sum+=color*weight;weights+=weight;
     }
-    target.write(float4(sum/max(weights,0.0001f),1),id);
+    target.write(float4(sum/max(weights,0.0001f),source.read(id).a),id);
 }
 
 float3 worldAt(float2 uv, float depth, constant Uniforms &u) {
@@ -411,6 +417,13 @@ fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffe
         // every particle behind it into a muddy third color.
         float3 color=frontDye.sample(s,uv).rgb;
         if (color.x>=0) tint=color;
+        if((u.options.y&256u) && int(round(frontDye.sample(s,uv).a))==int(u.options.y>>24)) {
+            float3 incoming=boardColor(float((u.options.y>>16)&255u));
+            float plumeDepth=dot(medium.rgb,float3(1))/max(dot(incoming,float3(1)),0.001f);
+            // Show a muted trace through lighter liquid without recoloring a
+            // foreground source vial or averaging every resting layer together.
+            tint=mix(tint,incoming,0.70f*(1-exp(-plumeDepth*3.0f)));
+        }
     }
     float opticalDepth=medium.a*0.55;
     float3 absorption=exp(-(1-tint)*opticalDepth*2.8);
@@ -471,7 +484,10 @@ fragment float4 labBoardGlassFragment(GlassOut in [[stage_in]], constant Uniform
     float3 reflected=studio(reflect(-eye,n));
     float3 color=mix(base*float3(0.96,0.985,1.0),reflected,0.045+fresnel*0.55);
     float line=0;
-    for(int i=0;i<4;i++) line=max(line,1-smoothstep(0.003f,0.011f,abs(in.local.y-v.marks[i])));
+    for(int i=0;i<6;i++) {
+        float mark=i<4 ? v.marks[i]:v.shape[i-3];
+        line=max(line,1-smoothstep(0.003f,0.011f,abs(in.local.y-mark)));
+    }
     // Volume graduations are restrained short strokes on the front of the glass.
     float front=smoothstep(0.10f,0.3f,in.local.z)*(1-smoothstep(0.06f,0.24f,abs(in.local.x)));
     color=mix(color,float3(0.59,0.79,0.82),line*front*0.48);
@@ -521,7 +537,13 @@ kernel void labBoardConstrain(device Particle *p [[buffer(0)]], constant Uniform
     float3 local=(v[owner].inverseWorld*float4(p[i].predicted.xyz,1)).xyz;
     // Sorting-mode interfaces travel with the vial. This retains the lower
     // colors while the permitted top parcel remains free to form the stream.
-    local.y=clamp(local.y,band.x+0.005f,band.y-0.005f);
+    if(band.w>1.5f && local.y>band.y-0.005f) {
+        float oldY=(v[owner].inverseWorld*float4(p[i].position.xyz,1)).y;
+        // Anchor to the last step, so repeated pressure iterations cannot speed
+        // up the descent. Lighter layers rise as arriving volume joins below.
+        local.y=min(local.y,max(band.y-0.005f,oldY-u.physics.x*1.35f));
+        local.y=max(local.y,band.x+0.005f);
+    } else { local.y=clamp(local.y,band.x+0.005f,band.y-0.005f); }
     p[i].predicted.xyz=(v[owner].world*float4(local,1)).xyz;
     p[i].predicted=collide(p[i].predicted,v,profiles,u.options.z,true,p[i].visual.z>0.5f);
 }

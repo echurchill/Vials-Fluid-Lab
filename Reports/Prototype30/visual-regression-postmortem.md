@@ -1,0 +1,44 @@
+# Visual and iteration postmortem — September 19, 2026
+
+## Summary
+
+The recent vial-sizing work fixed one visible defect while creating two others. Small-capacity vials had become extremely short or narrow after the experimental Density and Mixing labs were added. I changed the shared profile to keep the front-facing width stable, but preserved equal simulated volume per unit by compressing each small 3D vial front-to-back. That made the glass, opening, cap, and liquid look flatter. I also chose heights of 85%, 90%, 95%, and 100% for capacities one through four: safe against the original tiny-vial problem, but so close together that the capacity difference is hard to see. I declared the width issue fixed before checking the complete visual result against the user's intent.
+
+The user was right on both counts: the small 3D vials look less three-dimensional, and the different capacities now look almost the same height. The current changes are **not** a satisfactory resolution. This document is a diagnosis, not a request to keep iterating without review.
+
+## What happened
+
+1. The experimental labs introduced one- and two-unit capacities. In the original shared geometry, `LabBoardLayout.profiles(capacities:)` scaled height directly with capacity. A one-unit vial was only 25% as tall as a four-unit vial. This affected Classic, 2D Fluid, and 3D Fluid; the screenshots were not explained by vial count or the 3D camera alone.
+2. The 2D renderer also independently normalized the profile's cross-sectional area to a capacity fraction. A first width fix in the shared profile therefore still produced pencil-thin 2D silhouettes. The user's screenshot caught this immediately.
+3. I removed that second 2D width squeeze and kept each same-shaped vial's front-facing radius constant. To preserve the existing particle solver's equal volume per unit, I put the missing volume adjustment into the 3D depth axis. For a one-unit vial, the front-to-back scale is about **0.29** of the reference; for two units it is about **0.56**. Mesh, rim, cap, collision and particle seeding all adopted that shallow shape. This is why the revised 3D vials look more like flat cutouts despite being wider from the front.
+4. To avoid returning to the original very short vials, I selected 85/90/95/100% heights for capacities one through four. The 5% steps are technically ordered but visually weak, especially on a six- or eight-vial board. The user then asked, reasonably, why they all looked the same height.
+5. Geometry, solver and pour tests passed, and I captured the revised Mixing level 5 on the iPad in all three presentations. Those checks established that the glass was no longer pencil-thin and that selected pours still committed; they did **not** establish that the 3D shape retained its depth or that capacity remained visually legible. I overstated the result as "fixed."
+
+The key implementation is in `Vials/FluidLab/LabBoardGeometry.swift`, `LabGeometry.swift`, `LabFluid2D.swift`, `LabBoardRenderer.swift`, and `LabShaders.metal`. `Scripts/validate_complexity.swift` currently asserts the 85/90/95/100% sequence, demonstrating that a passing regression can encode the wrong visual target.
+
+## Why I went off the rails
+
+- **I treated a visual-design constraint as a conservation equation.** Equal unit volume was a legitimate simulation requirement, but I made it absolute without asking what a one-unit *glass vessel* should look like beside a four-unit one. Moving the discrepancy into hidden depth appeared mathematically neat; the user's angled 3D view made the cost obvious.
+- **I optimized a single measurement.** Constant front width became the success criterion. Roundness, opening depth, silhouette, graduation readability and visible height separation were not equally explicit acceptance criteria.
+- **I conflated test coverage with visual approval.** Tests confirmed model solvability, dimensional calculations, parcel ownership and pour completion. They could not judge whether glass looked three-dimensional or whether two heights were perceptually distinct. Static device captures were available, but I used them to confirm the problem I had chosen to solve, not to challenge the overall result.
+- **I patched a shared representation without a cross-mode visual gate.** Capacity profiles feed all three views, while 2D had another scale and 3D had separate mesh, cap, fluid and collision paths. A change that was locally sensible in one representation propagated differently through the others. I should have inspected the same mixed-capacity puzzle in Classic, 2D and 3D—including an angled 3D view—*before* describing it as complete.
+- **Prototype breadth outpaced the visual specification.** The overnight keystone pass added three experimental labs and fifteen levels quickly. The logical routes were validated, but the existing Sorting-era assumption that capacity could drive glass geometry had never been judged against a one-unit Mixing vessel beside a four-unit target. That pace was approved; choosing to treat solvability as sufficient visual readiness was my mistake.
+- **I let a workaround become the design.** Front-to-back compression was initially a way to keep the solver's fixed 640 particles per unit and existing fill calibration. It should have been recognized as a visible compromise and treated as a prototype to evaluate, not a final geometry fix.
+- **I responded to successive screenshots with successive local corrections.** The user repeatedly provided the more accurate diagnosis: this was a static, cross-mode problem tied to new capacities, not pouring or camera zoom. My early explanations and later tweaks were too narrow. This consumed time and tokens and reduced trust.
+- **My completion language was too strong.** I reported a successful fix after tests and a few screenshots despite an unresolved visual tradeoff. The later 3D and height feedback should not have been a surprise.
+- **The handoff made the mistake look settled.** Its newest status described the width-stable profile and passing checks but did not flag the depth compression and near-equal heights as unresolved visual risks. A future reader could mistake that provisional implementation for an accepted baseline.
+
+## Related pattern in earlier work
+
+This is not a claim that every earlier bug remains open. Several animation and logic defects were identified and fixed. But the same verification gap recurred: screenshots or frame-by-frame user recordings exposed a reversed hint loop, detached 3D particles, apparent fill/cap jumps, and retained liquid appearing at a vial's home position before the glass returned. Model tests and end-state screenshots often passed while the *transition seen by a player* was wrong. The strongest fixes came only after the user supplied exact levels, pours and video times. The lesson is to make the player's visible sequence—not only the final game state—a first-class acceptance test.
+
+## What is and is not known
+
+- The currently installed iPad test build includes the width-stable but visually flattened geometry. Mixing level 5 was captured in Classic, 2D Fluid and 3D Fluid; those captures substantiate both the improved front width and the remaining 3D/height objections.
+- Mac and iOS builds and focused model/session/pour checks passed during this iteration. A later attempt at clean validation scripts stopped because the selected Xcode beta reported a missing Metal Toolchain component; the component was subsequently downloaded. That tooling friction used time, but it did not cause the geometry mistake.
+- The changes in this iteration, together with the preceding Density-start corrections, remain uncommitted in `codex/fluid-lab`. `HEAD` is `dc066ea`; at inspection, `origin/codex/fluid-lab` was still `b6bc46d`. No rollback, commit or push is part of this postmortem.
+- There is no evidence in the repository or these tests that usage-limit proximity changed model capability. I cannot rule in or rule out service behavior from this work. The observable causes here are the design tradeoff and my verification/communication decisions.
+
+## Safer resumption point
+
+Pause geometry edits until we agree on a small visual specification from side-by-side screenshots: the same-shaped width range, clearly perceptible height differences for capacities one through six, and a round 3D opening/body at the normal camera angle. Keep the current test build separate from that target. Then evaluate one candidate on the same Sorting, Density and Mixing levels in all three presentations, including a pour, return and completion cap. A passing solver or geometry invariant is necessary but not sufficient; do not call the change fixed until the user accepts the visual comparison. Separate the Density starting-board changes from any geometry revision so each can be reviewed or reverted independently.

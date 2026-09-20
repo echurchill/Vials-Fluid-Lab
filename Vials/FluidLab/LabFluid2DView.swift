@@ -99,7 +99,13 @@ private struct LabFluid2DLayer:View {
                 guard !owned.isEmpty else { continue }
                 var liquid=context
                 if owner>=0 { liquid.clip(to:cavity(owner)) }
-                for color in Set(owned.map(\.color)).sorted() {
+                // Draw the entering density plume after the resident layers so
+                // translucent light liquid cannot erase its path to the interface.
+                let incoming=engine.game.state.behavior.settlesByDensity && engine.game.pending?.destination==owner ? engine.game.pending.map { engine.game.state.visualDye($0.parcels[0]) }:nil
+                let colors=Set(owned.map(\.color)).sorted { a,b in
+                    if a==incoming { return false };if b==incoming { return true };return a<b
+                }
+                for color in colors {
                     let ink=FluidBoardSession.color(color)
                     let group=owned.filter { $0.color==color }
                     let pose=owner>=0 ? engine.pose(owner):Lab2DPose(base:.zero)

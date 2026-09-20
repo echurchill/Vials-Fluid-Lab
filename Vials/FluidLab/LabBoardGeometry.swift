@@ -40,10 +40,11 @@ struct LabBoardLayout {
         return capacities.enumerated().map { index,capacity in
             let spec=specs[index % specs.count]
             let volumeScale=Float(capacity)/4
-            // Keep a unit's physical volume consistent while making capacity
-            // immediately legible: the same vessel shape grows vertically,
-            // rather than becoming subtly wider at a fixed height.
-            let height=2.35*volumeScale
+            // Share capacity growth between height and both radial axes.
+            // One unit is half as tall and ~71% as wide as four units;
+            // openings remain round and physical volume stays proportional.
+            let heightScale=sqrt(volumeScale)
+            let height=2.35*heightScale
             let raw=LabVesselProfile(name:spec.0,height:height,knots:spec.1)
             return LabVesselProfile(name:spec.0,height:height,knots:spec.1,
                 radialScale:sqrt(reference/raw.usableVolume*volumeScale))
@@ -99,10 +100,14 @@ struct LabBoardLayout {
         return profiles.enumerated().map { i,p in
             let world=labTranslation(positions[i])*rotations[i]
             let role:Float=move?.source == i ? (tilt>0.95 ? 1:3):(move?.destination == i ? 2:0)
+            let capacity=capacities?[i] ?? 4
+            func mark(_ unit:Int)->Float {
+                unit<=capacity ? p.height(for:p.usableVolume*Float(unit)/Float(capacity)):-100
+            }
             return LabVesselUniform(world:world,inverseWorld:world.inverse,previousWorld:world,
-                dimensions:SIMD4(p.height,Float(i),0.035,role),marks:SIMD4(
-                    p.height(for:p.usableVolume*0.25),p.height(for:p.usableVolume*0.5),
-                    p.height(for:p.usableVolume*0.75),p.height(for:p.usableVolume)))
+                dimensions:SIMD4(p.height,Float(i),0.035,role),
+                marks:SIMD4(mark(1),mark(2),mark(3),mark(4)),
+                shape:SIMD4(p.depthScale,mark(5),mark(6),Float(capacity)))
         }
     }
     static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {

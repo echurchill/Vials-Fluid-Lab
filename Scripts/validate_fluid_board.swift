@@ -19,6 +19,8 @@ import AppKit
         var errors:[String]=[],results:[[String:Any]]=[]
         let fixture=option("--fixture","level")
         if let puzzle=LabBoardPuzzle(rawValue:fixture) { renderer.reset(state:puzzle.initial) }
+        if fixture == "mixingOneUnit" { renderer.reset(state:LabBoardPuzzle.warmBlend.initial) }
+        if fixture == "mixingMeasuredDose" { renderer.reset(state:LabBoardPuzzle.measuredBatch.initial) }
         if fixture == "pear" { renderer.reset(state:LabBoardState(layers:[[],[],[],[0,1,1,1]])) }
         if fixture == "three" { renderer.reset(state:LabBoardState(layers:[[0,1,1,1],[],[],[]])) }
         if fixture == "partial" { renderer.reset(state:LabBoardState(layers:[[0,0],[0,0,0],[],[]])) }
@@ -43,7 +45,7 @@ import AppKit
         if initial.move(from:0,to:0) != nil || initial.move(from:-1,to:0) != nil { errors.append("Illegal move accepted") }
         if fixture == "level" && initial.move(from:0,to:1) != nil { errors.append("Different top colors accepted") }
         guard let solution=initial.solution() ?? (fixture == "level" ? nil:[]) else { throw LabError.message("Initial level has no solution") }
-        let route: [(Int,Int)] = (fixture == "shortest" || LabBoardPuzzle(rawValue:fixture) != nil) ? solution.map { ($0.source,$0.destination) } : fixture == "pear" ? [(3,1)] : fixture == "floating" ? [(4,6)] : fixture == "level" ? [(0,3),(1,0),(2,3),(2,0),(1,3)] : [(0,fixture == "partial" ? 1:3)]
+        let route: [(Int,Int)] = fixture == "mixingOneUnit" ? [(0,2)] : fixture == "mixingMeasuredDose" ? [(1,4)] : (fixture == "shortest" || LabBoardPuzzle(rawValue:fixture) != nil) ? solution.map { ($0.source,$0.destination) } : fixture == "pear" ? [(3,1)] : fixture == "floating" ? [(4,6)] : fixture == "level" ? [(0,3),(1,0),(2,3),(2,0),(1,3)] : [(0,fixture == "partial" ? 1:3)]
         print("Fixture \(fixture), particles \(renderer.particleCount), solution \(solution.count) moves")
         renderer.encodeFrame(target:texture,deltaTime:0).waitUntilCompleted()
         try save(texture,to:output.appendingPathComponent("ready.png"))
@@ -78,13 +80,17 @@ import AppKit
                 if frame%10 == 0 {
                     let vessels=renderer.currentVessels
                     for ring in 0...16 { for segment in 0..<24 {
-                        let profile=renderer.profiles[pair.0],y=Float(ring)/16*profile.height,r=profile.radius(at:y)+0.035
+                        let profile=renderer.profiles[pair.0],y=Float(ring)/16*profile.height
+                        let r=profile.radius(at:y)+0.035,rz=profile.radius(at:y)*profile.depthScale+0.035
                         let a=Float(segment)/24*2*Float.pi
-                        let point=vessels[pair.0].world*SIMD4<Float>(r*cos(a),y,r*sin(a),1)
+                        let point=vessels[pair.0].world*SIMD4<Float>(r*cos(a),y,rz*sin(a),1)
                         for other in renderer.profiles.indices where other != pair.0 {
                             let q=(vessels[other].inverseWorld*point).xyz
                             if q.y>=0 && q.y<=renderer.profiles[other].height {
-                                let penetration=renderer.profiles[other].radius(at:q.y)+0.035-simd_length(SIMD2(q.x,q.z))
+                                let otherRadius=renderer.profiles[other].radius(at:q.y)+0.035
+                                let otherDepth=renderer.profiles[other].radius(at:q.y)*renderer.profiles[other].depthScale+0.035
+                                let metric=simd_length(SIMD2(q.x/otherRadius,q.z/otherDepth))
+                                let penetration=max(0,1-metric)*min(otherRadius,otherDepth)
                                 if penetration>maxPenetration {maxPenetration=penetration;maxPenetrationMove=index;maxPenetrationFrame=frame}
                             }
                         }

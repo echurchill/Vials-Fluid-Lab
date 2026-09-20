@@ -45,14 +45,40 @@ struct ComplexityValidation {
         if ruleFixture.move(from:0,to:2) != nil {failures.append("fill-only vial poured out")}
         guard let fill=ruleFixture.move(from:1,to:0),ruleFixture.applying(fill)?.isComplete(0)==true else {failures.append("fill-only vial could not receive and complete");printFailures(failures);return}
 
-        let profiles=LabBoardLayout.profiles(capacities:[3,4,5,6,6,4,5,3])
-        if abs(profiles[0].height-2.35*0.75)>0.0001 || abs(profiles[4].height-2.35*1.5)>0.0001 {
-            failures.append("capacity did not scale vessel height")
+        // Check useful geometry invariants, not an approved-looking sequence
+        // of arbitrary heights. The complete visual result still needs review.
+        let capacities=(1...6).flatMap {Array(repeating:$0,count:4)}
+        let profiles=LabBoardLayout.profiles(capacities:capacities)
+        let vessels=LabBoardLayout.vessels(profiles:profiles,capacities:capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+        for (index,vessel) in vessels.enumerated() {
+            let marks=[vessel.marks.x,vessel.marks.y,vessel.marks.z,vessel.marks.w,vessel.shape.y,vessel.shape.z].filter {$0>=0}
+            if marks.count != capacities[index] {failures.append("graduation count does not match capacity")}
         }
-        let tubeWidthDifference=abs((profiles[0].radii.max() ?? 0)-(profiles[4].radii.max() ?? 0))
-        let unitVolumes=profiles.enumerated().map { $0.element.usableVolume/Float([3,4,5,6,6,4,5,3][$0.offset]) }
-        if tubeWidthDifference>0.0001 || unitVolumes.dropFirst().contains(where:{abs($0-unitVolumes[0])>0.0001}) {
-            failures.append("capacity scaling changed same-shape width or per-unit volume (width Δ \(tubeWidthDifference), units \(unitVolumes))")
+        let unitVolumes=zip(profiles,capacities).map {$0.usableVolume/Float($1)}
+        if unitVolumes.contains(where:{abs($0-unitVolumes[0])>0.0001}) {
+            failures.append("vessels lost equal physical unit volume")
+        }
+        for shape in 0..<4 {
+            let family=(0..<6).map {profiles[$0*4+shape]}
+            if family.contains(where:{abs($0.depthScale-1)>0.0001}) {
+                failures.append("capacity flattened a round opening")
+            }
+            for (a,b) in zip(family,family.dropFirst()) {
+                if a.height >= b.height || a.radii.max()! >= b.radii.max()! {
+                    failures.append("capacity does not grow in height and width")
+                }
+            }
+            if family[0].height/family[3].height<0.45 || family[0].radii.max()!/family[3].radii.max()!<0.65 {
+                failures.append("one-unit vessel is too small relative to four units")
+            }
+            for profile in family {
+                for fraction:Float in [0.05,0.25,0.5,0.75,1] {
+                    let volume=profile.usableVolume*fraction
+                    if abs(profile.volume(at:profile.height(for:volume))-volume)>0.0001 {
+                        failures.append("fill height does not preserve volume")
+                    }
+                }
+            }
         }
 
         printFailures(failures)

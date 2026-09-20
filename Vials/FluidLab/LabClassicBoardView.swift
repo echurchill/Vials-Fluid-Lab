@@ -53,6 +53,11 @@ struct LabClassicBoardView:View {
             }
         }.accessibilityHidden(true)
     }
+    private func densityJoinedUnits(_ pour:LabClassicPour)->Float {
+        let crossesLighter=state.densityInsertionIndex(for:pour.move)<state.stacks[pour.move.destination].count
+        let front=crossesLighter ? labSmooth(pour.progress/0.10):1
+        return Float(pour.move.amount)*pour.progress*front
+    }
     private func displayedUnits(in index:Int)->Float {
         var units=Float(state.stacks[index].count)
         for pour in pours {
@@ -91,7 +96,11 @@ struct LabClassicBoardView:View {
                 amounts=amounts.enumerated().map { position,pair in
                     (pair.0,position>=amounts.count-pour.move.amount ? 1-pour.progress:1)
                 }
-            } else if index == pour.move.destination { amounts.append((state.visualDye(pour.move.parcels[0]),Float(pour.move.amount)*pour.progress)) }
+            } else if index == pour.move.destination {
+                if state.behavior.settlesByDensity {
+                    amounts=state.densityReceiverLayers(for:pour.move,joinedUnits:densityJoinedUnits(pour)).map { (state.visualDye($0.parcel),$0.units) }
+                } else { amounts.append((state.visualDye(pour.move.parcels[0]),Float(pour.move.amount)*pour.progress)) }
+            }
         }
         var units:Float=0,run=0
         while run<amounts.count {
@@ -112,6 +121,20 @@ struct LabClassicBoardView:View {
                 liquid.stroke(highlight,with:.color(.white.opacity(0.20)),lineWidth:1)
             }
             run=end
+        }
+        if state.behavior.settlesByDensity {
+            for pour in pours where pour.move.destination==index && pour.progress>0 && pour.progress<1 {
+                let floor=Float(state.densityInsertionIndex(for:pour.move)),joined=densityJoinedUnits(pour)
+                let surface=profile.height(for:profile.usableVolume*displayedUnits(in:index)/Float(state.capacity(index)))
+                let landing=profile.height(for:profile.usableVolume*(floor+joined)/Float(state.capacity(index)))
+                let front=surface+(landing-surface)*labSmooth(pour.progress/0.10)
+                let envelope=min(1,min(pour.progress*16,(1-pour.progress)*16))
+                let color=FluidBoardSession.color(state.visualDye(pour.move.parcels[0]))
+                var plume=Path();plume.move(to:CGPoint(x:0,y:-CGFloat(surface)*scale))
+                plume.addCurve(to:CGPoint(x:0,y:-CGFloat(front)*scale),control1:CGPoint(x:scale*0.07,y:-CGFloat(surface)*scale),control2:CGPoint(x:-scale*0.09,y:-CGFloat(front)*scale))
+                liquid.stroke(plume,with:.color(color.opacity(0.30)),style:StrokeStyle(lineWidth:scale*0.24*CGFloat(envelope),lineCap:.round))
+                liquid.stroke(plume,with:.color(color.opacity(0.92)),style:StrokeStyle(lineWidth:scale*0.11*CGFloat(envelope),lineCap:.round))
+            }
         }
         ctx.stroke(cavity,with:.linearGradient(Gradient(colors:[.white.opacity(0.4),.indigo.opacity(0.65),.white.opacity(0.20)]),startPoint:CGPoint(x:-radius,y:-CGFloat(profile.height)*scale),endPoint:CGPoint(x:radius,y:0)),lineWidth:2.5)
         var rim=Path();let topRadius=CGFloat(profile.radii.last!)*scale,top = -CGFloat(profile.height)*scale

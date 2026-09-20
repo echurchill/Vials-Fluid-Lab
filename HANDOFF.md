@@ -1,5 +1,29 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## Latest: final-level completion control
+
+Final levels now show a clear “Final level complete” notice and a prominent “Choose level” menu in the reserved bottom toolbar slot. This applies to all four labs and three presentations; earlier levels retain Next. Actual Mac Full spectrum completion, unchanged layout, menu contents and navigation pass in Classic/2D/3D. Mac and signed iOS builds pass; no iPad install. See `Reports/Prototype32/final-level-completion.md`. Changes remain local and uncommitted.
+
+## Latest: density settles during the pour
+
+Medium/heavy arrivals now descend through lighter layers during the pour in Classic, 2D and 3D for Density and Crossover. Existing equal-density liquid stays underneath the arrival (even with a different pigment). Joined particle volume progressively shifts lighter bands upward; 3D uses bounded descent and its existing thickness pass to reveal the submerged plume. Exact game ordering and the 5% correction allowance are unchanged. Seven trajectory cases pass in both particle modes; all ten Density/Crossover routes solve and fully undo in both. All three modes pass live Mac Heavy landing UI checks with caffeinate, and Mac/iOS Release builds pass. Physical iPad validation remains pending; local changes remain uncommitted/unpushed. See `Reports/Prototype32/README.md` and `Scripts/validate_density_pour.sh`.
+
+## Latest UI adjustment: Next Level button
+
+The shared Next Level button moved below the info text into the bottom toolbar between Hint and Pause, across all four labs and all three presentations. Its reserved invisible slot prevents completion from changing the board height. Actual Mac UI before/after position checks pass in Classic, 2D and 3D; navigation and accessibility visibility also pass. Both builds succeed. See `Reports/Prototype31/next-level-button.md`. This edit remains local and uncommitted.
+
+## September 19 round-vial recovery — current status
+
+Eddie approved replacing the rejected flattened-vial workaround after reviewing its postmortem. Capacity now changes height and width together, preserving round cross-sections and equal unit volume; one-unit vessels are 50% as tall and 71% as wide as four-unit vessels. 2D uses the common volume-to-height projection, and 3D marks actual capacities 1–6. The old 85/90/95/100% heights and depth compression are gone.
+
+The first revised 2D projection exposed a 7.63% low fill in Tall Order. Matching bulk particle spacing to the projected local volume fixes it: all 175 expanded 2D pours pass without loosening fill, activation or cleanup checks. The flattening-specific capture/collision changes reproduced a shared-receiver failure even with the starting profiles. Removing those changes restores passing full concurrent and overlap regressions. Mac UI checks include a real A→D pour, pause/resume, presentation switching and reset. Builds pass; iPad validation is pending availability. This is a candidate for Eddie's visual review, not a claim of final visual acceptance. See `Reports/Prototype31/README.md` for comparisons, exact test scope and limitations. The Density starting-board corrections below are retained separately. Recovery changes have not been committed or pushed.
+
+## September 19 Density starting-board correction — latest status
+
+- All five Density Lab initial boards now obey their own heavy-to-light settlement rule. Levels 1–3 introduce separate one-unit samples in ordinary-capacity vials; level 4 groups heavy material and a stable medium/light stack; level 5 groups Heavy at A, Medium at B, and Light at E around the two targets at C/D, matching the tester's suggested distribution.
+- Authored routes and initial-hint expectations were updated. A selective versioned save migration discards old Density checkpoints that contain the impossible starting arrangements while preserving Sorting, Mixing, and Crossover progress.
+- The keystone model/session suites pass, including a new invariant for settled Density/Crossover starts and the migration check. Mac 3D Fluid screenshots were visually inspected for the first and final Density levels. See the September 19 addendum in `Reports/Prototype30/README.md`.
+
 ## September 18 keystone laboratory prototype — latest status
 
 - The shared Fluid Lab app now has four independent disciplines: the established 16-level Sorting Lab plus five-level Density, Mixing, and Crossover labs. The four-way selector is independent of Classic / 2D Fluid / 3D Fluid and Relaxed / Quick; each lab remembers its most recent level.

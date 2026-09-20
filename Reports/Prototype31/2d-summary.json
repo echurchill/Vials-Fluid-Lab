@@ -1,0 +1,37 @@
+{
+  "scope": "Functional tests; some fixtures ran concurrently. CPU timing columns in raw reports are not a performance benchmark.",
+  "fixtures": [
+    {
+      "fixture": "fiveStreams",
+      "completed": 36,
+      "maximumFillHeightErrorPercent": 2.4233574867248535,
+      "maximumCleanupPercent": 1.0416666269302368,
+      "maximumActivationShift": 0,
+      "maximumCleanupShift": 0
+    },
+    {
+      "fixture": "tallOrder",
+      "completed": 44,
+      "maximumFillHeightErrorPercent": 0.46159499883651733,
+      "maximumCleanupPercent": 1.0416666269302368,
+      "maximumActivationShift": 0,
+      "maximumCleanupShift": 0
+    },
+    {
+      "fixture": "sixfold",
+      "completed": 51,
+      "maximumFillHeightErrorPercent": 3.0313217639923096,
+      "maximumCleanupPercent": 1.7361111640930176,
+      "maximumActivationShift": 0,
+      "maximumCleanupShift": 0
+    },
+    {
+      "fixture": "valveCircuit",
+      "completed": 44,
+      "maximumFillHeightErrorPercent": 2.090737819671631,
+      "maximumCleanupPercent": 1.0416666269302368,
+      "maximumActivationShift": 0,
+      "maximumCleanupShift": 0
+    }
+  ]
+}

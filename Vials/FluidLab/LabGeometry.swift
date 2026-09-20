@@ -8,6 +8,7 @@ nonisolated struct LabVesselProfile:Sendable {
     static let usableHeightFraction:Float = 2.15/2.35
     let name: String
     let height: Float
+    let depthScale: Float = 1 // Round cross-sections; never hide capacity in depth.
     let radii: [Float]
     let cumulativeVolumes: [Float]
     let usableVolume: Float
@@ -94,6 +95,7 @@ struct LabVesselUniform {
     var previousWorld: simd_float4x4
     var dimensions: SIMD4<Float> // height, profile index, wall thickness, unused
     var marks: SIMD4<Float>
+    var shape: SIMD4<Float> // reserved, fifth/sixth graduation heights, capacity
 }
 
 struct LabUniforms {
@@ -173,7 +175,8 @@ func labVessels(time: Float?, profiles: [LabVesselProfile], horizontalOffset: Fl
         return LabVesselUniform(world:world,inverseWorld:world.inverse,previousWorld:world,
             dimensions:SIMD4(p.height,Float(i),0.035,0),
             marks:SIMD4(p.height(for:p.usableVolume*0.25),p.height(for:p.usableVolume*0.5),
-                        p.height(for:p.usableVolume*0.75),p.height(for:p.usableVolume)))
+                        p.height(for:p.usableVolume*0.75),p.height(for:p.usableVolume)),
+            shape:SIMD4(1,-100,-100,4))
     }
 }
 

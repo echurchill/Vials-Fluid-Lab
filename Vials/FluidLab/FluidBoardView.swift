@@ -68,7 +68,7 @@ struct FluidBoardView:View {
                     }.pickerStyle(.segmented).frame(maxWidth:220)
                     Spacer(minLength:0)
                     Menu {
-                        ForEach(session.discipline.levels,id:\.self) { puzzle in Button("\(puzzle.number). \(puzzle.title)\(session.hasCompleted(puzzle) ? " ✓":"")") { session.changePuzzle(puzzle) } }
+                        puzzleChoices
                     } label: { Image(systemName:"square.grid.2x2").frame(width:28,height:28) }.accessibilityLabel("Choose puzzle")
                 }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
                 HStack { Text(session.puzzle.detail);Spacer();Text("\(session.completedPuzzleCount) complete") }.font(.system(size:10,design:.monospaced)).foregroundStyle(ink.opacity(0.55)).padding(.horizontal,compact ? 20:32)
@@ -98,15 +98,18 @@ struct FluidBoardView:View {
                                         if let apparatus=session.apparatus(forVial:index) {
                                             Label(apparatusPortLabel(apparatus,index:index),systemImage:apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down")
                                                 .font(.system(size:8,weight:.bold,design:.monospaced))
+                                                .fixedSize(horizontal:true,vertical:false)
                                                 .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
                                                 .foregroundStyle(session.hintApparatusID==apparatus.id ? Color.orange:Color.purple).offset(y:-13)
                                         } else if session.state.rules[index] == .receiveOnly {
                                             Label("FILL",systemImage:"arrow.down").font(.system(size:8,weight:.bold,design:.monospaced))
+                                                .fixedSize(horizontal:true,vertical:false)
                                                 .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
                                                 .foregroundStyle(Color.cyan).offset(y:-13)
                                         } else if session.target(index) != nil {
                                             Label(session.vialComplete(index) ? "TARGET ✓":"TARGET",systemImage:"scope")
                                                 .font(.system(size:8,weight:.bold,design:.monospaced))
+                                                .fixedSize(horizontal:true,vertical:false)
                                                 .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
                                                 .foregroundStyle(session.vialComplete(index) ? Color.green:Color.purple).offset(y:-13)
                                         }
@@ -186,17 +189,37 @@ struct FluidBoardView:View {
                             }
                         }.buttonStyle(.borderedProminent).controlSize(.small)
                     }
-                    if session.solved,let next=session.puzzle.next {
-                        Button("Next: \(next.title)",systemImage:"arrow.right") { session.nextPuzzle() }.buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
-                    }
-                    Text(session.notice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity,minHeight:30).multilineTextAlignment(.center)
+                    Text(session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity,minHeight:30).multilineTextAlignment(.center)
                     HStack(spacing:12) {
                         Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || session.moveCount == 0)
                         Button(session.findingHint ? "Finding…":"Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved || session.findingHint)
-                        Spacer(minLength:0)
+                        Spacer(minLength:8)
+                        if let next=session.puzzle.next {
+                            // Keep the slot in the toolbar while playing so
+                            // completion never inserts a row or resizes the board.
+                            Button("Next: \(next.title)",systemImage:"arrow.right") { session.nextPuzzle() }
+                                .lineLimit(1).minimumScaleFactor(0.75)
+                                .buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
+                                .opacity(session.solved ? 1:0).disabled(!session.solved)
+                                .allowsHitTesting(session.solved).accessibilityHidden(!session.solved)
+                                .accessibilityIdentifier("lab.nextPuzzle")
+                        } else {
+                            // Reserve the final-level action too, so solving it
+                            // never changes the board or toolbar layout.
+                            Menu { puzzleChoices } label: {
+                                Label("Choose level",systemImage:"square.grid.2x2")
+                                    .lineLimit(1).minimumScaleFactor(0.75)
+                            }
+                            .menuStyle(.button).buttonStyle(.borderedProminent)
+                            .tint(accent).foregroundStyle(.black)
+                            .opacity(session.solved ? 1:0).disabled(!session.solved)
+                            .allowsHitTesting(session.solved).accessibilityHidden(!session.solved)
+                            .accessibilityLabel("Choose level").accessibilityIdentifier("lab.chooseLevel")
+                        }
+                        Spacer(minLength:8)
                         Button { session.togglePause() } label: { Image(systemName:session.paused ? "play.fill":"pause.fill") }.accessibilityLabel(session.paused ? "Resume board":"Pause board")
                         Button(session.solved ? "Play again":"Reset",systemImage:"arrow.counterclockwise") { session.reset() }
-                    }.buttonStyle(.bordered).controlSize(.regular)
+                    }.buttonStyle(.bordered).controlSize(.regular).frame(minHeight:44)
                 }.padding(.horizontal,compact ? 20:32).padding(.vertical,18).background(Color(red:0.065,green:0.060,blue:0.075))
             }.background(Color(red:0.026,green:0.043,blue:0.060)).foregroundStyle(ink)
         }
@@ -224,6 +247,11 @@ struct FluidBoardView:View {
                 if item == .study { FluidLabView() } else { ContentView() }
                 Button("Return to board",systemImage:"xmark.circle.fill") { sheet=nil }.buttonStyle(.bordered).padding()
             }.frame(minWidth:360,minHeight:640)
+        }
+    }
+    @ViewBuilder private var puzzleChoices:some View {
+        ForEach(session.discipline.levels,id:\.self) { puzzle in
+            Button("\(puzzle.number). \(puzzle.title)\(session.hasCompleted(puzzle) ? " ✓":"")") { session.changePuzzle(puzzle) }
         }
     }
     private func cueLabel(_ index:Int)->String {

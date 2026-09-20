@@ -1,29 +1,24 @@
 import Foundation
 import simd
 
-/// Planar, equal-area particles. No depth coordinate or 3D neighbor search.
-/// Puzzle layers and the receiving-mouth guide are deliberate game assists.
+/// Planar particles with no depth coordinate or 3D neighbor search.
+/// Their displayed bulk follows the shared vessel's projected volume, rather
+/// than independently resizing glass to force equal cross-sectional areas.
 nonisolated struct Lab2DProfile:Sendable {
     let source:LabVesselProfile
-    let scale:Float
-    let areas:[Float]
+    let scale:Float=1
     let capacity:Int
     var height:Float { source.height }
-    var area:Float { areas.last! }
-    init(_ source:LabVesselProfile,capacity:Int,area:Float) {
+    init(_ source:LabVesselProfile,capacity:Int) {
         self.source=source;self.capacity=capacity
-        let usableHeight=source.height*LabVesselProfile.usableHeightFraction
-        let dy=usableHeight/128
-        var raw:[Float]=[0]
-        for i in 1...128 { raw.append(raw.last!+(source.radius(at:Float(i-1)*dy)+source.radius(at:Float(i)*dy))*dy) }
-        let factor=area/raw.last!;scale=factor;areas=raw.map { $0*factor }
+        // Cache the volume-to-height projection: level() is called per particle.
+        levels=(0...128).map {source.height(for:source.usableVolume*Float($0)/128)}
     }
-    func radius(_ y:Float)->Float { source.radius(at:y)*scale }
+    private let levels:[Float]
+    func radius(_ y:Float)->Float { source.radius(at:y) }
     func level(_ units:Float)->Float {
-        let target=min(area,max(0,units*area/Float(capacity)))
-        let i=min(127,max(0,(areas.firstIndex { $0>=target } ?? 128)-1))
-        let fraction=(target-areas[i])/max(0.00001,areas[i+1]-areas[i])
-        return (Float(i)+fraction)*(height*LabVesselProfile.usableHeightFraction)/128
+        let f=min(128,max(0,units/Float(capacity)*128)),i=min(127,Int(f))
+        return levels[i]+(levels[i+1]-levels[i])*(f-Float(i))
     }
 }
 nonisolated struct Lab2DPose:Sendable {
@@ -134,6 +129,8 @@ nonisolated struct LabFluid2D:Sendable {
     private var links:[Int]=[]
     private var selected:Set<Int>=[]
     private var bulkUnits:[Float]=[]
+    private var densityJoinedUnits:Float=0
+    private var densityBands:[Int:SIMD2<Float>]=[:]
     var busy:Bool { game.pending != nil || !displayMoves.isEmpty || !transfers.isEmpty }
     var phase:String {
         if targets != nil { return "Final settling" }
@@ -201,7 +198,7 @@ nonisolated struct LabFluid2D:Sendable {
         cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
         if preserve { return }
         profiles=zip(LabBoardLayout.profiles(capacities:game.state.capacities),game.state.capacities).map {
-            Lab2DProfile($0.0,capacity:$0.1,area:2.12*Float($0.1)/4)
+            Lab2DProfile($0.0,capacity:$0.1)
         }
         materialTimes=Array(repeating:0,count:profiles.count)
         surfaces=Array(repeating:Lab2DSurfaceState(),count:profiles.count);splashes=[]
@@ -454,14 +451,36 @@ nonisolated struct LabFluid2D:Sendable {
     private mutating func solve(active:Set<Int>,dt:Float,poses:[Lab2DPose]) {
         bulkUnits=Array(repeating:0,count:profiles.count)
         for p in particles where p.owner>=0 && p.inBulk { bulkUnits[p.owner]+=1/Float(Self.particlesPerUnit) }
+        densityBands=[:];densityJoinedUnits=0
+        if game.state.behavior.settlesByDensity,let move=game.pending {
+            densityJoinedUnits=Float(particles.filter { $0.owner==move.destination && $0.inBulk && selected.contains($0.parcel) }.count)/Float(Self.particlesPerUnit)
+            densityBands=game.state.densityReceiverBands(for:move,joinedUnits:densityJoinedUnits)
+        }
         let ids=particles.indices.filter { active.contains(particles[$0].owner) || particles[$0].owner<0 }
         let previous=particles.map(\.position)
         for i in ids {
+            // A receiving plume passes through lighter layers. Its displacement
+            // is represented by the growing bands, not rigid particle contacts.
+            if !densityBands.isEmpty,!particles[i].inBulk,particles[i].owner==game.pending?.destination {
+                particles[i].velocity.y=min(-1.35,particles[i].velocity.y)
+            }
             particles[i].velocity.y-=9.8*dt
             particles[i].velocity*=0.993
             let v=simd_length(particles[i].velocity)
             if v>5 { particles[i].velocity*=5/v }
             particles[i].position+=particles[i].velocity*dt
+        }
+        // A planar slice of round glass represents a depth of pi*r/2.
+        // Match particle packing to that projected volume, especially through
+        // broad bellies and narrow necks; fixed spacing underfills some shapes.
+        var separations=Array(repeating:separation,count:particles.count)
+        for i in ids where particles[i].owner>=0 && particles[i].inBulk {
+            let owner=particles[i].owner,profile=profiles[owner]
+            let y=poses[owner].local(particles[i].position).y
+            let r=max(0.05,profile.radius(y))
+            let unitVolume=profile.source.usableVolume/Float(profile.capacity)
+            let projectedArea=unitVolume*2/(Float(Self.particlesPerUnit)*Float.pi*r)
+            separations[i]=min(0.13,max(0.055,sqrt(projectedArea/0.8660254)*1.05))
         }
         for _ in 0..<5 {
             heads.withUnsafeMutableBufferPointer { $0.initialize(repeating:-1) }
@@ -472,12 +491,14 @@ nonisolated struct LabFluid2D:Sendable {
                     guard cx+dx>=0,cx+dx<160,cy+dy>=0,cy+dy<96 else { continue }
                     var j=heads[c+dx+dy*160]
                     while j>=0 {
-                        if j>i,particles[i].owner==particles[j].owner {
+                        let crossing = !densityBands.isEmpty && particles[i].owner==game.pending?.destination && particles[i].inBulk != particles[j].inBulk
+                        if j>i,particles[i].owner==particles[j].owner,!crossing {
                             let d=particles[i].position-particles[j].position,l2=simd_length_squared(d)
                             if l2>0.000001,l2<0.0225 {
                                 let l=sqrt(l2),n=d/l
                                 var correction:Float=0
-                                if l<separation { correction=(separation-l)*0.48 }
+                                let spacing=(separations[i]+separations[j])*0.5
+                                if l<spacing { correction=(spacing-l)*0.48 }
                                 else if particles[i].color==particles[j].color {
                                     let releasing = !particles[i].inBulk || !particles[j].inBulk || ((game.pending?.source==particles[i].owner || transfers.contains(where:{$0.item.move.source==particles[i].owner})) && (selected.contains(particles[i].parcel) || selected.contains(particles[j].parcel)))
                                     correction = -(releasing ? 0.00005:0.0015)*(1-l/0.15)
@@ -523,11 +544,16 @@ nonisolated struct LabFluid2D:Sendable {
         }
         // Incoming droplets fall freely until they touch the liquid body. Only
         // joined particles contribute to its fill height; mouth entry is not a
-        // teleport to the surface. The bound uses the same equal-area units as rest.
+        // teleport to the surface. The bound uses the same projected-volume units as rest.
+        let densityReceiving = !densityBands.isEmpty && owner==move?.destination
         if !p.inBulk {
-            if q.y<=profile.level(bulkUnits[owner])+radius*1.4 {
+            let landingUnits:Float
+            if densityReceiving,let move { landingUnits=Float(game.state.densityInsertionIndex(for:move))+densityJoinedUnits }
+            else { landingUnits=bulkUnits[owner] }
+            if q.y<=profile.level(landingUnits)+radius*1.4 {
                 p.inBulk=true;bulkUnits[owner]+=1/Float(Self.particlesPerUnit)
-                registerImpact(owner:owner,color:p.color,point:q,velocity:p.velocity)
+                if densityReceiving { densityJoinedUnits+=1/Float(Self.particlesPerUnit) }
+                else { registerImpact(owner:owner,color:p.color,point:q,velocity:p.velocity) }
             } else {
                 q.y=max(radius,q.y)
                 let r=max(radius,profile.radius(q.y)-radius)
@@ -559,6 +585,10 @@ nonisolated struct LabFluid2D:Sendable {
             var lo=stack.count
             while lo>0,game.state.visualDye(stack[lo-1])==p.color { lo-=1 }
             lower=max(radius,profile.level(Float(lo))+radius*0.75)
+        }
+        if densityReceiving,let band=densityBands[p.parcel] {
+            lower=max(radius,profile.level(band.x)+radius*0.75)
+            upper=max(lower,min(profile.height-radius,profile.level(band.y)-radius))
         }
         q.y=max(lower,q.y)
         if !outgoing { q.y=min(upper,q.y) }

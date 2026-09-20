@@ -189,6 +189,31 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         if behavior.settlesByDensity { next.settle(move.destination) }
         return next
     }
+    /// Stable density insertion shared by the three presentations. Equal density
+    /// stays below the new arrival, even when the pigments differ.
+    func densityInsertionIndex(for move:LabBoardMove)->Int {
+        let order=densities[move.parcels[0]].order
+        return stacks[move.destination].firstIndex { densities[$0].order>order } ?? stacks[move.destination].count
+    }
+    func densityReceiverLayers(for move:LabBoardMove,joinedUnits:Float)->[(parcel:Int,units:Float)] {
+        var layers=stacks[move.destination].map { (parcel:$0,units:Float(1)) }
+        let fraction=min(Float(move.amount),max(0,joinedUnits))/Float(move.amount)
+        layers.insert(contentsOf:move.parcels.map { (parcel:$0,units:fraction) },at:densityInsertionIndex(for:move))
+        return layers
+    }
+    func densityReceiverBands(for move:LabBoardMove,joinedUnits:Float)->[Int:SIMD2<Float>] {
+        let layers=densityReceiverLayers(for:move,joinedUnits:joinedUnits),incoming=Set(move.parcels)
+        var result:[Int:SIMD2<Float>]=[:],units:Float=0,index=0
+        while index<layers.count {
+            let start=units,id=layers[index].parcel
+            var end=index
+            repeat { units+=layers[end].units;end+=1 }
+            while end<layers.count && sameMaterial(id,layers[end].parcel) && incoming.contains(id)==incoming.contains(layers[end].parcel)
+            for n in index..<end { result[layers[n].parcel]=SIMD2(start,units) }
+            index=end
+        }
+        return result
+    }
     private mutating func settle(_ index:Int) {
         stacks[index]=stacks[index].enumerated().sorted {
             let left=densities[$0.element].order,right=densities[$1.element].order

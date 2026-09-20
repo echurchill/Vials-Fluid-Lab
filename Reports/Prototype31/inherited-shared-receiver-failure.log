@@ -1,0 +1,2 @@
+validate/validate_concurrent.swift:8: Fatal error: shared receiver completion fluid: A pour could not finish. Its source has been restored.
+build/round-vials/check-before-concurrent.sh: line 15: 86353 Trace/BPT trap: 5       "$lab_output/validate" "$lab_library" "$lab_output"

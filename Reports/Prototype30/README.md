@@ -1,6 +1,28 @@
 # Prototype 30 — Keystone laboratory slice
 
+> The September 19 flattened-vial proportions below were rejected. They are superseded by the [round-vial recovery](../Prototype31/README.md). Keep the Density setup correction separate from that visual history.
+
 September 18, 2026
+
+## September 19 Density setup revision
+
+The first Density setups had vertically inverted starting stacks: a heavier unit sat above a lighter one before the player touched the board. The five authored starts now obey the same heavy-to-light settlement rule as play:
+
+| Level | Starting source vials | Target arrangement |
+| --- | --- | --- |
+| Heavy landing | One Light Tide; one Heavy Ruby | One two-unit target |
+| Three deep | Separate Light Tide, Medium Sun, and Heavy Ruby units | One three-unit target |
+| Shades of blue | Three separate Tide units, one at each density | One three-unit target |
+| Twin columns | Two Heavy units together; Medium below Light in another source | Two two-unit targets |
+| Against the pour | Heavy pair at A, Medium pair at B, Light pair at E | Two three-unit targets at C and D |
+
+The introductory sources *contain* one unit but keep ordinary vial capacity and height; they are not miniature one-unit-capacity vessels. Authored hint routes were updated so early targets visibly settle when denser material is poured last, and the final level can be solved from the grouped sources in six pours. A versioned save migration replaces only old Density board checkpoints; Sorting, Mixing, and Crossover progress is retained. Automated model validation now asserts that all Density and Crossover starting vials are physically settled. Mac visual inspection confirmed the first and final Density board layouts in 3D Fluid.
+
+## September 19 cross-lab vessel proportions
+
+The first-level Sorting, Density, and Mixing screenshots exposed a shared-profile mistake, not a camera or vial-count effect. Vessel height had been exactly proportional to capacity: a one-unit vial was one-quarter as tall as a four-unit vial. All three presentations use that profile, so the progression was visible in Classic, 2D Fluid, and 3D Fluid. A first attempt to preserve equal unit volume by making the shorter-capacity vessels very narrow revealed a second 2D-only squeeze: the planar renderer independently forced cross-sectional area to scale with capacity. That made the one-unit vessels look like pencils.
+
+The revised profile holds each vessel shape's screen-facing width constant across capacities. Capacities 1, 2, 3, and 4 use 85%, 90%, 95%, and 100% of the reference height; capacities 5 and 6 continue to grow taller. In 3D, smaller vessels use less front-to-back depth to retain equal physical volume per unit without sacrificing the visible width of the glass or its graduation marks. Classic and 2D use the same height and width profile, and 2D no longer applies a second capacity-based area squeeze. Apparatus badges remain horizontal. Mac visual review compared Mixing level 5's 1-, 2-, 3-, and 4-unit vials in Classic, 2D, and 3D. The geometry regression checks equal screen-facing widths for each shape over capacities 1–6. Keystone session validation covers one-unit 2D Mixing pours in levels 1 and 5; Mac Metal checks for those two 3D pours committed with 99.4% and 99.5% particle arrival before correction, respectively. A signed iPad Release build was installed and launched. Direct captures of Mixing level 5 in all three presentations confirm that the mixed-capacity vessels no longer collapse into pencil-thin silhouettes.
 
 This implementation is the first playable slice of the four-laboratory structure proposed in [`../fluid-logic-laboratory-design.md`](../fluid-logic-laboratory-design.md) and planned in [`../keystone-lab-prototype-plan.md`](../keystone-lab-prototype-plan.md). Those documents are themselves companions to [`../3d-fluid-simulation-plan.md`](../3d-fluid-simulation-plan.md).
 

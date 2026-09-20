@@ -152,6 +152,10 @@ import Combine
         var save=self.defaults?.data(forKey:"lab.comparison.v1").flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) } ?? LabComparisonSave()
         if let restoredSave { save=restoredSave }
         if let trial { save=LabComparisonSave(presentation:trial.presentation,pace:trial.pace,puzzle:trial.puzzle,games:[:]) }
+        if save.densitySetupVersion<1 {
+            for level in LabDiscipline.density.levels {save.games.removeValue(forKey:level.rawValue)}
+            save.densitySetupVersion=1
+        }
         soundEnabled=self.defaults?.bool(forKey:"lab.sound") ?? false
         hapticsEnabled=self.defaults?.object(forKey:"lab.haptics") as? Bool ?? (self.defaults != nil)
         quality=trial?.quality ?? LabRenderQuality(rawValue:self.defaults?.string(forKey:"lab.quality") ?? "automatic") ?? .automatic

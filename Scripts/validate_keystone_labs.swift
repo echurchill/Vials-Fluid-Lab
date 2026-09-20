@@ -39,6 +39,19 @@ import Foundation
                 let decoded=try! JSONDecoder().decode(LabBoardState.self,from:encoded)
                 if decoded != initial {failures.append("\(puzzle.rawValue): state round trip changed")}
                 if initial.colors.count != initial.densities.count {failures.append("\(puzzle.rawValue): material arrays differ")}
+                if initial.behavior.settlesByDensity {
+                    for (index,stack) in initial.stacks.enumerated() {
+                        let orders=stack.map {initial.densities[$0].order}
+                        if zip(orders,orders.dropFirst()).contains(where:{$0.0>$0.1}) {
+                            failures.append("\(puzzle.rawValue): starting vial \(index) is not density-settled")
+                        }
+                    }
+                }
+                if discipline == .density && puzzle.number<=3 {
+                    if initial.stacks.filter({!$0.isEmpty}).contains(where:{$0.count != 1}) {
+                        failures.append("\(puzzle.rawValue): introductory material should start in one-unit vials")
+                    }
+                }
                 if discipline == .sorting {
                     continue // The established progression suite owns the larger legacy solver matrix.
                 } else {

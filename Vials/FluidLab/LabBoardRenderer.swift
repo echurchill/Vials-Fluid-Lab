@@ -55,6 +55,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private(set) var arrivalBeforeCorrection:Float=0
     private(set) var lastOutcome=""
     private var layerBands:[LabBoardBand]=[]
+    // CPU bookkeeping is read only after the preceding GPU command completes.
+    // A particle adds volume below lighter liquid only when it reaches its layer.
+    private var densityJoined:Set<Int>=[]
     private var groupTransfers:[LabMetalTransfer]=[]
     private(set) var groupResults:[LabLaneResult]=[]
     private(set) var groupOwnedParcels:Set<Int>=[]
@@ -226,7 +229,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
 
     private func clearMotion() {
-        compositeVessels=nil;groupTransfers=[];groupResults=[];groupOwnedParcels=[]
+        compositeVessels=nil;groupTransfers=[];groupResults=[];groupOwnedParcels=[];densityJoined=[]
         pourTime=nil;tilt=0;cutoffTime=nil;returnStart=nil;cleanupStart=nil
         settleFrom=nil;settleTargets=nil;groupSettleStart=nil
         previousWorlds=[];accumulator=0;lastWallTime=nil;pausedSignature=nil
@@ -333,6 +336,16 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private func updateTransfer() {
         guard let move=game.pending,let t=pourTime else { return }
         lastMetrics=measure()
+        if game.state.behavior.settlesByDensity,cleanupStart == nil {
+            let profile=profiles[move.destination],vessel=currentVessels[move.destination]
+            let units=Float(game.state.densityInsertionIndex(for:move))+Float(densityJoined.count)/Float(Self.particlesPerUnit)
+            let surface=profile.height(for:particleFillVolume(profile)*units/Float(game.state.capacity(move.destination)))
+            let selected=Set(move.parcels),p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+            for i in 0..<particleCount where Int(p[i].position.w)==move.destination && selected.contains(Int(p[i].visual.y)) {
+                let local=vessel.inverseWorld*SIMD4(p[i].position.xyz,1)
+                if local.y<=surface+spacing { densityJoined.insert(i) }
+            }
+        }
         let target=move.amount*Self.particlesPerUnit
         if cutoffTime == nil,lastMetrics.departed>=Int(Float(target)*0.99),lastMetrics.arrived>=target-Int(Float(target)*0.05) {
             cutoffTime=t;cutoffTilt=tilt
@@ -476,6 +489,17 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let profile=profiles[move.destination]
             let lower=game.state.stacks[move.destination].isEmpty ? -100:profile.height(for:particleFillVolume(profile)*Float(game.state.stacks[move.destination].count)/Float(game.state.capacities[move.destination]))
             for id in selected { result[move.destination*count+id]=LabBoardBand(range:SIMD4(lower,100,1,1)) }
+        }
+        if let move,cleanupStart == nil,game.state.behavior.settlesByDensity {
+            let profile=profiles[move.destination],volume=particleFillVolume(profile),capacity=Float(state.capacity(move.destination))
+            let bands=state.densityReceiverBands(for:move,joinedUnits:Float(densityJoined.count)/Float(Self.particlesPerUnit))
+            for (id,band) in bands {
+                let lower=band.x==0 ? -100:profile.height(for:volume*band.x/capacity)
+                let upper=profile.height(for:volume*band.y/capacity)
+                // Mode 2 gives the incoming plume a finite downward speed instead
+                // of snapping it into its eventual band at mouth entry.
+                result[move.destination*count+id]=LabBoardBand(range:SIMD4(lower,max(lower+0.02,upper),1,selected.contains(id) ? 2:1))
+            }
         }
         return result
     }
@@ -885,6 +909,11 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,UInt32(profiles.count),1 | (funnelEnabled ? 65536:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
         encodeSimulation(command:command,uniforms:u,deltaTime:deltaTime)
         u.viewport.w = simulationTime
+        if game.state.behavior.settlesByDensity,let move=game.pending,cleanupStart == nil {
+            // Optical hint for the receiving plume, reusing the existing additive
+            // thickness pass. No extra render pass or larger particle budget.
+            u.options.y |= 256 | UInt32(game.state.visualDye(move.parcels[0])) << 16 | UInt32(move.destination+1) << 24
+        }
         let vessels = currentVessels
         let surfacePass=pass(color:depth,clear:MTLClearColorMake(1,1,1,1),depth:depthTest)
         surfacePass.colorAttachments[1].texture=frontDye

@@ -1,0 +1,15 @@
+PASS: idle clock pause, long suspension, exact resume, repeated suspension
+PASS: exact reservation, reverse completion and failed earlier reservation
+PASS: 3D completion caps remain outside the vial cavity
+PASS: hint retains and advances one solved route
+PASS: live concurrent-capable board does not circularly undo a followed hint
+PASS: Level 16 B+C→G settles for 21 held-source frames, returns for 34 stable-receiver frames, visible headspace 0.20095539
+PASS: Level 16 A→C retains three source units through 34 return frames while completed C stays stable
+PASS: classic simultaneous stream frames: 135
+PASS: classic three-way overlapping lanes, dependency guards, shared receiver overlap, pause/suspend, checkpoint, partial completion, undo and reset
+PASS: fluid2D simultaneous stream frames: 85
+PASS: fluid2D three-way overlapping lanes, dependency guards, shared receiver overlap, pause/suspend, checkpoint, partial completion, undo and reset
+PASS: fluid simultaneous stream frames: 135
+PASS: fluid three-way overlapping lanes, dependency guards, shared receiver overlap, pause/suspend, checkpoint, partial completion, undo and reset
+PASS: projected capacity and color reservations
+PASS: automatic concurrent clock pause and reset during actor work

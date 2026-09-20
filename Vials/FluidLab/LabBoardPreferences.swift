@@ -97,24 +97,24 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
             capacities:[5,6,3,6,4,6,4,5],
             rules:[.normal,.normal,.normal,.normal,.receiveOnly,.normal,.receiveOnly,.normal])
         case .heavyLanding: LabBoardState(
-            layers:[[0,8],[],[]],capacities:[2,2,2],
-            densityLayers:[[.light,.heavy],[],[]],behavior:.density,
+            layers:[[0],[8],[]],capacities:[2,2,2],
+            densityLayers:[[.light],[.heavy],[]],behavior:.density,
             targets:[LabVialTarget(vial:2,layers:[.init(8,.heavy),.init(0,.light)])])
         case .threeDeep: LabBoardState(
-            layers:[[0,4,8],[],[]],capacities:[3,3,3],
-            densityLayers:[[.light,.medium,.heavy],[],[]],behavior:.density,
-            targets:[LabVialTarget(vial:2,layers:[.init(8,.heavy),.init(4,.medium),.init(0,.light)])])
+            layers:[[0],[4],[8],[]],capacities:[3,3,3,3],
+            densityLayers:[[.light],[.medium],[.heavy],[]],behavior:.density,
+            targets:[LabVialTarget(vial:3,layers:[.init(8,.heavy),.init(4,.medium),.init(0,.light)])])
         case .shadesOfBlue: LabBoardState(
-            layers:[[0,0,0],[],[]],capacities:[3,3,3],
-            densityLayers:[[.light,.medium,.heavy],[],[]],behavior:.density,
-            targets:[LabVialTarget(vial:2,layers:[.init(0,.heavy),.init(0,.medium),.init(0,.light)])])
+            layers:[[0],[0],[0],[]],capacities:[3,3,3,3],
+            densityLayers:[[.light],[.medium],[.heavy],[]],behavior:.density,
+            targets:[LabVialTarget(vial:3,layers:[.init(0,.heavy),.init(0,.medium),.init(0,.light)])])
         case .twinColumns: LabBoardState(
-            layers:[[0,8],[4,2],[],[],[]],capacities:[2,2,2,2,2],
-            densityLayers:[[.light,.heavy],[.medium,.heavy],[],[],[]],behavior:.density,
+            layers:[[8,2],[4,0],[],[],[]],capacities:[2,2,2,2,2],
+            densityLayers:[[.heavy,.heavy],[.medium,.light],[],[],[]],behavior:.density,
             targets:[LabVialTarget(vial:2,layers:[.init(8,.heavy),.init(0,.light)]),LabVialTarget(vial:3,layers:[.init(2,.heavy),.init(4,.medium)])])
         case .againstThePour: LabBoardState(
-            layers:[[0,4,8],[2,6,1],[],[],[]],capacities:[3,3,3,3,3],
-            densityLayers:[[.light,.medium,.heavy],[.heavy,.light,.medium],[],[],[]],behavior:.density,
+            layers:[[8,2],[4,1],[],[],[0,6]],capacities:[3,3,3,3,3],
+            densityLayers:[[.heavy,.heavy],[.medium,.medium],[],[],[.light,.light]],behavior:.density,
             targets:[LabVialTarget(vial:2,layers:[.init(8,.heavy),.init(4,.medium),.init(0,.light)]),LabVialTarget(vial:3,layers:[.init(2,.heavy),.init(1,.medium),.init(6,.light)])])
         case .warmBlend: Self.mixingLevel(first:8,second:4,product:1)
         case .coolBlend: Self.mixingLevel(first:4,second:0,product:2)
@@ -163,10 +163,10 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
     }
     var authoredSteps:[LabAuthoredStep]? {
         switch self {
-        case .heavyLanding:return [.pour(0,2),.pour(0,2)]
-        case .threeDeep,.shadesOfBlue:return [.pour(0,2),.pour(0,2),.pour(0,2)]
-        case .twinColumns:return [.pour(0,2),.pour(0,2),.pour(1,3),.pour(1,3)]
-        case .againstThePour:return [.pour(0,2),.pour(0,2),.pour(0,2),.pour(1,3),.pour(1,3),.pour(1,3)]
+        case .heavyLanding:return [.pour(0,2),.pour(1,2)]
+        case .threeDeep,.shadesOfBlue:return [.pour(0,3),.pour(1,3),.pour(2,3)]
+        case .twinColumns:return [.pour(0,3),.pour(0,2),.pour(1,2),.pour(1,3)]
+        case .againstThePour:return [.pour(0,3),.pour(0,2),.pour(4,3),.pour(4,2),.pour(1,3),.pour(1,2)]
         case .warmBlend,.coolBlend,.violetReaction:
             return [.pour(0,2),.pour(1,3),.activate(0),.pour(4,5)]
         case .colorWheel:
@@ -214,9 +214,12 @@ struct LabComparisonSave:Codable {
     var puzzle:LabBoardPuzzle = .firstSort
     var games:[String:LabBoardGame] = [:]
     var lastPuzzles:[String:String] = [:]
-    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,games,lastPuzzles}
-    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:]) {
-        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.games=games;self.lastPuzzles=lastPuzzles
+    /// Revised density starts must replace saved pre-settlement setups, without
+    /// disturbing progress in the other three laboratories.
+    var densitySetupVersion:Int = 1
+    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,games,lastPuzzles,densitySetupVersion}
+    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1) {
+        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion
     }
     init(from decoder:Decoder)throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
@@ -225,6 +228,7 @@ struct LabComparisonSave:Codable {
         puzzle=try values.decodeIfPresent(LabBoardPuzzle.self,forKey:.puzzle) ?? .firstSort
         games=try values.decodeIfPresent([String:LabBoardGame].self,forKey:.games) ?? [:]
         lastPuzzles=try values.decodeIfPresent([String:String].self,forKey:.lastPuzzles) ?? [:]
+        densitySetupVersion=try values.decodeIfPresent(Int.self,forKey:.densitySetupVersion) ?? 0
     }
 }
 

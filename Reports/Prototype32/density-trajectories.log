@@ -1,0 +1,35 @@
+heavy-through-light 2d: committed=true landed-before-cleanup=1.0 max-step=0.21542615 crossing=true
+heavy-through-light 3d: committed=true landed-before-cleanup=1.0 max-step=0.11808157 crossing=true
+medium-above-heavy 2d: committed=true landed-before-cleanup=1.0 max-step=0.21786147 crossing=true
+medium-above-heavy 3d: committed=true landed-before-cleanup=1.0 max-step=0.118887424 crossing=true
+medium-above-medium 2d: committed=true landed-before-cleanup=1.0 max-step=0.1730187 crossing=true
+medium-above-medium 3d: committed=true landed-before-cleanup=1.0 max-step=0.11778808 crossing=true
+heavy-above-heavy 2d: committed=true landed-before-cleanup=1.0 max-step=0.1933828 crossing=true
+heavy-above-heavy 3d: committed=true landed-before-cleanup=1.0 max-step=0.13138759 crossing=true
+light-floats 2d: committed=true landed-before-cleanup=1.0 max-step=0.19604087 crossing=false
+light-floats 3d: committed=true landed-before-cleanup=1.0 max-step=0.1165092 crossing=true
+two-heavy-units 2d: committed=true landed-before-cleanup=1.0 max-step=0.20395088 crossing=true
+two-heavy-units 3d: committed=true landed-before-cleanup=1.0 max-step=0.13046587 crossing=true
+crossover-medium 2d: committed=true landed-before-cleanup=1.0 max-step=0.1730187 crossing=true
+crossover-medium 3d: committed=true landed-before-cleanup=1.0 max-step=0.11676669 crossing=true
+Density pour trajectories, stable ties, volume, pause and completion passed.
+Route fluid2D heavyLanding: 2 operations, solved and undone
+Route fluid2D threeDeep: 3 operations, solved and undone
+Route fluid2D shadesOfBlue: 3 operations, solved and undone
+Route fluid2D twinColumns: 4 operations, solved and undone
+Route fluid2D againstThePour: 6 operations, solved and undone
+Route fluid2D equalPartners: 6 operations, solved and undone
+Route fluid2D weightedOrange: 6 operations, solved and undone
+Route fluid2D layerCake: 7 operations, solved and undone
+Route fluid2D twinProducts: 12 operations, solved and undone
+Route fluid2D fullSpectrum: 11 operations, solved and undone
+Route fluid heavyLanding: 2 operations, solved and undone
+Route fluid threeDeep: 3 operations, solved and undone
+Route fluid shadesOfBlue: 3 operations, solved and undone
+Route fluid twinColumns: 4 operations, solved and undone
+Route fluid againstThePour: 6 operations, solved and undone
+Route fluid equalPartners: 6 operations, solved and undone
+Route fluid weightedOrange: 6 operations, solved and undone
+Route fluid layerCake: 7 operations, solved and undone
+Route fluid twinProducts: 12 operations, solved and undone
+Route fluid fullSpectrum: 11 operations, solved and undone
