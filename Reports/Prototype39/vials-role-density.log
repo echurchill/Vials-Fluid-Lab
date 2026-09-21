@@ -1,0 +1,30 @@
+Vials/FluidLab/LabBoardSession.swift:764:33: warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 762 |                         let began=ProcessInfo.processInfo.systemUptime
+ 763 |                         let command=surface.encodeFrame(target:target,deltaTime:0)
+ 764 |                         command.waitUntilCompleted()
+     |                                 `- warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 765 |                         guard command.status == .completed,command.gpuEndTime>command.gpuStartTime else {throw command.error ?? NSError(domain:"DensityProfile",code:3,userInfo:[NSLocalizedDescriptionKey:"No valid GPU timing"])}
+ 766 |                         if frame>=20 {gpu.append((command.gpuEndTime-command.gpuStartTime)*1000);host.append((ProcessInfo.processInfo.systemUptime-began)*1000)}
+
+/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandBuffer.h:354:1: note: 'waitUntilCompleted()' declared here
+352 |  @abstract Synchronously wait for this command buffer to complete.
+353 |  */
+354 | - (void)waitUntilCompleted NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Use 'await completed()' instead.");
+    | `- note: 'waitUntilCompleted()' declared here
+355 | 
+356 | /*!
+heavy-through-light 2d: committed=true landed-before-cleanup=1.0 max-step=0.20308265 crossing=true
+heavy-through-light 3d: committed=true landed-before-cleanup=1.0 max-step=0.11639166 crossing=true
+medium-above-heavy 2d: committed=true landed-before-cleanup=1.0 max-step=0.16764194 crossing=true
+medium-above-heavy 3d: committed=true landed-before-cleanup=1.0 max-step=0.12421656 crossing=true
+medium-above-medium 2d: committed=true landed-before-cleanup=1.0 max-step=0.17933083 crossing=true
+medium-above-medium 3d: committed=true landed-before-cleanup=1.0 max-step=0.11637926 crossing=true
+heavy-above-heavy 2d: committed=true landed-before-cleanup=1.0 max-step=0.24734038 crossing=true
+heavy-above-heavy 3d: committed=true landed-before-cleanup=1.0 max-step=0.126549 crossing=true
+light-floats 2d: committed=true landed-before-cleanup=1.0 max-step=0.16342986 crossing=false
+light-floats 3d: committed=true landed-before-cleanup=1.0 max-step=0.11662722 crossing=true
+two-heavy-units 2d: committed=true landed-before-cleanup=1.0 max-step=0.19542569 crossing=true
+two-heavy-units 3d: committed=true landed-before-cleanup=1.0 max-step=0.12351918 crossing=true
+crossover-medium 2d: committed=true landed-before-cleanup=1.0 max-step=0.17933083 crossing=true
+crossover-medium 3d: committed=true landed-before-cleanup=1.0 max-step=0.11745119 crossing=true
+Density pour trajectories, stable ties, volume, pause and completion passed.

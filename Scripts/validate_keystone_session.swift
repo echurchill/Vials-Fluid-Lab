@@ -8,15 +8,13 @@ import Metal
     static func main() async {
         let defaults=UserDefaults(suiteName:"dev.vials.keystone-validation")!
         defaults.removePersistentDomain(forName:"dev.vials.keystone-validation")
-        for discipline in [LabDiscipline.density,.mixing,.crossover] {
+        for discipline in [LabDiscipline.density,.mixing,.recovery,.crossover] {
             for puzzle in discipline.levels {
                 let save=LabComparisonSave(presentation:.classic,pace:.quick,puzzle:puzzle,games:[:])
-                // Match the live board configuration. Experimental disciplines
-                // deliberately serialize operations even though Sorting retains
-                // its dependency-safe multi-pour behavior.
+                // Match the live board configuration, including concurrent ordinary pours.
                 let session=FluidBoardSession(defaults:defaults,device:nil,restoredSave:save,allowsConcurrentPours:true)
                 require(session.notice=="Match the outlined target vials.","\(puzzle.rawValue): launch showed Sorting instructions")
-                require(!session.concurrentPoursEnabled,"\(puzzle.rawValue): experimental concurrency should be deterministic")
+                require(session.concurrentPoursEnabled,"\(puzzle.rawValue): concurrent pours disabled")
                 let route=puzzle.authoredRoute(from:session.state) ?? session.state.operationSolution(limit:800_000)
                 require(route != nil,"\(puzzle.rawValue): missing session route")
                 session.hint()
@@ -32,7 +30,7 @@ import Metal
                     switch operation {
                     case .pour(let move):
                         require(session.begin(move,automaticClock:false),"\(puzzle.rawValue): session rejected pour")
-                        for _ in 0..<120 where session.busy {session.advanceClassic(deltaTime:0.1)}
+                        for _ in 0..<240 where session.busy {await session.advanceConcurrent(deltaTime:0.05)}
                         require(!session.busy,"\(puzzle.rawValue): Classic pour did not finish")
                     case .activate(let activation):
                         require(session.state.canActivate(activation),"\(puzzle.rawValue): apparatus not ready")
@@ -68,7 +66,7 @@ import Metal
         // The 2D silhouette must use the same glass width as Classic/3D.
         // Normalizing its area to the capacity fraction collapsed one-unit
         // mixing vials into almost line-thin slivers.
-        let mixingProfiles=LabBoardLayout.profiles(capacities:LabBoardPuzzle.warmBlend.initial.capacities)
+        let mixingProfiles=LabBoardLayout.profiles(state:LabBoardPuzzle.warmBlend.initial)
         let planar=LabFluid2D(game:LabBoardGame(state:LabBoardPuzzle.warmBlend.initial))
         for index in mixingProfiles.indices {
             let y=mixingProfiles[index].height*0.5
@@ -104,6 +102,6 @@ import Metal
         let migrationData=try! migrated.checkpointData(),migration=try! JSONDecoder().decode(LabComparisonSave.self,from:migrationData)
         require(migration.densitySetupVersion==1,"Density setup migration was not stamped")
         require(migration.games[LabBoardPuzzle.warmBlend.rawValue]?.state==LabBoardPuzzle.warmBlend.initial,"Density migration removed Mixing progress")
-        print("Keystone session validation passed for 15 experimental levels and four-lab persistence.")
+        print("Keystone session validation passed for 19 experimental levels and four-lab persistence.")
     }
 }

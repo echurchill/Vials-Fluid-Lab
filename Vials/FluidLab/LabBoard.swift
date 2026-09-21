@@ -11,7 +11,7 @@ nonisolated enum LabDensity:String,CaseIterable,Sendable,Codable {
 }
 
 nonisolated enum LabBehavior:String,Sendable,Codable {
-    case sorting,density,mixing,crossover
+    case sorting,density,mixing,crossover,discovery
     var settlesByDensity:Bool { self == .density || self == .crossover }
     var unrestrictedDestinations:Bool { settlesByDensity }
 }
@@ -61,7 +61,7 @@ nonisolated enum LabModifierDirection:String,Sendable,Codable {
 }
 
 nonisolated enum LabApparatusKind:String,Sendable,Codable {
-    case mixer,densityModifier
+    case mixer,densityModifier,separator
 }
 
 nonisolated struct LabApparatus:Sendable,Equatable,Codable,Identifiable {
@@ -70,6 +70,13 @@ nonisolated struct LabApparatus:Sendable,Equatable,Codable,Identifiable {
     let inputs:[Int]
     let output:Int?
     let direction:LabModifierDirection?
+    var secondOutput:Int?=nil
+    var outputs:[Int] {[output,secondOutput].compactMap {$0}}
+    static func separator(id:Int=0,input:Int,outputs:[Int])->Self {
+        precondition(outputs.count==2 && Set(outputs+[input]).count==3)
+        var tool=Self(id:id,kind:.separator,inputs:[input],output:outputs[0],direction:nil)
+        tool.secondOutput=outputs[1];return tool
+    }
     static func mixer(id:Int=0,inputs:[Int],output:Int)->Self {
         Self(id:id,kind:.mixer,inputs:inputs,output:output,direction:nil)
     }
@@ -79,6 +86,7 @@ nonisolated struct LabApparatus:Sendable,Equatable,Codable,Identifiable {
     var title:String {
         switch kind {
         case .mixer:return "Mix"
+        case .separator:return "Separate"
         case .densityModifier:return direction == .heavier ? "Make heavier":"Make lighter"
         }
     }
@@ -117,12 +125,13 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     let behavior:LabBehavior
     let targets:[LabVialTarget]
     let apparatus:[LabApparatus]
+    var knownParcels:Set<Int>? // nil for fully visible labs; stable IDs retain discoveries
 
     init(layers: [[Int]], capacity: Int = 4) {
         self.init(layers:layers,capacities:Array(repeating:capacity,count:layers.count))
     }
     init(layers:[[Int]],capacities:[Int],rules:[LabVialRule]?=nil,densityLayers:[[LabDensity]]?=nil,
-         behavior:LabBehavior = .sorting,targets:[LabVialTarget]=[],apparatus:[LabApparatus]=[]) {
+         behavior:LabBehavior = .sorting,targets:[LabVialTarget]=[],apparatus:[LabApparatus]=[],obscured:Bool=false) {
         precondition(capacities.count==layers.count && zip(layers,capacities).allSatisfy { $0.count <= $1 && $1 > 0 })
         if let densityLayers { precondition(densityLayers.count==layers.count && zip(layers,densityLayers).allSatisfy {$0.count==$1.count}) }
         var colors:[Int]=[],densities:[LabDensity]=[],stacks:[[Int]]=[]
@@ -135,17 +144,19 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         self.colors=colors;self.densities=densities;self.stacks=stacks;self.capacities=capacities
         self.rules=rules ?? Array(repeating:.normal,count:layers.count)
         self.behavior=behavior;self.targets=targets;self.apparatus=apparatus
+        knownParcels=obscured ? Set(stacks.compactMap(\.last)):nil
         precondition(self.rules.count==layers.count)
         precondition(targets.allSatisfy { stacks.indices.contains($0.vial) && $0.layers.count<=capacities[$0.vial] })
         precondition(apparatus.flatMap(\.inputs).allSatisfy(stacks.indices.contains))
-        precondition(apparatus.compactMap(\.output).allSatisfy(stacks.indices.contains))
+        precondition(apparatus.flatMap(\.outputs).allSatisfy(stacks.indices.contains))
     }
-    private enum CodingKeys:String,CodingKey { case colors,densities,stacks,capacity,capacities,rules,behavior,targets,apparatus }
+    private enum CodingKeys:String,CodingKey { case colors,densities,stacks,capacity,capacities,rules,behavior,targets,apparatus,knownParcels }
     init(from decoder:Decoder) throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
         colors=try values.decode([Int].self,forKey:.colors)
         densities=try values.decodeIfPresent([LabDensity].self,forKey:.densities) ?? Array(repeating:.medium,count:colors.count)
         stacks=try values.decode([[Int]].self,forKey:.stacks)
+        knownParcels=try values.decodeIfPresent(Set<Int>.self,forKey:.knownParcels)
         if let decoded=try values.decodeIfPresent([Int].self,forKey:.capacities) { capacities=decoded }
         else {
             let legacy=try values.decodeIfPresent(Int.self,forKey:.capacity) ?? 4
@@ -164,6 +175,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         var values=encoder.container(keyedBy:CodingKeys.self)
         try values.encode(colors,forKey:.colors);try values.encode(densities,forKey:.densities);try values.encode(stacks,forKey:.stacks)
         try values.encode(capacities,forKey:.capacities);try values.encode(rules,forKey:.rules)
+        try values.encodeIfPresent(knownParcels,forKey:.knownParcels)
         try values.encode(behavior,forKey:.behavior);try values.encode(targets,forKey:.targets);try values.encode(apparatus,forKey:.apparatus)
     }
     nonisolated static let firstSort = LabBoardState(layers:[[0,1,1],[1,0,0],[0,1],[]])
@@ -172,7 +184,31 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     func canPourOut(_ index:Int)->Bool { rules[index] != .receiveOnly }
     func canPourIn(_ index:Int)->Bool { rules[index] != .sourceOnly }
     func material(_ parcel:Int)->LabMaterialSpec { LabMaterialSpec(colors[parcel],densities[parcel]) }
-    func visualDye(_ parcel:Int)->Int { colors[parcel]+densities[parcel].visualBank*12 }
+    func isKnown(_ parcel:Int)->Bool {knownParcels?.contains(parcel) ?? true}
+    var hasUnknown:Bool {colors.indices.contains {!isKnown($0)}}
+    func visualDye(_ parcel:Int)->Int { isKnown(parcel) ? colors[parcel]+densities[parcel].visualBank*12:36 }
+    func retainingDiscoveries(from other:LabBoardState)->Self {
+        var next=self
+        if let known=knownParcels {next.knownParcels=known.union(other.knownParcels ?? [])}
+        return next
+    }
+    /// This recommendation examines only known portions and visible free space.
+    /// Once everything is known the ordinary solver can safely plan the route.
+    func discoveryHint()->LabBoardMove? {
+        let moves=stacks.indices.flatMap { source in stacks.indices.compactMap {move(from:source,to:$0)} }
+        return moves.sorted { a,b in
+            func score(_ m:LabBoardMove)->Int {
+                let remains=stacks[m.source].count-m.amount
+                let exposes=remains>0 && !isKnown(stacks[m.source][remains-1])
+                let matching = !stacks[m.destination].isEmpty
+                let hidden=stacks[m.source].contains {!isKnown($0)}
+                return (exposes ? 100:0)+(matching ? 20:0)+(hidden ? 10:0)
+            }
+            let sa=score(a),sb=score(b)
+            if sa != sb {return sa>sb}
+            return a.source==b.source ? a.destination<b.destination:a.source<b.source
+        }.first
+    }
     func sameMaterial(_ a:Int,_ b:Int)->Bool { colors[a]==colors[b] && densities[a]==densities[b] }
     func target(_ index:Int)->LabVialTarget? { targets.first {$0.vial==index} }
     func matchesTarget(_ target:LabVialTarget)->Bool {
@@ -195,7 +231,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         guard stacks.indices.contains(index) else { return false }
         if !targets.isEmpty {return target(index).map(matchesTarget) ?? false}
         let stack=stacks[index]
-        return stack.count==capacities[index] && Set(stack.map { colors[$0] }).count==1
+        return stack.allSatisfy(isKnown) && stack.count==capacities[index] && Set(stack.map { colors[$0] }).count==1
     }
     var solved: Bool {
         if !targets.isEmpty { return targets.allSatisfy(matchesTarget) }
@@ -208,7 +244,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         let color=colors[top]
         let acceptsDifferent=behavior.unrestrictedDestinations || apparatusInputs.contains(destination)
         guard acceptsDifferent || (stacks[destination].last.map({ sameMaterial($0,top) }) ?? true) else { return nil }
-        let run=stacks[source].reversed().prefix { sameMaterial($0,top) }.count
+        let run=stacks[source].reversed().prefix { isKnown($0) && sameMaterial($0,top) }.count
         let amount=min(run,capacities[destination]-stacks[destination].count)
         return LabBoardMove(source:source,destination:destination,parcels:Array(stacks[source].suffix(amount)),color:color)
     }
@@ -229,6 +265,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         next.stacks[move.source].removeLast(move.amount)
         next.stacks[move.destination] += move.parcels
         if behavior.settlesByDensity { next.settle(move.destination) }
+        if next.knownParcels != nil {next.knownParcels!.formUnion(next.stacks.compactMap(\.last))}
         return next
     }
     /// Stable density insertion shared by the three presentations. Equal density
@@ -238,13 +275,27 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         return stacks[move.destination].firstIndex { densities[$0].order>order } ?? stacks[move.destination].count
     }
     func densityReceiverLayers(for move:LabBoardMove,joinedUnits:Float)->[(parcel:Int,units:Float)] {
-        var layers=stacks[move.destination].map { (parcel:$0,units:Float(1)) }
-        let fraction=min(Float(move.amount),max(0,joinedUnits))/Float(move.amount)
-        layers.insert(contentsOf:move.parcels.map { (parcel:$0,units:fraction) },at:densityInsertionIndex(for:move))
-        return layers
+        densityReceiverLayers(destination:move.destination,arrivals:[(move,joinedUnits)])
+    }
+    /// Arrivals are supplied in reservation order. Existing equal-density liquid
+    /// remains below them, independently of simulation/animation completion order.
+    func densityReceiverLayers(destination:Int,arrivals:[(move:LabBoardMove,units:Float)])->[(parcel:Int,units:Float)] {
+        var layers=stacks[destination].map { (parcel:$0,units:Float(1)) }
+        for (move,units) in arrivals where move.destination==destination {
+            let fraction=min(Float(move.amount),max(0,units))/Float(move.amount)
+            layers += move.parcels.map {(parcel:$0,units:fraction)}
+        }
+        return layers.enumerated().sorted {
+            let a=densities[$0.element.parcel].order,b=densities[$1.element.parcel].order
+            return a==b ? $0.offset<$1.offset:a<b
+        }.map(\.element)
     }
     func densityReceiverBands(for move:LabBoardMove,joinedUnits:Float)->[Int:SIMD2<Float>] {
-        let layers=densityReceiverLayers(for:move,joinedUnits:joinedUnits),incoming=Set(move.parcels)
+        densityReceiverBands(destination:move.destination,arrivals:[(move,joinedUnits)])
+    }
+    func densityReceiverBands(destination:Int,arrivals:[(move:LabBoardMove,units:Float)])->[Int:SIMD2<Float>] {
+        let layers=densityReceiverLayers(destination:destination,arrivals:arrivals)
+        let incoming=Set(arrivals.flatMap {$0.move.parcels})
         var result:[Int:SIMD2<Float>]=[:],units:Float=0,index=0
         while index<layers.count {
             let start=units,id=layers[index].parcel
@@ -266,11 +317,11 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     // Only vials with the same capacity and rule are interchangeable.
     private var searchKey:String {
         let components=stacks.indices.map { index in
-            "\(capacities[index]):\(rules[index].rawValue):"+stacks[index].map { "\(colors[$0]).\(densities[$0].rawValue)" }.joined(separator:",")
+            "\(capacities[index]):\(rules[index].rawValue):"+stacks[index].map { "\(colors[$0]).\(densities[$0].rawValue)"+(knownParcels == nil ? "":(isKnown($0) ? ":seen":":hidden")) }.joined(separator:",")
         }
         // Targets and apparatus attach meaning to concrete vial positions.
         // Only the legacy free-standing sorting vials are interchangeable.
-        return (targets.isEmpty && apparatus.isEmpty ? components.sorted():components).joined(separator:"|")
+        return (targets.isEmpty && apparatus.isEmpty ? components.sorted():components).joined(separator:"|")+(knownParcels.map {";known:"+$0.sorted().map(String.init).joined(separator:",")} ?? "")
     }
     private func searchMoves()->[LabBoardMove] {
         var totals:[Int:Int]=[:]
@@ -294,6 +345,39 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         }
     }
 
+    /// Uses the same rules as activation, but explains the first actionable blocker.
+    func apparatusGuidance(_ tool:LabApparatus)->(ready:Bool,message:String) {
+        func vial(_ n:Int)->String {String(UnicodeScalar(65+n)!)}
+        func material(_ id:Int)->String {"\(densities[id].title.lowercased()) \(Self.pigmentName(colors[id]))"}
+        switch tool.kind {
+        case .mixer:
+            guard tool.inputs.count==2,let output=tool.output else {return (false,"This mixer needs two inputs and an output.")}
+            let a=tool.inputs[0],b=tool.inputs[1]
+            guard stacks[a].count==1,stacks[b].count==1 else {return (false,"Place exactly 1 unit in each input, \(vial(a)) and \(vial(b)).")}
+            guard stacks[output].isEmpty,capacities[output]>=2 else {return (false,"Empty output \(vial(output)) to make room for the 2-unit batch.")}
+            let first=stacks[a][0],second=stacks[b][0]
+            guard densities[first]==densities[second] else {return (false,"The ingredients have different densities. Make them the same density before mixing.")}
+            guard let result=Self.mixedPigment(colors[first],colors[second]) else {return (false,"This pair has no recipe. Use red + yellow, yellow + blue, or blue + red.")}
+            return (true,"1 \(material(first)) from \(vial(a)) + 1 \(material(second)) from \(vial(b)) → 2 \(densities[first].title.lowercased()) \(Self.pigmentName(result)) in \(vial(output)).")
+        case .separator:
+            guard let input=tool.inputs.first,tool.outputs.count==2 else {return (false,"This separator needs one input and two outputs.")}
+            guard stacks[input].count==2,let first=stacks[input].first,stacks[input].allSatisfy({sameMaterial($0,first)}),
+                  let parts=Self.separatedPigments(colors[first]) else {return (false,"Place exactly 2 units of one mixed color (orange, green or purple), at one density, in input \(vial(input)).")}
+            guard tool.outputs.allSatisfy({stacks[$0].isEmpty && capacities[$0]>=1}) else {return (false,"Empty both outputs, \(vial(tool.outputs[0])) and \(vial(tool.outputs[1])). Each needs space for 1 unit.")}
+            return (true,"2 \(material(first)) → 1 \(Self.pigmentName(parts[0])) in \(vial(tool.outputs[0])) + 1 \(Self.pigmentName(parts[1])) in \(vial(tool.outputs[1])). Both retain their density.")
+        case .densityModifier:
+            guard let chamber=tool.inputs.first,let first=stacks[chamber].first else {return (false,"Pour liquid into the marked chamber first.")}
+            guard stacks[chamber].allSatisfy({sameMaterial($0,first)}) else {return (false,"The chamber needs one color at one density. Separate the different materials first.")}
+            let heavier=tool.direction == .heavier
+            guard heavier ? densities[first] != .heavy:densities[first] != .light else {return (false,"This liquid is already as \(heavier ? "heavy":"light") as it can be.")}
+            let next:LabDensity=heavier ? (densities[first] == .light ? .medium:.heavy):(densities[first] == .heavy ? .medium:.light)
+            return (true,"\(stacks[chamber].count) \(material(first)) → \(stacks[chamber].count) \(next.title.lowercased()) \(Self.pigmentName(colors[first])). Color and volume stay the same.")
+        }
+    }
+    static func pigmentName(_ id:Int)->String {
+        switch id {case 0:"blue";case 1:"orange";case 2:"green";case 4:"yellow";case 6:"purple";case 8:"red";default:"color \(id+1)"}
+    }
+
     func canActivate(_ activation:LabApparatusActivation)->Bool {
         guard let tool=apparatus.first(where:{$0.id==activation.apparatusID}) else {return false}
         switch tool.kind {
@@ -302,6 +386,8 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
                   stacks[tool.inputs[0]].count==1,stacks[tool.inputs[1]].count==1,stacks[output].isEmpty,capacities[output]>=2 else {return false}
             let a=stacks[tool.inputs[0]][0],b=stacks[tool.inputs[1]][0]
             return densities[a]==densities[b] && Self.mixedPigment(colors[a],colors[b]) != nil
+        case .separator:
+            return apparatusGuidance(tool).ready
         case .densityModifier:
             guard let chamber=tool.inputs.first,let first=stacks[chamber].first,!stacks[chamber].isEmpty,
                   stacks[chamber].allSatisfy({sameMaterial($0,first)}),let direction=tool.direction else {return false}
@@ -317,6 +403,10 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
             let pigment=Self.mixedPigment(next.colors[a],next.colors[b])!
             next.colors[a]=pigment;next.colors[b]=pigment
             next.stacks[output]=[a,b]
+        case .separator:
+            let input=tool.inputs[0],ids=next.stacks[input],parts=Self.separatedPigments(next.colors[ids[0]])!
+            next.stacks[input]=[]
+            for n in 0..<2 {next.colors[ids[n]]=parts[n];next.stacks[tool.outputs[n]]=[ids[n]]}
         case .densityModifier:
             let chamber=tool.inputs[0],direction=tool.direction!
             for parcel in next.stacks[chamber] {
@@ -331,6 +421,9 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
             if next.behavior.settlesByDensity {next.settle(chamber)}
         }
         return next
+    }
+    static func separatedPigments(_ pigment:Int)->[Int]? {
+        switch pigment {case 1:[8,4];case 2:[4,0];case 6:[0,8];default:nil}
     }
     static func mixedPigment(_ a:Int,_ b:Int)->Int? {
         switch Set([a,b]) {
@@ -409,7 +502,7 @@ nonisolated struct LabBoardGame: Sendable, Codable {
     mutating func cancel() { pending=nil }
     mutating func undo() -> Bool {
         guard pending == nil,let previous=history.popLast() else { return false }
-        state=previous;return true
+        state=previous.retainingDiscoveries(from:state);return true
     }
 }
 

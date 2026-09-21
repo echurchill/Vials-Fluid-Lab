@@ -279,6 +279,7 @@ fragment DepthOut labParticleDepth(ParticleOut in [[stage_in]], constant Uniform
     return particleDepth(in,u,v,profiles);
 }
 float3 boardColor(float dye) {
+    if(dye>=35.5f) return float3(0.34,0.39,0.43);
     int encoded=max(0,int(round(dye))),pigment=encoded%12;
     float3 base;
     switch(pigment) {
@@ -294,6 +295,7 @@ float3 boardColor(float dye) {
 float3 particleColor(ParticleOut in,constant Uniforms &u) {
     float3 color=boardColor(in.dye);
     if((u.options.y&512u) && in.selected<0) color=mix(boardColor(-in.selected-1),color,clamp(u.physics.w,0.0f,1.0f));
+    if(in.selected<=-100) color=mix(boardColor(36),color,clamp(-in.selected-100,0.0f,1.0f));
     return color;
 }
 float2 densityWeights(float dye) {
@@ -318,6 +320,10 @@ fragment float4 labParticleThickness(ParticleOut in [[stage_in]], constant Unifo
     if(u.options.y&256u) {
         int receiver=int(u.options.y>>24)-1;
         if(in.selected<0.5f || int(round(in.owner))!=receiver) color=0;
+    }
+    if(u.options.y&1024u) {
+        int owner=int(round(in.owner));
+        if(in.selected<0.5f || owner<0 || ((u.options.y>>(16+owner))&1u)==0) color=0;
     }
     return float4(color*thickness,thickness);
 }
@@ -466,6 +472,14 @@ fragment float4 labCompose(QuadOut in [[stage_in]], constant Uniforms &u [[buffe
             // Show a muted trace through lighter liquid without recoloring a
             // foreground source vial or averaging every resting layer together.
             tint=mix(tint,incoming,0.70f*(1-exp(-plumeDepth*3.0f)));
+        }
+        if(u.options.y&1024u) {
+            int owner=int(round(frontDye.sample(s,uv).a))-1;
+            if(owner>=0 && ((u.options.y>>(16+owner))&1u)) {
+                float strength=max(medium.r,max(medium.g,medium.b));
+                float3 incoming=medium.rgb/max(strength,0.0001f);
+                tint=mix(tint,incoming,0.60f*(1-exp(-strength*3.0f)));
+            }
         }
     }
     float opticalDepth=medium.a*0.55;

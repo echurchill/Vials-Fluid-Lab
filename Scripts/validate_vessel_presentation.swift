@@ -11,6 +11,44 @@ import AppKit
   func finish(_ command:MTLCommandBuffer) {
    command.waitUntilCompleted();precondition(command.status == .completed)
   }
+  // Every renderer and hit target consumes the same role-selected profiles.
+  precondition(LabBoardLayout.shapes(for:LabBoardPuzzle.firstSort.initial).allSatisfy {$0 == .testTube})
+  precondition(LabBoardLayout.shapes(for:LabBoardPuzzle.secondChance.initial)==[.bulbFlask,.bulbFlask,.testTube,.bulbFlask,.testTube])
+  precondition(LabBoardLayout.shapes(for:LabBoardPuzzle.twinProducts.initial)==[.testTube,.testTube,.testTube,.bulbFlask,.bulbFlask,.bulbFlask,.taperedFlask,.taperedFlask,.testTube,.testTube])
+  let shared=LabBoardState(layers:[[0],[],[]],capacities:[2,2,2],behavior:.crossover,
+      targets:[.init(vial:2,layers:[.init(0)])],apparatus:[.mixer(inputs:[0,1],output:2),.modifier(id:1,chamber:0,direction:.heavier),.modifier(id:2,chamber:2,direction:.lighter)])
+  precondition(LabBoardLayout.shapes(for:shared)==[.taperedFlask,.bulbFlask,.testTube],"Role precedence changed")
+  let reusable=try LabBoardRenderer(device:device,library:library)
+  let reference=LabVesselProfile(name:"Reference",height:2.35,knots:LabVesselShape.testTube.knots).usableVolume
+  for shape in LabVesselShape.allCases {
+   for capacity in 1...6 {
+    let profile=LabBoardLayout.profiles(capacities:[capacity],shapes:[shape])[0]
+    precondition(abs(profile.height-2.35*sqrt(Float(capacity)/4))<0.00001 && profile.depthScale==1)
+    precondition(abs(profile.usableVolume-reference*Float(capacity)/4)<0.0001,"Capacity scaling changed")
+   }
+  }
+  for puzzle in LabBoardPuzzle.allCases {
+   let initial=puzzle.initial,shapes=LabBoardLayout.shapes(for:initial),expected=LabBoardLayout.profiles(state:initial)
+   precondition(!shapes.contains(.pearFlask),"Pear must remain reserved")
+   reusable.reset(state:initial)
+   let planar=LabFluid2D(game:LabBoardGame(state:initial))
+   for i in expected.indices {
+    precondition(reusable.profiles[i].radii==expected[i].radii && reusable.profiles[i].height==expected[i].height)
+    precondition(planar.profiles[i].source.radii==expected[i].radii && planar.profiles[i].height==expected[i].height)
+   }
+   var state=initial
+   for operation in puzzle.authoredRoute(from:initial) ?? [] {
+    state=state.applying(operation)!
+    precondition(LabBoardLayout.shapes(for:state)==shapes,"Role silhouette changed during play")
+   }
+  }
+  // Same capacities, different roles: invalidate cached meshes and particle seeds.
+  for state in [LabBoardState(layers:[[0],[],[]],capacities:[2,2,2]),shared,LabBoardState(layers:[[0],[],[]],capacities:[2,2,2])] {
+   reusable.reset(state:state)
+   let expected=LabBoardLayout.profiles(state:state)
+   precondition(reusable.profiles.map(\.radii)==expected.map(\.radii),"Stale same-capacity role meshes")
+  }
+  print("PASS role mapping: 39 boards, shared-role precedence, fixed shapes through routes, all four silhouettes/capacities, renderer parity and same-capacity cache changes");fflush(stdout)
   let staticOnly=CommandLine.arguments.contains("--static-only")
   func capture(_ session:FluidBoardSession,_ mode:LabBoardPresentation,_ name:String,_ width:Int,_ height:Int,_ orbit:Float=0.12) throws {
    let cg:CGImage
@@ -29,7 +67,7 @@ import AppKit
    try NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(name+".png"))
   }
   for mode in LabBoardPresentation.allCases {
-   for puzzle in [LabBoardPuzzle.measuredBatch,.heavyLanding,.fiveStreams] {
+   for puzzle in [LabBoardPuzzle.measuredBatch,.heavyLanding,.fiveStreams,.secondChance,.twinProducts] {
     let session=FluidBoardSession(defaults:nil,device:device,library:library,
       restoredSave:LabComparisonSave(presentation:mode,pace:.quick,puzzle:puzzle),allowsConcurrentPours:true)
     let name="\(mode.rawValue)-\(puzzle.rawValue)"
@@ -59,12 +97,7 @@ import AppKit
       precondition(session.begin(move,automaticClock:false))
       var seen=Set<String>()
       for tick in 0..<1800 where session.busy {
-       if mode == .classic {session.advanceClassic(deltaTime:1/60)}
-       else if mode == .fluid2D {session.advance2D(deltaTime:1/60)}
-       else {
-        let command=session.renderer!.encodeFrame(target:texture,deltaTime:1/60)
-        finish(command)
-       }
+       await session.advanceConcurrent(deltaTime:1/60)
        let phase=session.phase
        if seen.insert(phase).inserted || tick%20==0 {
         if index<2 {try capture(session,mode,"\(name)-move\(index)-\(tick)",1000,600)}

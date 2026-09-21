@@ -1,0 +1,3 @@
+PASS unchanged from 59f44e9: Vials/FluidLab/LabGeometry.swift
+PASS unchanged from 59f44e9: Vials/FluidLab/LabBoardGeometry.swift (before nonisolated struct LabApparatusTransition)
+PASS unchanged from 59f44e9: Vials/FluidLab/LabClassicBoardView.swift (before /// Flat SwiftUI)

@@ -31,6 +31,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     let device:MTLDevice
     private(set) var profiles=LabBoardLayout.profiles()
     private(set) var profileCapacities=[4,4,4,4]
+    private var profileShapes=[LabVesselShape](repeating:.testTube,count:4)
     var homes:[SIMD3<Float>] { LabBoardLayout.homes(count:profiles.count) }
     let queue:MTLCommandQueue
     let library:MTLLibrary
@@ -243,8 +244,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     func reset(state:LabBoardState = .firstSort) {
         lastCommand?.waitUntilCompleted()
         game=LabBoardGame(state:state);simulationTime=0;clearMotion();historyParticles=[];beforeParticles=[];lastOutcome=""
-        if profileCapacities != state.capacities {
-            profileCapacities=state.capacities;profiles=LabBoardLayout.profiles(capacities:state.capacities);seedPositions=[]
+        let shapes=LabBoardLayout.shapes(for:state)
+        if profileCapacities != state.capacities || profileShapes != shapes {
+            profileCapacities=state.capacities;profileShapes=shapes;profiles=LabBoardLayout.profiles(state:state);seedPositions=[]
             profilesBuffer=makeBuffer(profiles.flatMap(\.radii))
             meshes=profiles.map { let vertices=labGlassMesh($0,rings:48,segments:64);return (makeBuffer(vertices),vertices.count) }
             capMeshes=profiles.map { let vertices=labCapMesh($0);return (makeBuffer(vertices),vertices.count) }
@@ -265,7 +267,13 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
 
     func beginTransformation(_ transition:LabApparatusTransition) {
-        transformationFrom=particleSamples();transformationTargets=transformationFrom
+        transformationFrom=particleSamples()
+        if transition.isRevealing {
+            for i in transformationFrom.indices where transition.parcels.contains(Int(transformationFrom[i].visual.y)) {
+                transformationFrom[i].velocity.w=Float(transition.before.visualDye(Int(transformationFrom[i].visual.y)))
+            }
+        }
+        transformationTargets=transformationFrom
         if transition.isDensityChange {
             let parcels=transition.parcels
             for i in transformationTargets.indices where parcels.contains(Int(transformationTargets[i].visual.y)) {
@@ -288,8 +296,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let owner=transition.output,origin=homes[owner],profile=profiles[owner],parcels=transition.parcels
         for i in transformationFrom.indices where parcels.contains(Int(transformationFrom[i].visual.y)) {
             let from=transformationFrom[i],target=transformationTargets[i],phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
-            let sample=transition.position(from:from.position.xyz,to:target.position.xyz,origin:origin,profile:profile,phase:phase)
-            p[i]=target;p[i].position=SIMD4(sample.point,sample.arrived ? Float(owner):(sample.started ? -1:from.position.w));p[i].predicted=p[i].position
+            let destination=(transition.isSeparating || transition.isRevealing) ? Int(target.position.w):owner
+            let sample=transition.position(from:from.position.xyz,to:target.position.xyz,origin:transition.isSeparating ? homes[destination]:origin,profile:transition.isSeparating ? profiles[destination]:profile,phase:phase)
+            p[i]=target;p[i].position=SIMD4(sample.point,sample.arrived ? Float(destination):(sample.started ? -1:from.position.w));p[i].predicted=p[i].position
             p[i].visual.z = -from.velocity.w-1
         }
         pausedSignature=nil
@@ -500,6 +509,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         for i in 0..<particleCount where from[i].position != targets[i].position {
             let position=simd_mix(from[i].position,targets[i].position,SIMD4(repeating:f))
             p[i]=targets[i];p[i].position=position;p[i].predicted=position
+            if game.state.knownParcels != nil {p[i].velocity.w=from[i].velocity.w}
         }
     }
     private func makeBands() -> [LabBoardBand] {
@@ -771,6 +781,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let (vp,view,eye)=LabBoardLayout.camera(aspect:1,azimuth:orbit,vesselCount:profiles.count)
         var u=LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
             viewport:SIMD4(1,1,spacing*1.16,simulationTime),physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),0,UInt32(profiles.count),flags))
+        let densityBands=groupDensityBands()
         var steps=0
         while accumulator>=timeStep,steps<stepBudget {
             simulationTime+=timeStep
@@ -778,7 +789,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             var vessels=groupVessels()
             for i in vessels.indices { vessels[i].previousWorld=previousWorlds.count==vessels.count ? previousWorlds[i]:vessels[i].world }
             previousWorlds=vessels.map(\.world);compositeVessels=vessels
-            layerBands=groupBands();u.viewport.w=simulationTime
+            layerBands=groupBands(densityBands:densityBands);u.viewport.w=simulationTime
             simulate(command:command,uniforms:u,vessels:vessels)
             accumulator-=timeStep;steps+=1
         }
@@ -809,7 +820,28 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         return result
     }
-    private func groupBands()->[LabBoardBand] {
+    private func groupDensityBands()->[Int:SIMD2<Float>] {
+        guard game.state.behavior.settlesByDensity,let receiver=groupMoves.first?.destination else {return [:]}
+        let values=particleSamples(),profile=profiles[receiver],vessel=groupVessels()[receiver]
+        var arrivals=groupMoves.map {(move:$0,units:Float(0))}
+        // Iterate from the denser arrivals upward so later streams see displaced
+        // resident layers. Position tests allow a plume to travel through light fluid.
+        for index in arrivals.indices.sorted(by: {game.state.densities[arrivals[$0].move.parcels[0]].order < game.state.densities[arrivals[$1].move.parcels[0]].order}) {
+            let move=arrivals[index].move
+            let provisional=game.state.densityReceiverBands(destination:receiver,arrivals:arrivals)
+            let floor=provisional[move.parcels[0]]?.x ?? 0
+            let ids=Set(move.parcels)
+            let moving=values.filter {Int($0.position.w)==receiver && ids.contains(Int($0.visual.y))}
+            var units:Float=0
+            for p in moving.sorted(by:{$0.position.y<$1.position.y}) {
+                let surface=profile.height(for:particleFillVolume(profile)*(floor+units)/Float(game.state.capacity(receiver)))
+                if (vessel.inverseWorld*SIMD4(p.position.xyz,1)).y<=surface+spacing*1.5 {units+=1/Float(Self.particlesPerUnit)}
+            }
+            arrivals[index].units=units
+        }
+        return game.state.densityReceiverBands(destination:receiver,arrivals:arrivals)
+    }
+    private func groupBands(densityBands:[Int:SIMD2<Float>])->[LabBoardBand] {
         let state=game.state,count=state.colors.count
         var bands=[LabBoardBand](repeating:LabBoardBand(range:SIMD4(-100,100,0,0)),count:count*profiles.count)
         for (owner,original) in state.stacks.enumerated() {
@@ -827,6 +859,15 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 let lower=moving ? level(original.count-(outgoing?.amount ?? 0)):level(first)
                 let upper:Float=moving || last==stack.count ? 100:level(last)
                 bands[owner*count+id]=LabBoardBand(range:SIMD4(lower,upper,1,1))
+            }
+        }
+        if let receiver=groupMoves.first?.destination,state.behavior.settlesByDensity {
+            let profile=profiles[receiver],volume=particleFillVolume(profile),capacity=Float(state.capacity(receiver))
+            let incoming=Set(groupMoves.flatMap(\.parcels))
+            for (id,band) in densityBands {
+                let lower=band.x==0 ? -100:profile.height(for:volume*band.x/capacity)
+                let upper=profile.height(for:volume*band.y/capacity)
+                bands[receiver*count+id]=LabBoardBand(range:SIMD4(lower,max(lower+0.02,upper),1,incoming.contains(id) ? 2:1))
             }
         }
         return bands
@@ -931,6 +972,16 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             p[i].velocity=SIMD4(0,0,0,p[i].velocity.w)
         }
     }
+    func showConcurrentReveals(_ reveals:[Int:Float]) {
+        guard game.state.knownParcels != nil else {return}
+        lastCommand?.waitUntilCompleted()
+        let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+        for i in 0..<particleCount {
+            let id=Int(p[i].visual.y)
+            p[i].velocity.w=Float(game.state.visualDye(id))
+            p[i].visual.z=reveals[id].map {-100-labSmooth($0/0.5)} ?? 0
+        }
+    }
     func displayComposite(game:LabBoardGame,samples:[LabParticle],vessels:[LabVesselUniform]) {
         lastCommand?.waitUntilCompleted()
         precondition(samples.count==particleCount)
@@ -954,6 +1005,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             // Optical hint for the receiving plume, reusing the existing additive
             // thickness pass. No extra render pass or larger particle budget.
             u.options.y |= 256 | UInt32(game.state.visualDye(move.parcels[0])) << 16 | UInt32(move.destination+1) << 24
+        }
+        if game.state.behavior.settlesByDensity,let vessels=compositeVessels {
+            let receivers=vessels.indices.filter {vessels[$0].dimensions.w==2}
+            if !receivers.isEmpty {u.options.y |= 1024 | receivers.reduce(UInt32(0)) {$0 | (UInt32(1)<<UInt32($1+16))}}
         }
         if let transformation {u.options.y |= 512;u.physics.w=transformation.blend}
         let vessels = currentVessels

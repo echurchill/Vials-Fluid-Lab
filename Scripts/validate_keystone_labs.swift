@@ -53,6 +53,23 @@ import Foundation
             failures.append("density modifier did not transform the whole homogeneous batch")
         }
 
+        for pigment in [1,2,6] {for density in LabDensity.allCases {
+            let fixture=LabBoardState(layers:[[pigment,pigment],[],[]],capacities:[2,1,1],densityLayers:[[density,density],[],[]],behavior:.mixing,apparatus:[.separator(input:0,outputs:[1,2])])
+            let after=fixture.applying(LabApparatusActivation(apparatusID:0))!
+            if after.stacks.flatMap({$0}).sorted() != [0,1] || after.densities != [density,density] || LabBoardState.mixedPigment(after.colors[0],after.colors[1]) != pigment {failures.append("separator lost material or density")}
+        }}
+        let unevenSeparator=LabBoardState(layers:[[6,6],[],[]],capacities:[2,1,1],densityLayers:[[.light,.heavy],[],[]],behavior:.mixing,apparatus:[.separator(input:0,outputs:[1,2])])
+        if unevenSeparator.canActivate(.init(apparatusID:0)) {failures.append("separator accepted mixed densities")}
+        let shortSeparator=LabBoardState(layers:[[6],[],[]],capacities:[2,1,1],behavior:.mixing,apparatus:[.separator(input:0,outputs:[1,2])])
+        if shortSeparator.canActivate(.init(apparatusID:0)) {failures.append("separator created fractional units")}
+        for puzzle in LabDiscipline.discovery.levels {
+            var visiblePlay=puzzle.initial
+            for _ in 0..<24 where visiblePlay.hasUnknown {
+                guard let move=visiblePlay.discoveryHint(),let next=visiblePlay.applying(move) else {break}
+                visiblePlay=next
+            }
+            if visiblePlay.hasUnknown || visiblePlay.solution()==nil {failures.append("\(puzzle.rawValue): exploratory hints stalled or stranded the board")}
+        }
         for discipline in LabDiscipline.allCases {
             for puzzle in discipline.levels {
                 emit("checking \(discipline.rawValue) \(puzzle.rawValue)")
@@ -80,6 +97,9 @@ import Foundation
                     guard let route=puzzle.authoredRoute(from:initial) ?? initial.operationSolution() else {failures.append("\(puzzle.rawValue): no operation solution");continue}
                     var state=initial
                     for operation in route {
+                        for tool in state.apparatus {
+                            if state.apparatusGuidance(tool).ready != state.canActivate(.init(apparatusID:tool.id)) {failures.append("guidance disagrees with activation")}
+                        }
                         let before=state.stacks.flatMap {$0}.sorted()
                         guard let next=state.applying(operation) else {failures.append("\(puzzle.rawValue): invalid operation route");break}
                         let after=next.stacks.flatMap {$0}.sorted()

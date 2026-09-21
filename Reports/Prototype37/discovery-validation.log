@@ -1,0 +1,13 @@
+PASS classic firstReveal: knowledge, pause, save, undo, reset, stationary reveal
+PASS fluid2D firstReveal: knowledge, pause, save, undo, reset, stationary reveal
+PASS fluid firstReveal: knowledge, pause, save, undo, reset, stationary reveal
+PASS classic peekAhead: knowledge, pause, save, undo, reset, stationary reveal
+PASS fluid2D peekAhead: knowledge, pause, save, undo, reset, stationary reveal
+PASS fluid peekAhead: knowledge, pause, save, undo, reset, stationary reveal
+PASS classic buriedClue: knowledge, pause, save, undo, reset, stationary reveal
+PASS fluid2D buriedClue: knowledge, pause, save, undo, reset, stationary reveal
+PASS fluid buriedClue: knowledge, pause, save, undo, reset, stationary reveal
+PASS classic hiddenGarden: knowledge, pause, save, undo, reset, stationary reveal
+PASS fluid2D hiddenGarden: knowledge, pause, save, undo, reset, stationary reveal
+PASS fluid hiddenGarden: knowledge, pause, save, undo, reset, stationary reveal
+PASS: 12 Discovery cases; unknown-identity hint/move invariance and known-batch boundary

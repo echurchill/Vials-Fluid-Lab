@@ -1,0 +1,85 @@
+Vials/FluidLab/LabBoardSession.swift:764:33: warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 762 |                         let began=ProcessInfo.processInfo.systemUptime
+ 763 |                         let command=surface.encodeFrame(target:target,deltaTime:0)
+ 764 |                         command.waitUntilCompleted()
+     |                                 `- warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 765 |                         guard command.status == .completed,command.gpuEndTime>command.gpuStartTime else {throw command.error ?? NSError(domain:"DensityProfile",code:3,userInfo:[NSLocalizedDescriptionKey:"No valid GPU timing"])}
+ 766 |                         if frame>=20 {gpu.append((command.gpuEndTime-command.gpuStartTime)*1000);host.append((ProcessInfo.processInfo.systemUptime-began)*1000)}
+
+/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandBuffer.h:354:1: note: 'waitUntilCompleted()' declared here
+352 |  @abstract Synchronously wait for this command buffer to complete.
+353 |  */
+354 | - (void)waitUntilCompleted NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Use 'await completed()' instead.");
+    | `- note: 'waitUntilCompleted()' declared here
+355 | 
+356 | /*!
+PASS classic warmBlend mixer operation 2
+PASS classic coolBlend mixer operation 2
+PASS classic violetReaction mixer operation 2
+PASS classic colorWheel mixer operation 2
+PASS classic colorWheel mixer operation 6
+PASS classic colorWheel mixer operation 10
+PASS classic measuredBatch mixer operation 2
+PASS classic measuredBatch mixer operation 6
+PASS classic measuredBatch mixer operation 10
+PASS classic splitPurple mixer operation 0
+PASS classic roomForBoth mixer operation 1
+PASS classic secondChance mixer operation 0
+PASS classic secondChance mixer operation 1
+PASS classic keepEveryDrop mixer operation 0
+PASS classic keepEveryDrop mixer operation 1
+PASS classic keepEveryDrop mixer operation 2
+PASS classic equalPartners mixer operation 4
+PASS classic weightedOrange mixer operation 2
+PASS classic layerCake mixer operation 2
+PASS classic twinProducts mixer operation 2
+PASS classic twinProducts mixer operation 8
+PASS classic fullSpectrum mixer operation 2
+PASS classic fullSpectrum mixer operation 6
+PASS fluid2D warmBlend mixer operation 2
+PASS fluid2D coolBlend mixer operation 2
+PASS fluid2D violetReaction mixer operation 2
+PASS fluid2D colorWheel mixer operation 2
+PASS fluid2D colorWheel mixer operation 6
+PASS fluid2D colorWheel mixer operation 10
+PASS fluid2D measuredBatch mixer operation 2
+PASS fluid2D measuredBatch mixer operation 6
+PASS fluid2D measuredBatch mixer operation 10
+PASS fluid2D splitPurple mixer operation 0
+PASS fluid2D roomForBoth mixer operation 1
+PASS fluid2D secondChance mixer operation 0
+PASS fluid2D secondChance mixer operation 1
+PASS fluid2D keepEveryDrop mixer operation 0
+PASS fluid2D keepEveryDrop mixer operation 1
+PASS fluid2D keepEveryDrop mixer operation 2
+PASS fluid2D equalPartners mixer operation 4
+PASS fluid2D weightedOrange mixer operation 2
+PASS fluid2D layerCake mixer operation 2
+PASS fluid2D twinProducts mixer operation 2
+PASS fluid2D twinProducts mixer operation 8
+PASS fluid2D fullSpectrum mixer operation 2
+PASS fluid2D fullSpectrum mixer operation 6
+PASS fluid warmBlend mixer operation 2
+PASS fluid coolBlend mixer operation 2
+PASS fluid violetReaction mixer operation 2
+PASS fluid colorWheel mixer operation 2
+PASS fluid colorWheel mixer operation 6
+PASS fluid colorWheel mixer operation 10
+PASS fluid measuredBatch mixer operation 2
+PASS fluid measuredBatch mixer operation 6
+PASS fluid measuredBatch mixer operation 10
+PASS fluid splitPurple mixer operation 0
+PASS fluid roomForBoth mixer operation 1
+PASS fluid secondChance mixer operation 0
+PASS fluid secondChance mixer operation 1
+PASS fluid keepEveryDrop mixer operation 0
+PASS fluid keepEveryDrop mixer operation 1
+PASS fluid keepEveryDrop mixer operation 2
+PASS fluid equalPartners mixer operation 4
+PASS fluid weightedOrange mixer operation 2
+PASS fluid layerCake mixer operation 2
+PASS fluid twinProducts mixer operation 2
+PASS fluid twinProducts mixer operation 8
+PASS fluid fullSpectrum mixer operation 2
+PASS fluid fullSpectrum mixer operation 6
+PASS: 69 animated mixer cases; state, particle inventory, pause/suspension, save, double activation, final continuity, undo and reset

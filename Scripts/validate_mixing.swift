@@ -4,7 +4,7 @@ import SwiftUI
 import AppKit
 
 @main struct MixingValidation {
- @MainActor static func main() throws {
+ @MainActor static func main() async throws {
   let device=MTLCreateSystemDefaultDevice()!,library=try device.makeLibrary(URL:URL(fileURLWithPath:CommandLine.arguments[1]))
   let output=URL(fileURLWithPath:CommandLine.arguments[2]);try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
   func save(_ cg:CGImage,_ name:String) throws {try NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(name+".png"))}
@@ -21,13 +21,13 @@ import AppKit
   }
   var checked=0
   for mode in LabBoardPresentation.allCases {
-   for puzzle in LabDiscipline.mixing.levels+LabDiscipline.crossover.levels {
+   for puzzle in LabDiscipline.mixing.levels+LabDiscipline.recovery.levels+LabDiscipline.crossover.levels {
     var state=puzzle.initial
     for (index,operation) in puzzle.authoredRoute(from:state)!.enumerated() {
      let expected=state.applying(operation)!
      defer {state=expected}
      guard case .activate(let activation)=operation,
-           state.apparatus.first(where:{$0.id==activation.apparatusID})!.kind == .mixer else {continue}
+           state.apparatus.first(where:{$0.id==activation.apparatusID})!.kind != .densityModifier else {continue}
      let saved=LabComparisonSave(presentation:mode,pace:.quick,puzzle:puzzle,games:[puzzle.rawValue:LabBoardGame(state:state)])
      let session=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:saved,allowsConcurrentPours:true)
      session.reduceTransformationMotion=puzzle == .coolBlend
@@ -65,7 +65,7 @@ import AppKit
         last3D=particles
        }
        let stage=Int(mix.time/0.45)
-       if index<=3 && [LabBoardPuzzle.warmBlend,.coolBlend,.violetReaction].contains(puzzle),sampled.insert(stage).inserted {
+       if index<=3 && [LabBoardPuzzle.warmBlend,.coolBlend,.violetReaction,.splitPurple,.secondChance].contains(puzzle),sampled.insert(stage).inserted {
         let name="\(mode.rawValue)-\(puzzle.rawValue)-\(stage)"
         if mode == .classic {try capture(LabClassicBoardView(state:session.state,pour:nil,transformation:mix),name)}
         else if mode == .fluid2D {try capture(LabFluid2DView(engine:session.fluid2D),name)}
@@ -86,9 +86,7 @@ import AppKit
       let move=expected.move(from:4,to:5)!,poured=expected.applying(move)!
       precondition(session.begin(move,automaticClock:false))
       for _ in 0..<1500 where session.busy {
-       if mode == .classic {session.advanceClassic(deltaTime:1/60)}
-       else if mode == .fluid2D {session.advance2D(deltaTime:1/60)}
-       else {session.renderer!.advanceSimulation(deltaTime:1/60)}
+       await session.advanceConcurrent(deltaTime:1/60)
       }
       precondition(!session.busy && session.state==poured && session.solved,"Mixed fluid cannot be poured afterward")
       session.undo();precondition(session.state==expected)

@@ -1,0 +1,83 @@
+Vials/FluidLab/LabBoardSession.swift:764:33: warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 762 |                         let began=ProcessInfo.processInfo.systemUptime
+ 763 |                         let command=surface.encodeFrame(target:target,deltaTime:0)
+ 764 |                         command.waitUntilCompleted()
+     |                                 `- warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 765 |                         guard command.status == .completed,command.gpuEndTime>command.gpuStartTime else {throw command.error ?? NSError(domain:"DensityProfile",code:3,userInfo:[NSLocalizedDescriptionKey:"No valid GPU timing"])}
+ 766 |                         if frame>=20 {gpu.append((command.gpuEndTime-command.gpuStartTime)*1000);host.append((ProcessInfo.processInfo.systemUptime-began)*1000)}
+
+/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandBuffer.h:354:1: note: 'waitUntilCompleted()' declared here
+352 |  @abstract Synchronously wait for this command buffer to complete.
+353 |  */
+354 | - (void)waitUntilCompleted NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Use 'await completed()' instead.");
+    | `- note: 'waitUntilCompleted()' declared here
+355 | 
+356 | /*!
+Scripts/validate_vessel_presentation.swift:91:9: warning: initialization of immutable value 'texture' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 89 |     let d=MTLTextureDescriptor.texture2DDescriptor(pixelFormat:.bgra8Unorm_srgb,width:700,height:455,mipmapped:false)
+ 90 |     d.storageMode = .shared;d.usage=[.renderTarget,.shaderRead]
+ 91 |     let texture=device.makeTexture(descriptor:d)!
+    |         `- warning: initialization of immutable value 'texture' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 92 |     for (index,operation) in route.enumerated() {
+ 93 |      switch operation {
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+PASS role mapping: 39 boards, shared-role precedence, fixed shapes through routes, all four silhouettes/capacities, renderer parity and same-capacity cache changes
+classic-measuredBatch operation 0 completed
+classic-measuredBatch operation 1 completed
+classic-measuredBatch operation 3 completed
+classic-measuredBatch operation 4 completed
+classic-measuredBatch operation 5 completed
+classic-measuredBatch operation 7 completed
+classic-measuredBatch operation 8 completed
+classic-measuredBatch operation 9 completed
+classic-measuredBatch operation 11 completed
+classic-heavyLanding operation 0 completed
+classic-heavyLanding operation 1 completed
+classic-twinProducts operation 0 completed
+classic-twinProducts operation 1 completed
+classic-twinProducts operation 3 completed
+classic-twinProducts operation 5 completed
+classic-twinProducts operation 6 completed
+classic-twinProducts operation 7 completed
+classic-twinProducts operation 9 completed
+classic-twinProducts operation 11 completed
+fluid2D-measuredBatch operation 0 completed
+fluid2D-measuredBatch operation 1 completed
+fluid2D-measuredBatch operation 3 completed
+fluid2D-measuredBatch operation 4 completed
+fluid2D-measuredBatch operation 5 completed
+fluid2D-measuredBatch operation 7 completed
+fluid2D-measuredBatch operation 8 completed
+fluid2D-measuredBatch operation 9 completed
+fluid2D-measuredBatch operation 11 completed
+fluid2D-heavyLanding operation 0 completed
+fluid2D-heavyLanding operation 1 completed
+fluid2D-twinProducts operation 0 completed
+fluid2D-twinProducts operation 1 completed
+fluid2D-twinProducts operation 3 completed
+fluid2D-twinProducts operation 5 completed
+fluid2D-twinProducts operation 6 completed
+fluid2D-twinProducts operation 7 completed
+fluid2D-twinProducts operation 9 completed
+fluid2D-twinProducts operation 11 completed
+fluid-measuredBatch operation 0 completed
+fluid-measuredBatch operation 1 completed
+fluid-measuredBatch operation 3 completed
+fluid-measuredBatch operation 4 completed
+fluid-measuredBatch operation 5 completed
+fluid-measuredBatch operation 7 completed
+fluid-measuredBatch operation 8 completed
+fluid-measuredBatch operation 9 completed
+fluid-measuredBatch operation 11 completed
+fluid-heavyLanding operation 0 completed
+fluid-heavyLanding operation 1 completed
+fluid-twinProducts operation 0 completed
+fluid-twinProducts operation 1 completed
+fluid-twinProducts operation 3 completed
+fluid-twinProducts operation 5 completed
+fluid-twinProducts operation 6 completed
+fluid-twinProducts operation 7 completed
+fluid-twinProducts operation 9 completed
+fluid-twinProducts operation 11 completed
+Vessel presentation and complete small-capacity routes passed.

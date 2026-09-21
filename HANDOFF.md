@@ -1,5 +1,36 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## Latest: role-based vessel silhouettes (September 21)
+
+Eddie approved consistent shapes across all presentations: ordinary sources/storage/final targets use tubes; mixer and Recovery ports use round bulb flasks; density chambers use flat-bottomed tapered flasks. Pear remains implemented but unused, reserved for a future lab. Final targets override tool shapes; density overrides other non-target tool roles. All shared-role badges remain. Profiles derive from fixed metadata, with the exact existing knots, height/radial scaling and depth preserved. Renderer cache now invalidates when shapes change even if capacities match.
+
+Mac/signed iOS builds, 39-board shape/parity/cache assertions, presentation routes, 18 lab concurrency cases, 69 animated machine cases, Sorting concurrency and density trajectories all pass. Updated build installed on iPad; QuickTime landscape inspection confirms all three presentations. See Reports/Prototype39 for evidence and device-trial results. Work remains local/unpushed alongside Prototype37/38; unrelated root PNG untouched. Scheduled monitor stays paused. Use caffeinate during UI checks.
+
+
+## Latest: iPad concurrency checks complete (September 21)
+
+Final signed build installed on the connected/unlocked M4 iPad. Device Hub AX timed out, but QuickTime's Screen → Eddie’s iPad Pro preview worked after zooming its window. Five live trials: Density in Classic/2D/3D plus Discovery in 2D/3D. 56/56 measured pours committed, including shared receivers; no rejected/stuck pours; max cleanup 2.61%; all thermal samples nominal. All 21 Density control checks passed. These were short charging/screen-sharing runs, not battery or compositor-FPS measurements. Reports/Prototype38 contains JSON and limitations. No further code changes needed. iPad relaunched normally at Crossover → Twin products → 2D Fluid / Quick, 3 existing moves; QuickTime preview remains open. Mac stays at completed First reveal / 2D / Relaxed. Caffeinate was used during checks. Work is still local/unpushed; scheduled monitor remains paused.
+
+## Latest: concurrent pours in every lab (September 21)
+
+Eddie authorized extending Sorting-style concurrency. All six labs now allow overlapping ordinary pours, including shared receivers (two active approach lanes; additional accepted pours queue). Machine transitions remain globally exclusive. Density uses multi-stream joined-volume bands and stable reservation order for equal-density arrivals; Discovery fades are per-source and allow unrelated pours to continue. A small-vial 2D lip-guide adjustment prevents a rejected near-miss without expanding the 5% cleanup allowance. Vial shapes, sizes, camera and layout definitions are unchanged. See Reports/Prototype38 and Scripts/validate_lab_concurrency.sh.
+
+All 18 lab/presentation matrix cases plus density ordering/descent, Discovery overlap/pause, machine guards, save/Undo/Reset pass. Existing Sorting concurrency, 19 experimental session routes and density trajectories pass. Live Mac UI checks were done with caffeinate; physical-iPad acceptance/performance remain pending. These changes and Prototype37 remain local/unpushed against 59f44e9. Keep the unrelated root PNG untouched and the scheduled performance monitor paused. Future independent machine concurrency is not included in this pass. Final Mac and signed iOS builds pass. Final-build live Relaxed 2D Discovery retry and two concurrent completion pours passed, including caps and Next; Mac is left at completed First reveal / 2D Fluid.
+
+## Latest: shared machine-role labels (September 21)
+
+Recovery level 3 D is a separator output AND mixer input. Eddie noticed only SEP OUT was shown. Fixed the first-match lookup to return all associated tools; shared badges stack upward without moving/resizing the vial. Accessibility names both roles, and mixer result previews name input letters. Mac visual checks pass in Classic/2D/3D and both builds pass. The Mac is now on Recovery → Second chance → 3D Fluid. Still local/unpushed; no iPad install. See the Prototype37 addendum.
+
+
+## Latest: machine guidance → Recovery → Discovery (September 20 overnight)
+
+Eddie authorized all three stages after the level-tree picture and explicitly asked to preserve the vial visuals. Implemented local, unpushed changes: anchored machine requirement/result popovers (ready buttons still activate in one tap); four Recovery levels with a conserved-volume two-output separator; four Discovery levels with neutral unknown portions, knowledge-aware exploratory hints, known-batch pour boundaries, stationary pause-aware reveals, and discoveries retained through Undo/Reset/save. All six labs are selectable; no unlock tree was implemented. See Reports/Prototype37/README.md for the exact scope and morning review route.
+
+All 39 model fixtures, 19 experimental session routes, 69 animated machine cases, 12 complete Discovery routes/cases across Classic/2D/3D and the existing small-vial presentation gate pass. Mac and signed iOS Release builds pass. Existing profiles, sizing, depth and camera parameters were preserved. Live Mac UI checks and selected rendered frames were inspected; do not equate those with user approval or physical-iPad acceptance. Eddie said the iPad is unavailable overnight; no overnight install/profile was attempted. Caffeinate was used for Mac UI automation. New work remains local against pushed baseline 59f44e9. The final Mac app is running normally (no trial flags) at Recovery → Split purple → 3D Fluid for morning review. An unrelated untracked root image, ChatGPT Image Sep 20, 2026, 06_59_07 PM.png, appeared during the work and was left untouched.
+
+The earlier notes saying Discovery is documentation-only are superseded for this Sorting-only prototype. Hidden pigments in Density/Mixing/Crossover and broader campaign combinations are still future work. Sound remains deferred and the scheduled performance monitor stays paused.
+
+
 ## Latest: iPad portrait/landscape review complete (September 20)
 
 QuickTime now works: open New Movie Recording, then select **Screen → Eddie’s iPad Pro** (the iPad is under Screen, not Camera on this OS). No reboot was needed. CUA live-preview inspection passed Shades of blue in Classic/2D/3D in landscape and portrait, plus ten-vial Twin products in 2D landscape and all three modes in portrait. Density symbols are distinguishable; targets, legend and controls fit without clipping. 3D symbols are softer than 2D but recognizable. This was passive visual inspection, not a new touch-latency test. See Reports/Prototype36/README.md. Prior visual-blocker notes below are superseded; GPU comparison and the 12-case live density-control diagnostic were already complete and were not repeated.

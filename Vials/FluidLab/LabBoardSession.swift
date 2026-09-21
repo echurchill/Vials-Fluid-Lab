@@ -23,10 +23,12 @@ import Combine
     @Published private(set) var transformation:LabApparatusTransition?
     var reduceTransformationMotion=false
     let allowsConcurrentPours:Bool
-    /// The established sorting boards support independent simultaneous pours.
-    /// Experimental material transforms remain sequential so density settlement
-    /// and apparatus inputs have one deterministic commit order.
-    var concurrentPoursEnabled:Bool {allowsConcurrentPours && discipline == .sorting}
+    /// Ordinary pours overlap in every lab; apparatus transitions remain exclusive.
+    var concurrentPoursEnabled:Bool {allowsConcurrentPours}
+    @Published private(set) var concurrentReveals:[Int:Float]=[:]
+    private var revealingSources:Set<Int> {
+        Set(state.stacks.indices.filter { owner in state.stacks[owner].contains {concurrentReveals[$0] != nil} })
+    }
     @Published private(set) var pourQueue=LabPourQueue()
     @Published private(set) var concurrentClassicPours:[LabClassicPour]=[]
     private var concurrentExamples:[Int:LabPourExample]=[:]
@@ -40,18 +42,20 @@ import Combine
     var fluidFinalSettling:Bool { metalGroups.values.contains(where:\.groupFinalSettling) }
     var solved:Bool { state.solved && !busy }
     func canTap(_ index:Int)->Bool {
-        guard !solved else { return false }
+        guard !solved,transformation == nil,!revealingSources.contains(index) else { return false }
         if !concurrentPoursEnabled { return !busy && (selected != nil || state.canPourOut(index) || target(index) != nil) }
-        return selected == nil ? state.canPourOut(index) && !pourQueue.lockedSources.contains(index):!pourQueue.movingSources.contains(index)
+        return selected == nil ? (state.canPourOut(index) || target(index) != nil) && !pourQueue.lockedSources.contains(index):!pourQueue.movingSources.contains(index)
     }
     func availableMove(from:Int,to:Int)->LabBoardMove? {
-        concurrentPoursEnabled ? pourQueue.move(from:from,to:to,state:state):state.move(from:from,to:to)
+        guard transformation == nil,!revealingSources.contains(from),!revealingSources.contains(to) else {return nil}
+        return concurrentPoursEnabled ? pourQueue.move(from:from,to:to,state:state):state.move(from:from,to:to)
     }
     lazy var fluid2D=LabFluid2D(game:LabBoardGame(state:LabBoardState(layers:[])))
     let planarDisplay=LabPlanarDisplay()
     @Published private(set) var rejectedVial:Int?
     @Published private(set) var lastPour:LabPourExample?
     private var pendingExample:LabPourExample?
+    private var pendingReveal:Set<Int>=[]
     private var rejectionTask:Task<Void,Never>?
     private var hintTask:Task<Void,Never>?
     private var hintRevision=0
@@ -96,7 +100,7 @@ import Combine
     private var clockRevision=0
     var state:LabBoardState { game.state }
     var moveCount:Int { game.moveCount }
-    var busy:Bool { transformation != nil || game.pending != nil || pourQueue.busy }
+    var busy:Bool { transformation != nil || game.pending != nil || pourQueue.busy || !concurrentReveals.isEmpty }
     var active3DSimulationParticleCount:Int {metalGroups.values.reduce(0) {$0+$1.particleCount}}
     var effectiveSpeed:Float { (comparisonSpeed ?? pace.speed)*(slow ? 0.35:1) }
     var validDestinations:Set<Int> {
@@ -108,13 +112,13 @@ import Combine
     func targetExplanation(_ index:Int)->String? {
         state.targetAssessment(index).map {"Target \(Self.letter(index)): \($0.explanation)"}
     }
-    func apparatus(forVial index:Int)->LabApparatus? {state.apparatus.first {$0.inputs.contains(index) || $0.output==index}}
+    func apparatus(forVial index:Int)->[LabApparatus] {state.apparatus.filter {$0.inputs.contains(index) || $0.outputs.contains(index)}}
     func vialComplete(_ index:Int)->Bool {
         state.isComplete(index)
     }
     // Menu availability must not run a puzzle search on every board redraw.
     var canComparePour:Bool {
-        guard !busy else { return false }
+        guard !busy,state.knownParcels == nil else { return false }
         if lastPour != nil { return true }
         guard !state.solved else { return false }
         let sources=selected.map { [$0] } ?? Array(state.stacks.indices)
@@ -149,6 +153,7 @@ import Combine
     private func rememberPour(_ committed:Bool) {
         if committed {
             lastPour=pendingExample
+            if let before=pendingExample?.state.knownParcels,let after=state.knownParcels {pendingReveal=after.subtracting(before)}
             if let destination=pendingExample?.move.destination,let message=targetExplanation(destination) {notice=message}
         }
         pendingExample=nil
@@ -173,7 +178,7 @@ import Combine
         restored.cancel() // A launch restores the last committed move.
         game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
         feedback.soundEnabled=soundEnabled;feedback.hapticsEnabled=hapticsEnabled
-        notice=puzzle.discipline == .sorting ? "Tap a filled vial, then a matching color or an empty vial.":"Match the outlined target vials."
+        notice=puzzle.instruction
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         refresh()
@@ -242,9 +247,21 @@ import Combine
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
-        notice=value.discipline == .sorting ? "Same puzzle and rules in all three views.":"Match the outlined target vials.";checkpoint();refresh()
+        notice=value.instruction;checkpoint();refresh()
     }
     func refresh() {
+        if !busy,!pendingReveal.isEmpty {
+            let ids=pendingReveal;pendingReveal=[]
+            var before=state;before.knownParcels?.subtract(ids)
+            let owners=state.stacks.indices.filter { !Set(state.stacks[$0]).isDisjoint(with:ids) }
+            let tool=LabApparatus(id:-1,kind:.densityModifier,inputs:owners,output:nil,direction:nil)
+            let transition=LabApparatusTransition(before:before,after:state,apparatus:tool,reduceMotion:reduceTransformationMotion,revealedParcels:ids)
+            transformation=transition
+            if presentation == .fluid {renderer?.beginTransformation(transition);renderer?.showTransformation(transition)}
+            if presentation == .fluid2D {fluid2D.beginTransformation(transition);fluid2D.showTransformation(transition);planarDisplay.publish(fluid2D)}
+            notice="New color discovered. It stays known through Undo and Reset."
+            startTransformationClock()
+        }
         updateFeedback()
         let nextPhase:String
         if solved {
@@ -254,7 +271,7 @@ import Combine
         } else if let transformation { nextPhase=transformation.status
         } else if concurrentPoursEnabled,busy {
             let active=pourQueue.active.count,waiting=pourQueue.items.count-active
-            nextPhase="\(active) \(active == 1 ? "pour":"pours")"+(waiting>0 ? " · \(waiting) queued":"")
+            nextPhase=active==0 && waiting==0 ? "Discovering a color":"\(active) \(active == 1 ? "pour":"pours")"+(waiting>0 ? " · \(waiting) queued":"")
         } else if let pour=classicPour {
             nextPhase=pour.time<0.95 ? "Moving into position":(pour.returning ? "Returning the vial":"Pouring \(pour.move.amount) \(pour.move.amount == 1 ? "unit":"units")")
         } else if busy { nextPhase=presentation == .fluid2D ? fluid2D.phase:(renderer?.phase ?? "Pouring") }
@@ -277,7 +294,7 @@ import Combine
         refresh()
     }
     func select(_ index:Int) {
-        guard state.stacks.indices.contains(index),concurrentPoursEnabled || !busy,!solved else { return }
+        guard state.stacks.indices.contains(index),transformation == nil,!revealingSources.contains(index),concurrentPoursEnabled || !busy,!solved else { return }
         if let source=selected {
             if source == index { clearSelectionFeedback();selected=nil;hintTarget=nil;hintApparatusID=nil;notice="Choose another vial.";return }
             guard let move=availableMove(from:source,to:index) else {
@@ -381,6 +398,7 @@ import Combine
         }
     }
     func advance2D(deltaTime:Float) {
+        if transformation != nil {advanceTransformation(deltaTime:deltaTime);return}
         guard presentation == .fluid2D,busy,!paused,!suspended else { return }
         fluid2D.advance(deltaTime:deltaTime,speed:effectiveSpeed)
         finishPlanarFrame(deltaTime:deltaTime)
@@ -405,6 +423,7 @@ import Combine
         refresh()
     }
     func advanceClassic(deltaTime:Float) {
+        if transformation != nil {advanceTransformation(deltaTime:deltaTime);return}
         guard !paused,!suspended,var pour=classicPour else { return }
         let updateStart=ProcessInfo.processInfo.systemUptime
         pour.time+=min(max(deltaTime,0),0.05)*effectiveSpeed
@@ -419,18 +438,19 @@ import Combine
         refresh()
         performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:nil)
     }
-    func reset() {
+    func reset(keepingDiscoveries:Bool=true) {
+        let initial=keepingDiscoveries ? puzzle.initial.retainingDiscoveries(from:state):puzzle.initial
         cancelHint()
         cancelConcurrent()
-        transformation=nil
+        transformation=nil;pendingReveal=[]
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         feedback.stop()
         classicTask?.cancel();classicTask=nil;classicPour=nil
-        game=LabBoardGame(state:puzzle.initial);undoParticles=[];settledParticles=nil;beforeParticles=nil
-        renderer?.reset(state:puzzle.initial)
+        game=LabBoardGame(state:initial);undoParticles=[];settledParticles=nil;beforeParticles=nil
+        renderer?.reset(state:initial)
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
-        notice=discipline == .sorting ? "Tap a filled vial, then a matching color or an empty vial.":"Match the outlined target vials.";updatePause();checkpoint();refresh()
+        notice=puzzle.instruction;updatePause();checkpoint();refresh()
     }
     /// Clears every saved board, not just the currently selected puzzle.
     /// reset() invalidates in-flight worker results before the fresh checkpoint.
@@ -440,7 +460,7 @@ import Combine
         puzzle=saved.puzzle;presentation=saved.presentation;pace=saved.pace
         comparisonSpeed=nil;slow=false;points=false;diagnostics=false;orbit=0.12
         error=nil;reportURL=nil
-        reset()
+        reset(keepingDiscoveries:false)
         fluid2D.quickMotion=false;fluid2D.install(game);planarDisplay.publish(fluid2D)
         prepareFluid()
         checkpoint()
@@ -459,6 +479,13 @@ import Combine
     func hint() {
         guard !busy,!state.solved,!findingHint else { return }
         clearSelectionFeedback()
+        if state.hasUnknown {
+            cancelHint()
+            if let move=state.discoveryHint() {
+                showHint(.pour(move));notice="Try \(Self.letter(move.source)) → \(Self.letter(move.destination)). Use the known color to make room or uncover a layer."
+            } else {notice="No visible move is available. Undo to free some space; discoveries will stay known."}
+            return
+        }
         if let operation=hintPlan.first,state.applying(operation) != nil {
             showHint(operation);return
         }
@@ -468,7 +495,7 @@ import Combine
         hintTask=Task { @MainActor [weak self] in
             let behavior=snapshot.behavior
             let route=await Task.detached(priority:.userInitiated) {
-                if behavior == .sorting {return snapshot.solution().map {$0.map(LabBoardOperation.pour)}}
+                if behavior == .sorting || behavior == .discovery {return snapshot.solution().map {$0.map(LabBoardOperation.pour)}}
                 if snapshot==puzzle.initial,let authored=puzzle.authoredRoute(from:snapshot) {return authored}
                 return snapshot.operationSolution()
             }.value
@@ -494,7 +521,7 @@ import Combine
     func activateApparatus(_ id:Int,animated:Bool=true,automaticClock:Bool=true) {
         guard !busy else {return}
         let activation=LabApparatusActivation(apparatusID:id)
-        guard let after=state.applying(activation),let tool=state.apparatus.first(where:{$0.id==id}) else {notice="That apparatus is not ready.";return}
+        guard let after=state.applying(activation),let tool=state.apparatus.first(where:{$0.id==id}) else {notice=state.apparatus.first(where:{$0.id==id}).map {state.apparatusGuidance($0).message} ?? "That apparatus is not available.";return}
         let followsHint=hintPlan.first == .activate(activation)
         cancelHint(clearPlan:!followsHint)
         if animated {
@@ -502,22 +529,23 @@ import Combine
             transformation=transition;selected=nil;hintTarget=nil;hintApparatusID=nil
             if presentation == .fluid { renderer?.beginTransformation(transition) }
             if presentation == .fluid2D { fluid2D.beginTransformation(transition);planarDisplay.publish(fluid2D) }
-            notice=transition.isDensityChange ? (tool.direction == .heavier ? "The liquid becomes heavier; its volume stays the same.":"The liquid becomes lighter; its volume stays the same."):"The two inputs blend into one new color.";refresh()
-            if automaticClock {
-                classicTask?.cancel()
-                classicTask=Task { @MainActor [weak self] in
-                    var last=ProcessInfo.processInfo.systemUptime
-                    while !Task.isCancelled {
-                        try? await Task.sleep(for:.milliseconds(16))
-                        guard !Task.isCancelled,let self,self.transformation != nil else {return}
-                        let now=ProcessInfo.processInfo.systemUptime
-                        self.advanceTransformation(deltaTime:Float(now-last));last=now
-                    }
-                }
-            }
+            notice=transition.isSeparating ? "The mixture separates into two ingredients; total volume stays the same.":transition.isDensityChange ? (tool.direction == .heavier ? "The liquid becomes heavier; its volume stays the same.":"The liquid becomes lighter; its volume stays the same."):"The two inputs blend into one new color.";refresh()
+            if automaticClock {startTransformationClock()}
             return
         }
         finishActivation(activation)
+    }
+    private func startTransformationClock() {
+        classicTask?.cancel()
+        classicTask=Task { @MainActor [weak self] in
+            var last=ProcessInfo.processInfo.systemUptime
+            while !Task.isCancelled {
+                try? await Task.sleep(for:.milliseconds(16))
+                guard !Task.isCancelled,let self,self.transformation != nil else {return}
+                let now=ProcessInfo.processInfo.systemUptime
+                self.advanceTransformation(deltaTime:Float(now-last));last=now
+            }
+        }
     }
     func advanceTransformation(deltaTime:Float) {
         guard !paused,!suspended,deltaTime.isFinite,var transition=transformation else {return}
@@ -525,7 +553,12 @@ import Combine
         transformation=transition
         if presentation == .fluid {renderer?.showTransformation(transition)}
         if presentation == .fluid2D {fluid2D.showTransformation(transition);planarDisplay.publish(fluid2D)}
-        if transition.finished {
+        if transition.finished,transition.isRevealing {
+            transformation=nil;classicTask?.cancel();classicTask=nil
+            if presentation == .fluid {renderer?.finishTransformation(game);settledParticles=renderer?.particleSamples()}
+            if presentation == .fluid2D {fluid2D.finishTransformation(game);planarDisplay.publish(fluid2D)}
+            checkpoint();refresh()
+        } else if transition.finished {
             finishActivation(.init(apparatusID:transition.apparatus.id))
         } else {refresh()}
     }
@@ -872,23 +905,31 @@ import Combine
         return Color(red:c.x,green:c.y,blue:c.z)
     }
     private static func colorComponents(_ value:Int)->SIMD3<Double> {
+        if value>=36 {return SIMD3(0.34,0.39,0.43)}
         let palette:[(Double,Double,Double)]=[(0.05,0.58,0.86),(0.96,0.34,0.07),(0.20,0.76,0.36),(0.94,0.34,0.65),(1.00,0.72,0.08),(0.98,0.71,0.61),(0.55,0.30,0.95),(0.12,0.78,0.62),(0.72,0.04,0.24),(0.08,0.24,0.88),(0.54,0.78,0.06),(0.82,0.78,0.68)]
         let pigment=(value%12+12)%12,base=palette[pigment]
         return SIMD3(base.0,base.1,base.2)
     }
     func accessibility(_ index:Int) -> String {
-        let layers=state.stacks[index].reversed().map { "\(state.densities[$0].title) \(Self.name(state.colors[$0]))" }.joined(separator:", ")
+        let layers=state.stacks[index].reversed().map { state.isKnown($0) ? "\(state.densities[$0].title) \(Self.name(state.colors[$0]))":"Unknown liquid" }.joined(separator:", ")
+        let roles=apparatus(forVial:index).map { tool in
+            switch tool.kind {
+            case .mixer:return tool.outputs.contains(index) ? "Mixer output.":"Mixer input."
+            case .separator:return tool.outputs.contains(index) ? "Separator output.":"Separator input."
+            case .densityModifier:return tool.direction == .heavier ? "Make heavier chamber.":"Make lighter chamber."
+            }
+        }.joined(separator:" ")
         let rule=state.rules[index] == .receiveOnly ? " Fill only; it cannot pour out.":(state.rules[index] == .sourceOnly ? " Apparatus output; it cannot receive a pour.":"")
         let target=state.target(index).map { target in
             " Target bottom to top: "+target.layers.map { "\($0.density.title) \(Self.name($0.pigment))" }.joined(separator:", ")+"."
         } ?? ""
-        return "Vial \(Self.letter(index)), \(state.stacks[index].count) of \(state.capacity(index)) units.\(rule) \(layers.isEmpty ? "Empty":"Top to bottom: "+layers).\(target)"+(targetExplanation(index).map {" "+$0} ?? "")
+        return "Vial \(Self.letter(index)), \(state.stacks[index].count) of \(state.capacity(index)) units.\(rule) \(roles) \(layers.isEmpty ? "Empty":"Top to bottom: "+layers).\(target)"+(targetExplanation(index).map {" "+$0} ?? "")
     }
 }
 
 extension FluidBoardSession {
     @discardableResult private func beginConcurrent(_ move:LabBoardMove,automaticClock:Bool)->Bool {
-        guard !solved else { return false }
+        guard !solved,transformation == nil,availableMove(from:move.source,to:move.destination)==move else { return false }
         let wasBusy=busy,example=LabPourExample(puzzle:puzzle,state:pourQueue.projected(state),move:move)
         guard pourQueue.reserve(move,state:state),let item=pourQueue.items.last else { return false }
         concurrentExamples[item.id]=example;clearSelectionFeedback()
@@ -920,7 +961,11 @@ extension FluidBoardSession {
     }
     /// Shared by the live clock and deterministic multi-pour regression checks.
     func advanceConcurrent(deltaTime:Float) async {
-        guard concurrentPoursEnabled,busy,!paused,!suspended else { return }
+        guard concurrentPoursEnabled,transformation == nil,busy,!paused,!suspended,deltaTime.isFinite else { return }
+        for (id,time) in concurrentReveals {
+            let next=time+min(max(deltaTime,0),0.05)*effectiveSpeed
+            concurrentReveals[id]=next>=0.5 ? nil:next
+        }
         var queue=pourQueue
         let starts=queue.startReady()
         if !starts.isEmpty { pourQueue=queue }
@@ -938,7 +983,7 @@ extension FluidBoardSession {
             }
             fluid2D=frame.display
             for result in frame.finished { finishConcurrent(result) }
-            fluid2D.setDisplayGame(game);planarDisplay.publish(fluid2D)
+            fluid2D.setDisplayGame(game);fluid2D.setConcurrentReveals(concurrentReveals);planarDisplay.publish(fluid2D)
             performance.recordFrame(interval:Double(deltaTime),cpuMS:fluid2D.cpuMilliseconds,gpuMS:nil)
         } else if presentation == .classic {
             for item in starts {
@@ -950,7 +995,11 @@ extension FluidBoardSession {
             var finished:[Int]=[]
             for id in classicLanes.keys.sorted() {
                 classicLanes[id]!.time+=min(max(deltaTime,0),0.05)*effectiveSpeed
-                if classicLanes[id]!.finished { finished.append(id) }
+                if classicLanes[id]!.finished {
+                    let receiver=classicLanes[id]!.move.destination
+                    let predecessors=pourQueue.items.filter {$0.id<id && $0.move.destination==receiver}
+                    if predecessors.allSatisfy({finished.contains($0.id)}) {finished.append(id)}
+                }
             }
             for id in finished { classicLanes[id]=nil;finishConcurrent(LabLaneResult(id:id,committed:true,cleanup:0)) }
             concurrentClassicPours=classicLanes.keys.sorted().compactMap { classicLanes[$0] }
@@ -998,7 +1047,11 @@ extension FluidBoardSession {
             for receiver in empty {if let engine=metalGroups.removeValue(forKey:receiver) {metalPool.append(engine)}}
             concurrentFrame+=1
             if concurrentFrame%15==0 || !busy { metrics=aggregate }
+            if state.knownParcels != nil {
+                for i in compositeSamples.indices {compositeSamples[i].velocity.w=Float(state.visualDye(Int(compositeSamples[i].visual.y)))}
+            }
             renderer.displayComposite(game:game,samples:compositeSamples,vessels:vessels)
+            renderer.showConcurrentReveals(concurrentReveals)
             if !busy { settledParticles=compositeSamples }
             performance.recordFluidBreakdown(surfaceMS:surfaceGPU,laneMS:max(0,aggregate.gpuMilliseconds-surfaceGPU))
             performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:aggregate.gpuMilliseconds)
@@ -1017,10 +1070,15 @@ extension FluidBoardSession {
     }
     private func finishConcurrent(_ result:LabLaneResult) {
         guard let item=pourQueue.items.first(where:{$0.id==result.id}) else { return }
+        let knownBefore=state.knownParcels ?? []
         let committed=result.committed && game.commitReserved(item.move)
+        if committed,concurrentPoursEnabled {
+            for id in (state.knownParcels ?? []).subtracting(knownBefore) {concurrentReveals[id]=0}
+        }
         pourQueue.finish(result.id)
         if committed {
             undoParticles.append(nil);lastPour=concurrentExamples[result.id]
+            if let message=targetExplanation(item.move.destination) {notice=message}
             if presentation != .fluid { settledParticles=nil }
             feedback.completed(solved:solved)
         } else {
@@ -1035,7 +1093,7 @@ extension FluidBoardSession {
         classicTask?.cancel();classicTask=nil;clockRevision+=1
         for engine in metalGroups.values { engine.paused=true;metalPool.append(engine) }
         metalGroups=[:];classicLanes=[:];concurrentClassicPours=[];concurrentWorker=nil
-        pourQueue.cancelAll();concurrentExamples=[:];compositeSamples=[]
+        pourQueue.cancelAll();concurrentExamples=[:];compositeSamples=[];concurrentReveals=[:]
     }
 }
 

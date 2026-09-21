@@ -34,7 +34,7 @@ nonisolated struct Lab2DParticle:Equatable,Sendable {
     var owner:Int
     var inBulk=true // False while falling through air or the empty part of a receiver.
     let parcel:Int
-    let color:Int
+    var color:Int
 }
 nonisolated struct Lab2DMotion:Sendable {
     let lift:Float,travel:Float,tiltRate:Float,upright:Float,returnTravel:Float,lower:Float,settle:Float,cleanup:Float
@@ -132,7 +132,7 @@ nonisolated struct LabFluid2D:Sendable {
     private var links:[Int]=[]
     private var selected:Set<Int>=[]
     private var bulkUnits:[Float]=[]
-    private var densityJoinedUnits:Float=0
+    var concurrentReveals:[Int:Float]=[:]
     private var densityBands:[Int:SIMD2<Float>]=[:]
     var busy:Bool { game.pending != nil || !displayMoves.isEmpty || !transfers.isEmpty }
     var phase:String {
@@ -197,11 +197,11 @@ nonisolated struct LabFluid2D:Sendable {
         let preserve = !busy && self.game.state==game.state && !particles.isEmpty
         transformation=nil;transformationFrom=[];transformationTargets=[]
         displayPoses=[:];displayMoves=[];displayEnvelope=nil;displayStreamActive=nil
-        transfers=[];groupMode=false;groupResults=[]
+        transfers=[];groupMode=false;groupResults=[];concurrentReveals=[:]
         self.game=game;self.game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
         cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
         if preserve { return }
-        profiles=zip(LabBoardLayout.profiles(capacities:game.state.capacities),game.state.capacities).map {
+        profiles=zip(LabBoardLayout.profiles(state:game.state),game.state.capacities).map {
             Lab2DProfile($0.0,capacity:$0.1)
         }
         materialTimes=Array(repeating:0,count:profiles.count)
@@ -213,6 +213,13 @@ nonisolated struct LabFluid2D:Sendable {
     }
     mutating func beginTransformation(_ transition:LabApparatusTransition) {
         transformationFrom=particles
+        if transition.isRevealing {
+            for i in transformationFrom.indices where transition.parcels.contains(transformationFrom[i].parcel) {
+                let p=transformationFrom[i]
+                transformationFrom[i]=Lab2DParticle(position:p.position,owner:p.owner,inBulk:p.inBulk,parcel:p.parcel,color:37)
+                particles[i]=transformationFrom[i]
+            }
+        }
         if transition.isDensityChange {
             transformationTargets=particles
             let parcels=transition.parcels
@@ -233,9 +240,11 @@ nonisolated struct LabFluid2D:Sendable {
         for i in particles.indices where parcels.contains(particles[i].parcel) {
             let from=transformationFrom[i],target=transformationTargets[i]
             let phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
-            let sample=transition.position(from:SIMD3(from.position.x,from.position.y,0),to:SIMD3(target.position.x,target.position.y,0),origin:origin,profile:profile,phase:phase)
+            let destination=(transition.isSeparating || transition.isRevealing) ? target.owner:output
+            let sample=transition.position(from:SIMD3(from.position.x,from.position.y,0),to:SIMD3(target.position.x,target.position.y,0),origin:transition.isSeparating ? SIMD3(home(destination).x,0,0):origin,profile:transition.isSeparating ? profiles[destination].source:profile,phase:phase)
+            if transition.isSeparating {particles[i]=target}
             particles[i].position=SIMD2(sample.point.x,sample.point.y)
-            particles[i].owner=sample.arrived ? output:(sample.started ? -1:from.owner)
+            particles[i].owner=sample.arrived ? destination:(sample.started ? -1:from.owner)
             particles[i].inBulk=sample.arrived || !sample.started
             particles[i].velocity = .zero
         }
@@ -255,6 +264,10 @@ nonisolated struct LabFluid2D:Sendable {
         for i in particles.indices where !owned.contains(particles[i].parcel) { particles[i]=stable[i] }
     }
     mutating func setDisplayGame(_ game:LabBoardGame) { self.game=game }
+    mutating func setConcurrentReveals(_ reveals:[Int:Float]) {
+        concurrentReveals=reveals
+        for i in particles.indices {particles[i].color=game.state.visualDye(particles[i].parcel)}
+    }
     mutating func compose(_ lanes:[Lab2DLane],game:LabBoardGame) {
         self.game=game;displayPoses=[:];displayMoves=[];displayEnvelope=0;displayStreamActive=false;splashes=[]
         cpuMilliseconds=lanes.reduce(0) { $0+$1.engine.cpuMilliseconds }
@@ -290,6 +303,7 @@ nonisolated struct LabFluid2D:Sendable {
     mutating func synchronizeGroup(_ game:LabBoardGame) {
         if self.game.state != game.state {refreshForeignParticles(game)}
         self.game=game;groupResults=[]
+        for i in particles.indices {particles[i].color=game.state.visualDye(particles[i].parcel)}
     }
     mutating func composeGroups(_ engines:[LabFluid2D],game:LabBoardGame) {
         self.game=game;displayPoses=[:];displayMoves=[];displayEnvelope=0;displayStreamActive=false;splashes=[]
@@ -359,6 +373,7 @@ nonisolated struct LabFluid2D:Sendable {
                     job=Lab2DTransfer(item:job.item,sourceParcels:job.sourceParcels,before:particles,time:job.time,cutoff:job.cutoff,angle:job.angle,arrived:job.arrived,departed:job.departed,cleanup:job.cleanup,targets:job.targets,cleanupStart:job.cleanupStart)
                 } else { success=false }
             }
+            if success==true,(0..<j).contains(where:{transfers[$0].item.move.destination==move.destination && !finished.contains($0)}) { success=nil }
             if let success {
                 let committed=success && game.commitReserved(move)
                 if !committed { for i in particles.indices where job.sourceParcels.contains(particles[i].parcel) { particles[i]=job.before[i] } }
@@ -489,17 +504,22 @@ nonisolated struct LabFluid2D:Sendable {
     private mutating func solve(active:Set<Int>,dt:Float,poses:[Lab2DPose]) {
         bulkUnits=Array(repeating:0,count:profiles.count)
         for p in particles where p.owner>=0 && p.inBulk { bulkUnits[p.owner]+=1/Float(Self.particlesPerUnit) }
-        densityBands=[:];densityJoinedUnits=0
-        if game.state.behavior.settlesByDensity,let move=game.pending {
-            densityJoinedUnits=Float(particles.filter { $0.owner==move.destination && $0.inBulk && selected.contains($0.parcel) }.count)/Float(Self.particlesPerUnit)
-            densityBands=game.state.densityReceiverBands(for:move,joinedUnits:densityJoinedUnits)
+        densityBands=[:]
+        if game.state.behavior.settlesByDensity {
+            let moves=groupMode ? groupMoves:[game.pending].compactMap {$0}
+            for receiver in Set(moves.map(\.destination)) {
+                let arrivals=moves.filter {$0.destination==receiver}.map {move in
+                    (move:move,units:particles.filter {$0.owner==receiver && $0.inBulk && move.parcels.contains($0.parcel)}.reduce(Float(0)) {n,p in n+1/Float(Self.particlesPerUnit)})
+                }
+                densityBands.merge(game.state.densityReceiverBands(destination:receiver,arrivals:arrivals)) {_,new in new}
+            }
         }
         let ids=particles.indices.filter { active.contains(particles[$0].owner) || particles[$0].owner<0 }
         let previous=particles.map(\.position)
         for i in ids {
             // A receiving plume passes through lighter layers. Its displacement
             // is represented by the growing bands, not rigid particle contacts.
-            if !densityBands.isEmpty,!particles[i].inBulk,particles[i].owner==game.pending?.destination {
+            if densityBands[particles[i].parcel] != nil,!particles[i].inBulk {
                 particles[i].velocity.y=min(-1.35,particles[i].velocity.y)
             }
             particles[i].velocity.y-=9.8*dt
@@ -529,7 +549,7 @@ nonisolated struct LabFluid2D:Sendable {
                     guard cx+dx>=0,cx+dx<160,cy+dy>=0,cy+dy<96 else { continue }
                     var j=heads[c+dx+dy*160]
                     while j>=0 {
-                        let crossing = !densityBands.isEmpty && particles[i].owner==game.pending?.destination && particles[i].inBulk != particles[j].inBulk
+                        let crossing = densityBands[particles[i].parcel] != nil && particles[i].inBulk != particles[j].inBulk
                         if j>i,particles[i].owner==particles[j].owner,!crossing {
                             let d=particles[i].position-particles[j].position,l2=simd_length_squared(d)
                             if l2>0.000001,l2<0.0225 {
@@ -564,11 +584,17 @@ nonisolated struct LabFluid2D:Sendable {
                 let destination=move.destination,profile=profiles[destination]
                 var q=poses[destination].local(p.position)
                 let above=q.y-profile.height
-                if above > -0.08,above<1.25,abs(q.x)<profile.radius(profile.height)+0.85 {
-                    let funnel=profile.radius(profile.height)-radius+max(0,above)*0.6
+                if above > -0.08,above<2.0,abs(q.x)<profile.radius(profile.height)+1.15 {
+                    let funnel=profile.radius(profile.height)-radius+max(0,above)*0.40
                     if abs(q.x)>funnel { q.x=copysign(funnel,q.x);p.position=poses[destination].world(q);p.velocity.x*=0.5 }
                 }
-                if q.y<=profile.height,q.y>=profile.height-0.22,abs(q.x)<=profile.radius(q.y)-radius*0.3 { p.owner=destination }
+                // Small receivers can lose a few droplets just below the lip
+                // when two streams collide. Continue the invisible throat a
+                // little below the rim, guiding only nearby falling droplets.
+                if q.y<=profile.height,q.y>=profile.height-0.36,abs(q.x)<=profile.radius(q.y)+radius*1.5 {
+                    q.x=min(profile.radius(q.y)-radius,max(-profile.radius(q.y)+radius,q.x))
+                    p.position=poses[destination].world(q);p.owner=destination
+                }
             }
             if p.position.y<radius { p.position.y=radius;p.velocity*=0.5 }
             particles[i]=p
@@ -583,15 +609,14 @@ nonisolated struct LabFluid2D:Sendable {
         // Incoming droplets fall freely until they touch the liquid body. Only
         // joined particles contribute to its fill height; mouth entry is not a
         // teleport to the surface. The bound uses the same projected-volume units as rest.
-        let densityReceiving = !densityBands.isEmpty && owner==move?.destination
+        let densityReceiving = densityBands[p.parcel] != nil && (groupMode ? groupMoves.contains {$0.destination==owner}:game.pending?.destination==owner)
         if !p.inBulk {
             let landingUnits:Float
-            if densityReceiving,let move { landingUnits=Float(game.state.densityInsertionIndex(for:move))+densityJoinedUnits }
+            if densityReceiving { landingUnits=densityBands[p.parcel]!.y }
             else { landingUnits=bulkUnits[owner] }
             if q.y<=profile.level(landingUnits)+radius*1.4 {
                 p.inBulk=true;bulkUnits[owner]+=1/Float(Self.particlesPerUnit)
-                if densityReceiving { densityJoinedUnits+=1/Float(Self.particlesPerUnit) }
-                else { registerImpact(owner:owner,color:p.color,point:q,velocity:p.velocity) }
+                if !densityReceiving { registerImpact(owner:owner,color:p.color,point:q,velocity:p.velocity) }
             } else {
                 q.y=max(radius,q.y)
                 let r=max(radius,profile.radius(q.y)-radius)

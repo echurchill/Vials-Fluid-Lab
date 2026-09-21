@@ -1,0 +1,30 @@
+Vials/FluidLab/LabBoardSession.swift:764:33: warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 762 |                         let began=ProcessInfo.processInfo.systemUptime
+ 763 |                         let command=surface.encodeFrame(target:target,deltaTime:0)
+ 764 |                         command.waitUntilCompleted()
+     |                                 `- warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 765 |                         guard command.status == .completed,command.gpuEndTime>command.gpuStartTime else {throw command.error ?? NSError(domain:"DensityProfile",code:3,userInfo:[NSLocalizedDescriptionKey:"No valid GPU timing"])}
+ 766 |                         if frame>=20 {gpu.append((command.gpuEndTime-command.gpuStartTime)*1000);host.append((ProcessInfo.processInfo.systemUptime-began)*1000)}
+
+/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandBuffer.h:354:1: note: 'waitUntilCompleted()' declared here
+352 |  @abstract Synchronously wait for this command buffer to complete.
+353 |  */
+354 | - (void)waitUntilCompleted NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Use 'await completed()' instead.");
+    | `- note: 'waitUntilCompleted()' declared here
+355 | 
+356 | /*!
+PASS: idle clock pause, long suspension, exact resume, repeated suspension
+PASS: exact reservation, reverse completion and failed earlier reservation
+PASS: 3D completion caps remain outside the vial cavity
+PASS: hint retains and advances one solved route
+PASS: live concurrent-capable board does not circularly undo a followed hint
+PASS: Level 16 B+C→G settles for 21 held-source frames, returns for 34 stable-receiver frames, visible headspace 0.20038891
+PASS: Level 16 A→C retains three source units through 34 return frames while completed C stays stable
+PASS: classic simultaneous stream frames: 135
+PASS: classic three-way overlapping lanes, dependency guards, shared receiver overlap, pause/suspend, checkpoint, partial completion, undo and reset
+PASS: fluid2D simultaneous stream frames: 88
+PASS: fluid2D three-way overlapping lanes, dependency guards, shared receiver overlap, pause/suspend, checkpoint, partial completion, undo and reset
+PASS: fluid simultaneous stream frames: 169
+PASS: fluid three-way overlapping lanes, dependency guards, shared receiver overlap, pause/suspend, checkpoint, partial completion, undo and reset
+PASS: projected capacity and color reservations
+PASS: automatic concurrent clock pause and reset during actor work

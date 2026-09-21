@@ -1,0 +1,64 @@
+Vials/FluidLab/LabBoardSession.swift:764:33: warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 762 |                         let began=ProcessInfo.processInfo.systemUptime
+ 763 |                         let command=surface.encodeFrame(target:target,deltaTime:0)
+ 764 |                         command.waitUntilCompleted()
+     |                                 `- warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 765 |                         guard command.status == .completed,command.gpuEndTime>command.gpuStartTime else {throw command.error ?? NSError(domain:"DensityProfile",code:3,userInfo:[NSLocalizedDescriptionKey:"No valid GPU timing"])}
+ 766 |                         if frame>=20 {gpu.append((command.gpuEndTime-command.gpuStartTime)*1000);host.append((ProcessInfo.processInfo.systemUptime-began)*1000)}
+
+/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandBuffer.h:354:1: note: 'waitUntilCompleted()' declared here
+352 |  @abstract Synchronously wait for this command buffer to complete.
+353 |  */
+354 | - (void)waitUntilCompleted NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Use 'await completed()' instead.");
+    | `- note: 'waitUntilCompleted()' declared here
+355 | 
+356 | /*!
+BEGIN classic sorting
+PASS classic sorting: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN classic discovery
+PASS classic discovery: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN classic density
+PASS classic density: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN classic mixing
+PASS classic mixing: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN classic recovery
+PASS classic recovery: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN classic crossover
+PASS classic crossover: shared/queued/independent, reservation order, pause/suspend, save, undo
+PASS classic: simultaneous different densities
+PASS classic: simultaneous equal-density pigments
+PASS classic: overlapping Discovery reveal/pour, pause, unrelated input, retained knowledge
+PASS classic: machine exclusivity, post-machine pour and reset cancellation
+BEGIN fluid2D sorting
+PASS fluid2D sorting: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid2D discovery
+PASS fluid2D discovery: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid2D density
+PASS fluid2D density: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid2D mixing
+PASS fluid2D mixing: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid2D recovery
+PASS fluid2D recovery: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid2D crossover
+PASS fluid2D crossover: shared/queued/independent, reservation order, pause/suspend, save, undo
+PASS fluid2D: simultaneous different densities
+PASS fluid2D: simultaneous equal-density pigments
+PASS fluid2D: overlapping Discovery reveal/pour, pause, unrelated input, retained knowledge
+PASS fluid2D: machine exclusivity, post-machine pour and reset cancellation
+BEGIN fluid sorting
+PASS fluid sorting: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid discovery
+PASS fluid discovery: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid density
+PASS fluid density: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid mixing
+PASS fluid mixing: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid recovery
+PASS fluid recovery: shared/queued/independent, reservation order, pause/suspend, save, undo
+BEGIN fluid crossover
+PASS fluid crossover: shared/queued/independent, reservation order, pause/suspend, save, undo
+PASS fluid: simultaneous different densities
+PASS fluid: simultaneous equal-density pigments
+PASS fluid: overlapping Discovery reveal/pour, pause, unrelated input, retained knowledge
+PASS fluid: machine exclusivity, post-machine pour and reset cancellation
+PASS all lab concurrency checks (18 shared-receiver lab/presentation cases plus density, Discovery, machine tests)

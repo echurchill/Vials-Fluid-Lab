@@ -22,9 +22,9 @@ enum LabRenderQuality:String,CaseIterable,Codable {
 }
 
 nonisolated enum LabDiscipline:String,CaseIterable,Codable {
-    case sorting,density,mixing,crossover
+    case sorting,discovery,density,mixing,recovery,crossover
     var title:String {
-        switch self {case .sorting:"Sorting";case .density:"Density";case .mixing:"Mixing";case .crossover:"Crossover"}
+        switch self {case .sorting:"Sorting";case .discovery:"Discovery";case .density:"Density";case .mixing:"Mixing";case .recovery:"Recovery";case .crossover:"Crossover"}
     }
     var header:String { title.uppercased()+" LAB" }
     var levels:[LabBoardPuzzle] { LabBoardPuzzle.allCases.filter {$0.discipline==self} }
@@ -38,9 +38,13 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
     case fiveStreams,tallOrder,sixfold,valveCircuit
     case heavyLanding,threeDeep,shadesOfBlue,twinColumns,againstThePour
     case warmBlend,coolBlend,violetReaction,colorWheel,measuredBatch
+    case firstReveal,peekAhead,buriedClue,hiddenGarden
+    case splitPurple,roomForBoth,secondChance,keepEveryDrop
     case equalPartners,weightedOrange,layerCake,twinProducts,fullSpectrum
     var discipline:LabDiscipline {
         switch self {
+        case .firstReveal,.peekAhead,.buriedClue,.hiddenGarden:.discovery
+        case .splitPurple,.roomForBoth,.secondChance,.keepEveryDrop:.recovery
         case .heavyLanding,.threeDeep,.shadesOfBlue,.twinColumns,.againstThePour:.density
         case .warmBlend,.coolBlend,.violetReaction,.colorWheel,.measuredBatch:.mixing
         case .equalPartners,.weightedOrange,.layerCake,.twinProducts,.fullSpectrum:.crossover
@@ -50,11 +54,14 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
     var title:String {
         switch self {
         case .firstSort:"First sort";case .crossCurrents:"Cross currents";case .lastDrops:"Last drops";case .greenArrival:"Green arrival";case .tidalPool:"Tidal pool";case .glassGarden:"Glass garden";case .switchback:"Switchback";case .estuary:"Estuary";case .crossingPaths:"Crossing paths";case .deepCurrent:"Deep current";case .orchard:"Orchard";case .confluence:"Confluence";case .fiveStreams:"Five streams";case .tallOrder:"Tall order";case .sixfold:"Sixfold";case .valveCircuit:"Valve circuit"
+        case .firstReveal:"First reveal";case .peekAhead:"Peek ahead";case .buriedClue:"Buried clue";case .hiddenGarden:"Hidden garden"
+        case .splitPurple:"Split purple";case .roomForBoth:"Room for both";case .secondChance:"Second chance";case .keepEveryDrop:"Keep every drop"
         case .heavyLanding:"Heavy landing";case .threeDeep:"Three deep";case .shadesOfBlue:"Shades of blue";case .twinColumns:"Twin columns";case .againstThePour:"Against the pour"
         case .warmBlend:"Warm blend";case .coolBlend:"Cool blend";case .violetReaction:"Violet reaction";case .colorWheel:"Color wheel";case .measuredBatch:"Measured batch"
         case .equalPartners:"Equal partners";case .weightedOrange:"Weighted orange";case .layerCake:"Layer cake";case .twinProducts:"Twin products";case .fullSpectrum:"Full spectrum"
         }
     }
+    var instruction:String {discipline == .discovery ? "Pour known colors to reveal what is below. Discoveries stay known.":(discipline == .sorting ? "Tap a filled vial, then a matching color or an empty vial.":"Match the outlined target vials.")}
     var number:Int { discipline.levels.firstIndex(of:self)!+1 }
     var next:Self? { let levels=discipline.levels;return number<levels.count ? levels[number]:nil }
     var detail:String {
@@ -96,6 +103,18 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
             layers:[[1,3,3,0,0],[3],[0,3,3],[4,1,3,2,2,2],[1],[3,1,0,4,3,0],[3],[2,4,3,2,0]],
             capacities:[5,6,3,6,4,6,4,5],
             rules:[.normal,.normal,.normal,.normal,.receiveOnly,.normal,.receiveOnly,.normal])
+        case .firstReveal: LabBoardState(layers:[[0,1],[1,0],[],[]],capacities:[2,2,2,2],behavior:.discovery,obscured:true)
+        case .peekAhead: LabBoardState(layers:[[0,1],[1,0],[0,1],[]],capacities:[3,3,3,3],behavior:.discovery,obscured:true)
+        case .buriedClue: LabBoardState(layers:[[0,1,0],[1,0,1],[],[]],capacities:[3,3,3,3],behavior:.discovery,obscured:true)
+        case .hiddenGarden: LabBoardState(layers:[[0,1,2],[2,0,1],[1,2,0],[],[]],capacities:[3,3,3,3,3],behavior:.discovery,obscured:true)
+        case .splitPurple: LabBoardState(layers:[[6,6],[],[]],capacities:[2,1,1],rules:[.normal,.sourceOnly,.sourceOnly],behavior:.mixing,
+            targets:[.init(vial:1,layers:[.init(0)]),.init(vial:2,layers:[.init(8)])],apparatus:[.separator(input:0,outputs:[1,2])])
+        case .roomForBoth: LabBoardState(layers:[[1,1],[8],[],[]],capacities:[2,1,1,1],rules:[.normal,.sourceOnly,.sourceOnly,.normal],behavior:.mixing,
+            targets:[.init(vial:1,layers:[.init(8)]),.init(vial:2,layers:[.init(4)]),.init(vial:3,layers:[.init(8)])],apparatus:[.separator(input:0,outputs:[1,2])])
+        case .secondChance: LabBoardState(layers:[[6,6],[4],[],[],[]],capacities:[2,1,1,1,2],rules:[.normal,.normal,.sourceOnly,.sourceOnly,.sourceOnly],behavior:.mixing,
+            targets:[.init(vial:2,layers:[.init(0)]),.init(vial:4,layers:[.init(1),.init(1)])],apparatus:[.separator(input:0,outputs:[2,3]),.mixer(id:1,inputs:[3,1],output:4)])
+        case .keepEveryDrop: LabBoardState(layers:[[6,6],[1,1],[],[],[],[],[],[]],capacities:[2,2,1,1,1,1,2,2],rules:[.normal,.normal,.sourceOnly,.sourceOnly,.sourceOnly,.sourceOnly,.sourceOnly,.normal],behavior:.mixing,
+            targets:[.init(vial:6,layers:[.init(2),.init(2)]),.init(vial:7,layers:[.init(8),.init(8)])],apparatus:[.separator(input:0,outputs:[2,3]),.separator(id:1,input:1,outputs:[4,5]),.mixer(id:2,inputs:[2,5],output:6)])
         case .heavyLanding: LabBoardState(
             layers:[[0],[8],[]],capacities:[2,2,2],
             densityLayers:[[.light],[.heavy],[]],behavior:.density,
@@ -163,6 +182,10 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
     }
     var authoredSteps:[LabAuthoredStep]? {
         switch self {
+        case .splitPurple:return [.activate(0)]
+        case .roomForBoth:return [.pour(1,3),.activate(0)]
+        case .secondChance:return [.activate(0),.activate(1)]
+        case .keepEveryDrop:return [.activate(0),.activate(1),.activate(2),.pour(3,7),.pour(4,7)]
         case .heavyLanding:return [.pour(0,2),.pour(1,2)]
         case .threeDeep,.shadesOfBlue:return [.pour(0,3),.pour(1,3),.pour(2,3)]
         case .twinColumns:return [.pour(0,3),.pour(0,2),.pour(1,2),.pour(1,3)]

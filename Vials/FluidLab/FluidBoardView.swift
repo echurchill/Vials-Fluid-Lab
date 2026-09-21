@@ -7,6 +7,7 @@ private enum BoardSheet:String,Identifiable { case classic,study;var id:String {
 struct FluidBoardView:View {
     @StateObject private var session=FluidBoardSession(allowsConcurrentPours:true)
     @State private var showResetProgress=false
+    @State private var inspectedApparatus:LabApparatus?
     @State private var sheet:BoardSheet?
     @State private var comparison:LabPourExample?
     @Environment(\.scenePhase) private var scenePhase
@@ -17,13 +18,40 @@ struct FluidBoardView:View {
     private var apparatusControls:some View {
         HStack(spacing:10) {
             ForEach(session.state.apparatus) { apparatus in
-                Button(apparatus.title,systemImage:apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down") {
-                    session.activateApparatus(apparatus.id)
+                let guide=session.state.apparatusGuidance(apparatus)
+                HStack(spacing:2) {
+                    Button(apparatus.title+(session.state.apparatus.filter {$0.kind==apparatus.kind}.count>1 ? " "+FluidBoardSession.letter(apparatus.inputs[0]):""),systemImage:apparatus.kind == .separator ? "arrow.triangle.branch":(apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down")) {
+                        if guide.ready {session.activateApparatus(apparatus.id)}
+                        else {inspectedApparatus=apparatus}
+                    }
+                    .disabled(session.busy)
+                    .tint(session.hintApparatusID==apparatus.id ? .orange:(guide.ready ? .purple:.gray))
+                    .help(guide.message).accessibilityHint(guide.message)
+                    Button {inspectedApparatus=apparatus} label: {Image(systemName:"info.circle")}
+                        .buttonStyle(.plain).frame(width:26,height:28)
+                        .accessibilityLabel(apparatus.title+" recipe and requirements")
+                }.popover(isPresented:Binding(get:{inspectedApparatus?.id==apparatus.id},set:{if !$0 {inspectedApparatus=nil}})) {
+                    machineGuide(apparatus)
                 }
-                .disabled(session.busy || !session.state.canActivate(.init(apparatusID:apparatus.id)))
-                .tint(session.hintApparatusID==apparatus.id ? .orange:.purple)
             }
         }.buttonStyle(.borderedProminent).controlSize(.small)
+    }
+
+    private func machineGuide(_ tool:LabApparatus)->some View {
+            let guide=session.state.apparatusGuidance(tool)
+            return VStack(alignment:.leading,spacing:14) {
+                Text(tool.title).font(.headline)
+                Text(guide.ready ? "Ready to activate":"What this machine needs").font(.subheadline).foregroundStyle(.secondary)
+                Text(guide.message).fixedSize(horizontal:false,vertical:true)
+                if tool.kind == .mixer {
+                    Text("Recipes: red + yellow = orange; yellow + blue = green; blue + red = purple. Each ingredient contributes one unit.").font(.callout).foregroundStyle(.secondary)
+                }
+                if guide.ready {
+                    Button(tool.title) {inspectedApparatus=nil;session.activateApparatus(tool.id)}
+                        .buttonStyle(.borderedProminent).disabled(session.busy)
+                }
+            }.padding(20).frame(width:320).presentationCompactAdaptation(.popover)
+
     }
 
     var body:some View {
@@ -67,7 +95,7 @@ struct FluidBoardView:View {
                     } else {
                         Picker("Laboratory",selection:Binding(get:{session.discipline},set:session.changeDiscipline)) {
                             ForEach(LabDiscipline.allCases,id:\.self) {Text($0.title).tag($0)}
-                        }.pickerStyle(.segmented).frame(maxWidth:520)
+                        }.pickerStyle(.segmented).frame(maxWidth:680)
                     }
                     Spacer(minLength:0)
                 }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
@@ -92,7 +120,7 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     let capExclusions=Set([session.selected].compactMap { $0 }+session.activeMoves.flatMap { [$0.source,$0.destination] })
                     ZStack {
-                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions,transformation:session.transformation) }
+                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions,transformation:session.transformation,reveals:session.concurrentReveals) }
                         else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial,capExclusions:capExclusions) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer,capExclusions:capExclusions).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
@@ -107,12 +135,19 @@ struct FluidBoardView:View {
                                             .foregroundStyle(cueColor(index) == .clear ? ink.opacity(0.75):cueColor(index)).opacity(cueLabel(index).isEmpty ? 0:1).offset(y:17)
                                     }
                                     .overlay(alignment:.top) {
-                                        if let apparatus=session.apparatus(forVial:index) {
-                                            Label(apparatusPortLabel(apparatus,index:index),systemImage:apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down")
-                                                .font(.system(size:8,weight:.bold,design:.monospaced))
-                                                .fixedSize(horizontal:true,vertical:false)
-                                                .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
-                                                .foregroundStyle(session.hintApparatusID==apparatus.id ? Color.orange:Color.purple).offset(y:-13)
+                                        let tools=session.apparatus(forVial:index)
+                                        if !tools.isEmpty {
+                                            // A separator output may also feed a mixer. Stack the
+                                            // roles upward so neither is hidden and the vial stays put.
+                                            VStack(spacing:3) {
+                                                ForEach(tools) { apparatus in
+                                                    Label(apparatusPortLabel(apparatus,index:index),systemImage:apparatus.kind == .separator ? "arrow.triangle.branch":(apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down"))
+                                                        .font(.system(size:8,weight:.bold,design:.monospaced))
+                                                        .fixedSize(horizontal:true,vertical:false)
+                                                        .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
+                                                        .foregroundStyle(session.hintApparatusID==apparatus.id ? Color.orange:Color.purple)
+                                                }
+                                            }.fixedSize().offset(y:-13-CGFloat(tools.count-1)*18)
                                         } else if session.state.rules[index] == .receiveOnly {
                                             Label("FILL",systemImage:"arrow.down").font(.system(size:8,weight:.bold,design:.monospaced))
                                                 .fixedSize(horizontal:true,vertical:false)
@@ -162,7 +197,10 @@ struct FluidBoardView:View {
                                             let parcel=layer<session.state.stacks[index].count ? session.state.stacks[index][layer]:nil
                                             LabDensitySwatch(color:parcel.map {FluidBoardSession.color(session.state.visualDye($0))} ?? ink.opacity(0.09),
                                                 density:session.state.behavior.settlesByDensity ? parcel.map {session.state.densities[$0]}:nil)
-                                                .frame(height:session.state.behavior.settlesByDensity ? 14:4)
+                                                .frame(height:session.state.behavior.settlesByDensity || session.state.knownParcels != nil ? 14:4)
+                                                .overlay {
+                                                    if let parcel,!session.state.isKnown(parcel) {Text("?").font(.system(size:10,weight:.bold)).foregroundStyle(.white).accessibilityHidden(true)}
+                                                }
                                         }
                                     }
                                     if let target=session.target(index) {
@@ -290,6 +328,7 @@ struct FluidBoardView:View {
         return .clear
     }
     private func apparatusPortLabel(_ apparatus:LabApparatus,index:Int)->String {
+        if apparatus.kind == .separator {return apparatus.outputs.contains(index) ? "SEP OUT":"SEP IN"}
         if apparatus.kind == .mixer {return apparatus.output==index ? "MIX OUT":"MIX IN"}
         return apparatus.direction == .heavier ? "HEAVY":"LIGHT"
     }
@@ -316,7 +355,7 @@ struct FluidBoardView:View {
         }.font(.system(size:10,design:.monospaced)).padding(12).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:12))
     }
     private func hitRect(_ index:Int,size:CGSize) -> CGRect {
-        let profiles=LabBoardLayout.profiles(capacities:session.state.capacities)
+        let profiles=LabBoardLayout.profiles(state:session.state)
         if session.presentation == .fluid2D {
             let layout=LabClassicLayout(size:size,vesselCount:profiles.count),profile=session.fluid2D.profiles[index]
             let base=layout.base(index),radius=CGFloat((profile.source.radii.max() ?? 0.6)*profile.scale)*layout.scale

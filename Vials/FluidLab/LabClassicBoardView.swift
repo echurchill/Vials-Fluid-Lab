@@ -21,8 +21,9 @@ struct LabClassicBoardView:View {
     var additionalPours:[LabClassicPour]=[]
     var capExclusions:Set<Int>=[]
     var transformation:LabApparatusTransition?
+    var reveals:[Int:Float]=[:]
     private var pours:[LabClassicPour] { [pour].compactMap { $0 }+additionalPours }
-    private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(capacities:state.capacities) }
+    private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(state:state) }
     var body:some View {
         Canvas { context,size in
             let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count),scale=layout.scale
@@ -64,6 +65,19 @@ struct LabClassicBoardView:View {
     }
     private func drawMixStreams(_ transformation:LabApparatusTransition,context:GraphicsContext,layout:LabClassicLayout) {
         guard !transformation.isDensityChange,transformation.gathered>0,transformation.gathered<1 else {return}
+        if transformation.isSeparating {
+            let source=transformation.apparatus.inputs[0],base=layout.base(source),scale=layout.scale
+            let mouth=CGPoint(x:base.x,y:base.y-CGFloat(profiles[source].height)*scale)
+            for output in transformation.apparatus.outputs {
+                let home=layout.base(output),target=CGPoint(x:home.x,y:home.y-CGFloat(profiles[output].height)*scale)
+                let top=min(mouth.y,target.y)-scale*0.55
+                var path=Path();path.move(to:mouth);path.addCurve(to:target,control1:CGPoint(x:mouth.x,y:top),control2:CGPoint(x:target.x,y:top))
+                let parcel=transformation.after.stacks[output][0],color=FluidBoardSession.color(transformation.before.visualDye(parcel),mixedWith:transformation.after.visualDye(parcel),blend:transformation.blend)
+                let envelope=CGFloat(sin(transformation.gathered*Float.pi))
+                context.stroke(path,with:.color(color.opacity(0.9)),style:StrokeStyle(lineWidth:scale*0.10*envelope,lineCap:.round))
+            }
+            return
+        }
         let destination=layout.base(transformation.output),scale=layout.scale
         let target=CGPoint(x:destination.x,y:destination.y-CGFloat(profiles[transformation.output].height)*scale)
         let envelope=CGFloat(sin(transformation.gathered*Float.pi))
@@ -114,7 +128,7 @@ struct LabClassicBoardView:View {
         ctx.fill(cavity,with:.color(Color(red:0.025,green:0.045,blue:0.06).opacity(0.82)))
         ctx.stroke(cavity,with:.color(.black.opacity(0.28)),lineWidth:5)
         var liquid=ctx;liquid.clip(to:cavity)
-        var amounts=state.stacks[index].map { (state.visualDye($0),Float(1)) }
+        var amounts=state.stacks[index].map { (reveals[$0] != nil ? 100+$0:(transformation?.revealedParcels.contains($0) == true ? 37:state.visualDye($0)),Float(1)) }
         for pour in pours {
             if index == pour.move.source {
                 amounts=amounts.enumerated().map { position,pair in
@@ -122,13 +136,15 @@ struct LabClassicBoardView:View {
                 }
             } else if index == pour.move.destination {
                 if state.behavior.settlesByDensity {
-                    amounts=state.densityReceiverLayers(for:pour.move,joinedUnits:densityJoinedUnits(pour)).map { (state.visualDye($0.parcel),$0.units) }
+                    amounts=state.densityReceiverLayers(destination:index,arrivals:pours.filter {$0.move.destination==index}.map {($0.move,densityJoinedUnits($0))}).map { (state.visualDye($0.parcel),$0.units) }
                 } else { amounts.append((state.visualDye(pour.move.parcels[0]),Float(pour.move.amount)*pour.progress)) }
             }
         }
         if let transformation,!transformation.isDensityChange {
             if transformation.apparatus.inputs.contains(index) {amounts=amounts.map {($0.0,$0.1*(1-transformation.gathered))}}
-            if index==transformation.output {amounts=transformation.apparatus.inputs.map {(state.visualDye(state.stacks[$0][0]),transformation.gathered)}}
+            if transformation.isSeparating,transformation.apparatus.outputs.contains(index) {
+                amounts=transformation.after.stacks[index].map {(transformation.after.visualDye($0),transformation.gathered)}
+            } else if index==transformation.output {amounts=transformation.apparatus.inputs.map {(state.visualDye(state.stacks[$0][0]),transformation.gathered)}}
         }
         var units:Float=0,run=0
         while run<amounts.count {
@@ -139,9 +155,10 @@ struct LabClassicBoardView:View {
             let lower=CGFloat(profile.height(for:profile.usableVolume*units/capacity))*scale
             units+=amount
             let upper=CGFloat(profile.height(for:profile.usableVolume*units/capacity))*scale
-            let mixingOutput=transformation?.output==index
-            let finalDye=mixingOutput ? transformation.map {$0.after.visualDye($0.after.stacks[index][0])}:nil
-            let color=FluidBoardSession.color(colorID,mixedWith:finalDye,blend:transformation?.blend ?? 0)
+            let mixingOutput=transformation?.output==index && transformation?.isSeparating != true
+            let revealed=state.stacks[index].first {transformation?.revealedParcels.contains($0) == true}
+            let finalDye:Int?=colorID>=100 ? state.visualDye(colorID-100):colorID==37 ? revealed.map {state.visualDye($0)}:(mixingOutput && transformation?.isRevealing != true ? transformation.map {$0.after.visualDye($0.after.stacks[index][0])}:nil)
+            let color=FluidBoardSession.color(colorID>=100 ? 36:colorID,mixedWith:finalDye,blend:colorID>=100 ? labSmooth((reveals[colorID-100] ?? 0)/0.5):(transformation?.blend ?? 0))
             let band=CGRect(x:-radius,y:-upper,width:radius*2,height:max(0,upper-lower))
             liquid.fill(Path(band),with:.linearGradient(Gradient(colors:[color.opacity(0.96),color,color.opacity(0.95)]),startPoint:CGPoint(x:-radius,y:0),endPoint:CGPoint(x:radius,y:0)))
             var patterned=liquid;patterned.clip(to:Path(band))
@@ -168,7 +185,7 @@ struct LabClassicBoardView:View {
                 current.stroke(path,with:.color(.white.opacity(Double(transformation.agitation)*0.13)),style:StrokeStyle(lineWidth:1.5,lineCap:.round))
             }
         }
-        if let transformation,!transformation.isDensityChange,index==transformation.output,transformation.agitation>0 {
+        if let transformation,!transformation.isDensityChange,!transformation.isSeparating,index==transformation.output,transformation.agitation>0 {
             let top=CGFloat(profile.height(for:profile.usableVolume*2*transformation.gathered/Float(state.capacity(index))))*scale
             var swirl=liquid;swirl.clip(to:Path(CGRect(x:-radius,y:-top,width:radius*2,height:top)))
             for (n,input) in transformation.apparatus.inputs.enumerated() {
@@ -188,9 +205,10 @@ struct LabClassicBoardView:View {
         }
         if state.behavior.settlesByDensity {
             for pour in pours where pour.move.destination==index && pour.progress>0 && pour.progress<1 {
-                let floor=Float(state.densityInsertionIndex(for:pour.move)),joined=densityJoinedUnits(pour)
+                let bands=state.densityReceiverBands(destination:index,arrivals:pours.filter {$0.move.destination==index}.map {($0.move,densityJoinedUnits($0))})
+                let landingUnits=bands[pour.move.parcels.last!]?.y ?? 0
                 let surface=profile.height(for:profile.usableVolume*displayedUnits(in:index)/Float(state.capacity(index)))
-                let landing=profile.height(for:profile.usableVolume*(floor+joined)/Float(state.capacity(index)))
+                let landing=profile.height(for:profile.usableVolume*landingUnits/Float(state.capacity(index)))
                 let front=surface+(landing-surface)*labSmooth(pour.progress/0.10)
                 let envelope=min(1,min(pour.progress*16,(1-pour.progress)*16))
                 let color=FluidBoardSession.color(state.visualDye(pour.move.parcels[0]))

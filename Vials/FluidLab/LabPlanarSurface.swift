@@ -64,6 +64,7 @@ private struct LabIdleFluidDetail:View {
                     var start=0
                     while start<stack.count {
                         let color=state.visualDye(stack[start])
+                        if color>=36 {start+=1;continue}
                         var end=start+1
                         while end<stack.count && state.visualDye(stack[end])==color { end+=1 }
                         let low=profile.level(Float(start))+0.04,high=profile.level(Float(end))-0.04

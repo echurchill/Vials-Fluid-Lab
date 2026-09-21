@@ -105,16 +105,18 @@ private struct LabFluid2DLayer:View {
                 // Draw the entering density plume after the resident layers so
                 // translucent light liquid cannot erase its path to the interface.
                 let incoming=engine.game.state.behavior.settlesByDensity && engine.game.pending?.destination==owner ? engine.game.pending.map { engine.game.state.visualDye($0.parcels[0]) }:nil
-                let colors=Set(owned.map(\.color)).sorted { a,b in
+                let grouped=Dictionary(grouping:owned) { engine.concurrentReveals[$0.parcel] == nil ? $0.color:100+$0.parcel }
+                let colors=grouped.keys.sorted { a,b in
                     if a==incoming { return false };if b==incoming { return true };return a<b
                 }
                 for color in colors {
-                    let pigment=color%12
-                    let group=owned.filter { $0.color==color }
+                    let pigment=color>=36 ? -1:color%12
+                    let group=grouped[color]!
                     let mix=engine.transformation
                     let parcel=group.first!.parcel
                     let changes=mix?.parcels.contains(parcel) == true
-                    let ink=FluidBoardSession.color(color,mixedWith:changes ? mix?.after.visualDye(parcel):nil,blend:mix?.blend ?? 0)
+                    let reveal=engine.concurrentReveals[parcel].map {labSmooth($0/0.5)}
+                    let ink=FluidBoardSession.color(reveal != nil ? 36:(changes && mix?.isSeparating == true ? mix!.before.visualDye(parcel):color),mixedWith:reveal != nil ? engine.game.state.visualDye(parcel):(changes ? mix?.after.visualDye(parcel):nil),blend:reveal ?? mix?.blend ?? 0)
                     let pose=owner>=0 ? engine.pose(owner):Lab2DPose(base:.zero)
                     let top=group.filter(\.inBulk).map { pose.local($0.position).y }.max().map { $0+engine.radius } ?? 0
                     let surface=owner>=0 ? engine.surfaces[owner]:Lab2DSurfaceState()
@@ -166,10 +168,10 @@ private struct LabFluid2DLayer:View {
                             separation.drawLayer { surface in mask(&surface,Color(red:0.025,green:0.05,blue:0.065)) }
                         }
                         var body=liquid
-                        let resultColor=changes ? mix!.after.visualDye(parcel):color
-                        let startOpacity:Double=color%12==0 ? 0.44:(color%12==2 ? 0.70:0.78)
-                        let endOpacity:Double=resultColor%12==0 ? 0.44:(resultColor%12==2 ? 0.70:0.78)
-                        body.opacity=startOpacity+(endOpacity-startOpacity)*Double(mix?.blend ?? 0)
+                        let resultColor=reveal != nil ? engine.game.state.visualDye(parcel):(changes ? mix!.after.visualDye(parcel):color)
+                        let startOpacity:Double=color>=36 ? 1:(color%12==0 ? 0.44:(color%12==2 ? 0.70:0.78))
+                        let endOpacity:Double=resultColor>=36 ? 1:(resultColor%12==0 ? 0.44:(resultColor%12==2 ? 0.70:0.78))
+                        body.opacity=startOpacity+(endOpacity-startOpacity)*Double(reveal ?? mix?.blend ?? 0)
                         body.drawLayer { surface in mask(&surface,ink) }
                         var detail=liquid
                         detail.clipToLayer { clip in mask(&clip,.white) }
@@ -208,7 +210,7 @@ private struct LabFluid2DLayer:View {
                                         detail.fill(bubble,with:.color(Color(red:1,green:0.85,blue:0.40).opacity(0.09*Double(1-pop))))
                                         detail.stroke(bubble,with:.color(Color(red:1,green:0.88,blue:0.50).opacity((0.32+0.16*Double(surface.energy*envelope))*Double(1-pop))),lineWidth:0.8)
                                     }
-                                } else if !engine.game.state.behavior.settlesByDensity {
+                                } else if pigment>=0 && !engine.game.state.behavior.settlesByDensity {
                                     // Keep directional density symbols clear of decorative ribbons.
                                     // A few broad, quiet ribbons provide a silky material cue.
                                     for n in 0..<3 {

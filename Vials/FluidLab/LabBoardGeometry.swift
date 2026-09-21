@@ -22,6 +22,27 @@ enum LabBoardTiming {
     static let timeout:Float = 12
 }
 
+/// Silhouettes convey a permanent level role, never a changing liquid state.
+nonisolated enum LabVesselShape:CaseIterable,Sendable {
+    case testTube,bulbFlask,taperedFlask,pearFlask
+    var name:String {
+        switch self {
+        case .testTube:"Rounded vial"
+        case .bulbFlask:"Bulb flask"
+        case .taperedFlask:"Tapered flask"
+        case .pearFlask:"Pear flask"
+        }
+    }
+    var knots:[(Float,Float)] {
+        switch self {
+        case .testTube:[(0,0.24),(0.025,0.35),(0.085,0.47),(1,0.47)]
+        case .bulbFlask:[(0,0.28),(0.04,0.47),(0.16,0.70),(0.34,0.74),(0.49,0.61),(0.66,0.30),(0.74,0.32),(0.87,0.32),(0.94,0.40),(1,0.54)]
+        case .taperedFlask:[(0,0.58),(0.07,0.64),(0.52,0.50),(0.80,0.31),(0.91,0.34),(1,0.54)]
+        case .pearFlask:[(0,0.25),(0.06,0.48),(0.27,0.69),(0.49,0.59),(0.73,0.32),(0.91,0.32),(1,0.54)]
+        }
+    }
+}
+
 struct LabBoardLayout {
     static let homes:[SIMD3<Float>]=[-3.3,-1.1,1.1,3.3].map { SIMD3($0,0.18,0) }
     static func homes(count:Int) -> [SIMD3<Float>] {
@@ -30,23 +51,33 @@ struct LabBoardLayout {
     nonisolated static func profiles(count:Int = 4) -> [LabVesselProfile] {
         profiles(capacities:Array(repeating:4,count:count))
     }
-    nonisolated static func profiles(capacities:[Int]) -> [LabVesselProfile] {
-        let tube:[(Float,Float)]=[(0,0.24),(0.025,0.35),(0.085,0.47),(1,0.47)]
-        let bulb:[(Float,Float)]=[(0,0.28),(0.04,0.47),(0.16,0.70),(0.34,0.74),(0.49,0.61),(0.66,0.30),(0.74,0.32),(0.87,0.32),(0.94,0.40),(1,0.54)]
-        let specs:[(String,[(Float,Float)])]=[("Rounded vial",tube),("Bulb flask",bulb),
-            ("Tapered flask",[(0,0.58),(0.07,0.64),(0.52,0.50),(0.80,0.31),(0.91,0.34),(1,0.54)]),
-            ("Pear flask",[(0,0.25),(0.06,0.48),(0.27,0.69),(0.49,0.59),(0.73,0.32),(0.91,0.32),(1,0.54)])]
-        let reference=LabVesselProfile(name:"Rounded vial",height:2.35,knots:tube).usableVolume
+    nonisolated static func shapes(for state:LabBoardState)->[LabVesselShape] {
+        state.stacks.indices.map { index in
+            // Final targets retain their familiar tube silhouette even when a
+            // machine deposits into them. Shared ports retain all role badges.
+            if state.target(index) != nil {return .testTube}
+            let tools=state.apparatus.filter {$0.inputs.contains(index) || $0.outputs.contains(index)}
+            if tools.contains(where:{$0.kind == .densityModifier}) {return .taperedFlask}
+            if tools.contains(where:{$0.kind == .mixer || $0.kind == .separator}) {return .bulbFlask}
+            return .testTube
+        }
+    }
+    nonisolated static func profiles(state:LabBoardState)->[LabVesselProfile] {
+        profiles(capacities:state.capacities,shapes:shapes(for:state))
+    }
+    nonisolated static func profiles(capacities:[Int],shapes:[LabVesselShape]?=nil) -> [LabVesselProfile] {
+        precondition(shapes == nil || shapes!.count==capacities.count)
+        let reference=LabVesselProfile(name:LabVesselShape.testTube.name,height:2.35,knots:LabVesselShape.testTube.knots).usableVolume
         return capacities.enumerated().map { index,capacity in
-            let spec=specs[index % specs.count]
+            let shape=shapes?[index] ?? .testTube
             let volumeScale=Float(capacity)/4
             // Share capacity growth between height and both radial axes.
             // One unit is half as tall and ~71% as wide as four units;
             // openings remain round and physical volume stays proportional.
             let heightScale=sqrt(volumeScale)
             let height=2.35*heightScale
-            let raw=LabVesselProfile(name:spec.0,height:height,knots:spec.1)
-            return LabVesselProfile(name:spec.0,height:height,knots:spec.1,
+            let raw=LabVesselProfile(name:shape.name,height:height,knots:shape.knots)
+            return LabVesselProfile(name:shape.name,height:height,knots:shape.knots,
                 radialScale:sqrt(reference/raw.usableVolume*volumeScale))
         }
     }
@@ -144,33 +175,46 @@ nonisolated struct LabApparatusTransition:Sendable {
     let apparatus:LabApparatus
     var time:Float=0
     var reduceMotion=false
+    var revealedParcels:Set<Int>=[]
+    var isRevealing:Bool {!revealedParcels.isEmpty}
+    var isSeparating:Bool {apparatus.kind == .separator}
     var isDensityChange:Bool { apparatus.kind == .densityModifier }
-    var duration:Float { isDensityChange ? 2.2:2.8 }
+    var duration:Float { isRevealing ? 0.5:(isDensityChange ? 2.2:2.8) }
     var output:Int { apparatus.output ?? apparatus.inputs[0] }
-    var parcels:Set<Int> { Set(apparatus.inputs.flatMap {before.stacks[$0]}) }
-    var vessels:Set<Int> { Set(apparatus.inputs+[output]) }
-    var gathered:Float { labSmooth(time/1.15) }
-    var blend:Float { isDensityChange ? labSmooth((time-0.15)/1.6):labSmooth((time-0.85)/1.65) }
+    var parcels:Set<Int> { isRevealing ? revealedParcels:Set(apparatus.inputs.flatMap {before.stacks[$0]}) }
+    var vessels:Set<Int> { Set(apparatus.inputs+apparatus.outputs) }
+    var gathered:Float { labSmooth(time/(isSeparating ? 2.2:1.15)) }
+    var blend:Float { isRevealing ? labSmooth(time/0.5):isDensityChange ? labSmooth((time-0.15)/1.6):labSmooth((time-0.85)/1.65) }
     /// World-Y offsets for light/heavy motifs. Incoming symbols start behind
     /// their final position and drift in the direction they point as they fade
     /// in; outgoing symbols continue that way while fading out.
     var densityPatternOffsets:SIMD2<Float> {
-        guard isDensityChange,!reduceMotion,let parcel=before.stacks[output].first else {return .zero}
+        guard isDensityChange,!isRevealing,!reduceMotion,let parcel=before.stacks[output].first else {return .zero}
         let old=before.densities[parcel],new=after.densities[parcel],distance:Float=0.18
         let light:Float=new == .light ? -distance*(1-blend):(old == .light ? distance*blend:0)
         let heavy:Float=new == .heavy ? distance*(1-blend):(old == .heavy ? -distance*blend:0)
         return SIMD2(light,heavy)
     }
     var agitation:Float {
-        guard !reduceMotion else {return 0}
+        guard !reduceMotion,!isRevealing else {return 0}
         return isDensityChange ? labSmooth(time/0.35)*(1-labSmooth((time-1.25)/0.95)):labSmooth(time/0.7)*(1-labSmooth((time-1.8)/1.0))
     }
     var status:String {
+        if isRevealing {return "Discovering a color"}
+        if isSeparating {return "Separating ingredients"}
         if !isDensityChange {return time<1.15 ? "Feeding the mixer":"Blending colors"}
         return time<1.6 ? (apparatus.direction == .heavier ? "Making liquid heavier":"Making liquid lighter"):"Settling the liquid"
     }
     var finished:Bool { time>=duration }
     func position(from:SIMD3<Float>,to:SIMD3<Float>,origin:SIMD3<Float>,profile:LabVesselProfile,phase:Float)->(point:SIMD3<Float>,arrived:Bool,started:Bool) {
+        if isRevealing {return (from,true,true)}
+        if isSeparating {
+            let f=labSmooth((time-phase*0.4)/1.8)
+            let clearance=max(from.y,profile.height)+0.55
+            let a=SIMD3(from.x,clearance,from.z),b=SIMD3(origin.x,clearance,origin.z)
+            let point=pow(1-f,3)*from+3*pow(1-f,2)*f*a+3*(1-f)*f*f*b+f*f*f*to
+            return (point,f>=1,f>0)
+        }
         if isDensityChange {
             // The chamber contains one homogeneous material. Circulate within
             // its unchanged volume; density does not shrink or expand the fill.

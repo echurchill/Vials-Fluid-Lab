@@ -528,6 +528,8 @@ This sequence deliberately delays an elaborate laboratory interface. The game sh
 
 ## Future Experiment: Obscured Fluids
 
+**Implementation update (September 20 overnight):** Eddie subsequently authorized the Sorting-only Discovery prototype along with machine guidance and Recovery. Four Discovery and four Recovery levels are now implemented locally; see Prototype37/README.md for behavior, validation and limits. The design discussion below records the broader intent; Density/Mixing/Crossover discovery variants and a campaign unlock tree remain proposals.
+
 Added September 20, 2026, following Eddie's three reference screenshots. Design candidate only; this is not an instruction to implement it or to copy the reference game's visual style, economy, or progression.
 
 ### Core idea
@@ -616,3 +618,11 @@ Color, density, quantity, and miscibility already create a large combinatorial s
 - `Reports/puzzle-elements-and-fluid-interactions.md` contains the earlier, broader interaction brainstorm.
 - `Reports/progression-curriculum-and-valve-plan.md` contains prior progression, scoring, and receive-only-vessel planning.
 - `Reports/real-fluid-physics-roadmap.md` covers the rendering and simulation direction separately from this puzzle-rule proposal.
+
+
+September 21 implementation update: ordinary pours now overlap across all six labs in all three presentations, including shared receivers. Density layer order follows reservations and Discovery reveals are independent per source. Machine activations remain globally serialized with pours/reveals for this first pass. See Prototype38; independent machine operation is still future work.
+
+
+## Implemented: shapes identify tool roles (September 21, Prototype39)
+
+Traditional test tubes now identify ordinary sources/storage and final targets across all labs. Mixer and separator/Recovery working ports use the existing round bulb flask. Density-changing chambers use the existing flat-bottomed tapered flask. The pear silhouette remains available for a future experiment, without assigning it a mechanic yet. Final target role wins over tools; density wins over another tool on a shared non-target chamber. Shared-role badges supplement shape. Shapes never change when contents, density or completion change. Existing capacity scaling, profile knots and camera/layout policy are preserved. See Prototype39 for regression and device evidence.
