@@ -74,6 +74,11 @@ import Metal
         check(session.discipline == .sorting && session.boardID == board.saveKey,"Endless board identity is incorrect")
         check(session.boardTitle == "Easy 1" && session.learningTopics.isEmpty,"Endless board metadata leaked an authored lesson")
         check(session.state == board.initial,"Endless board did not start from the adapted state")
+        session.changePace(.quick)
+        check(session.effectiveSpeed==2.4,"Endless Quick pacing target changed")
+        session.changePace(.relaxed)
+        check(session.effectiveSpeed==1,"Endless Relaxed pacing changed")
+        session.changePace(.quick)
 
         let first=route!.first!
         check(session.begin(first,automaticClock:false),"Could not start a Lab-engine pour on Endless")
@@ -89,6 +94,7 @@ import Metal
 
         restored.changeDiscipline(.sorting)
         check(!restored.isEndlessSorting && restored.puzzle.discipline == .sorting,"Could not return from Endless to the authored Sorting Lab")
+        check(restored.effectiveSpeed==LabBoardPace.quick.speed,"Endless pacing leaked into the authored labs")
         check(restored.state != board.initial.applying(first),"Endless progress overwrote the authored Sorting board")
         let switched=try JSONDecoder().decode(LabComparisonSave.self,from:restored.checkpointData())
         check(switched.endlessBoard == nil,"Authored-lab selection still restores Endless")

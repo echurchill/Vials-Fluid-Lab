@@ -13,6 +13,7 @@ The Lab remains authoritative for interaction, concurrent pours, Classic/2D/3D p
 - Added previous/next-level and difficulty navigation, plus a direct return to the authored Sorting Lab.
 - Added Lab-native save/restore for the selected generated board and its progress. Saves retain the exact initial board so later generator tuning cannot silently change an in-progress level.
 - Kept Endless progress entirely inside the Lab save. The legacy Original progress and generation-variant stores are not read or written.
+- Tuned Endless Quick playback to 2.4×, leaving authored Lab Quick playback at 1.6× and Relaxed playback at 1×. This keeps the Lab engine and choreography while shortening the repetitive sorting cadence.
 
 ## Validation
 

@@ -128,7 +128,12 @@ import Combine
     var moveCount:Int { game.moveCount }
     var busy:Bool { transformation != nil || game.pending != nil || pourQueue.busy || !concurrentReveals.isEmpty }
     var active3DSimulationParticleCount:Int {metalGroups.values.reduce(0) {$0+$1.particleCount}}
-    var effectiveSpeed:Float { (comparisonSpeed ?? pace.speed)*(slow ? 0.35:1) }
+    /// Endless has a shorter play cadence than the instructional labs, while
+    /// keeping the same simulation, choreography and completion rules.
+    private var boardPlaybackSpeed:Float {
+        isEndlessSorting && pace == .quick ? 2.4:pace.speed
+    }
+    var effectiveSpeed:Float { (comparisonSpeed ?? boardPlaybackSpeed)*(slow ? 0.35:1) }
     var validDestinations:Set<Int> {
         guard let selected,concurrentPoursEnabled || !busy else { return [] }
         return Set(state.stacks.indices.filter { availableMove(from:selected,to:$0) != nil })
