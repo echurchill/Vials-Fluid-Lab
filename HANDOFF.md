@@ -1,5 +1,14 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## Latest: machine connection guidance (September 21)
+
+User requested checkpoint push, then clearer machine connections. Prototype37–39 were committed/pushed as 761328d37c390156812d33a3de51c6a9bf148437; remote verified. New Prototype40 is local/unpushed: machine information, machine hints and active operations highlight their inputs/outputs, matching footer cards and role badges. Dashed lavender inputs, solid outputs and directional curves below the vessels. Shared ports highlight the relevant machine role. Density highlights its chamber only.
+
+A popover can cover a port on iPad, so Show connections closes it and leaves the route for four seconds; next selection/operation/hint or level change clears that preview. Reduced Motion removes the fade. User specifically asked whether pour animations were being removed: NO. All lift/tilt/flow/return, simulation, camera and vessel geometry remain unchanged. Final builds and Mac guide/hint/action/expiry/ordinary-pour checks pass. iPad final build installed; landscape guidance visually checked via QuickTime (View → Float on Top fixed tiny screenshots). Device Hub input still times out. No recording, no new battery claim, no portrait/touch-forwarding acceptance. See Reports/Prototype40.
+
+The isolated diagnostic flag `--lab-trial --visual-review --inspect-machine <id>` opens the chosen guide. Return the app to normal launch afterward. Scheduled monitor remains paused; keep unrelated root PNG untouched. Caffeinate used during UI checks.
+
+
 ## Latest: role-based vessel silhouettes (September 21)
 
 Eddie approved consistent shapes across all presentations: ordinary sources/storage/final targets use tubes; mixer and Recovery ports use round bulb flasks; density chambers use flat-bottomed tapered flasks. Pear remains implemented but unused, reserved for a future lab. Final targets override tool shapes; density overrides other non-target tool roles. All shared-role badges remain. Profiles derive from fixed metadata, with the exact existing knots, height/radial scaling and depth preserved. Renderer cache now invalidates when shapes change even if capacities match.

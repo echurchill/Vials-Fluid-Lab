@@ -8,6 +8,7 @@ struct FluidBoardView:View {
     @StateObject private var session=FluidBoardSession(allowsConcurrentPours:true)
     @State private var showResetProgress=false
     @State private var inspectedApparatus:LabApparatus?
+    @State private var connectionPreviewID:Int?
     @State private var sheet:BoardSheet?
     @State private var comparison:LabPourExample?
     @Environment(\.scenePhase) private var scenePhase
@@ -15,6 +16,26 @@ struct FluidBoardView:View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private let ink=Color(red:0.80,green:0.88,blue:0.90)
     private let accent=Color(red:0.28,green:0.85,blue:0.79)
+    private let machineAccent=Color(red:0.78,green:0.62,blue:1)
+    private var focusedApparatus:LabApparatus? {
+        if let transition=session.transformation,!transition.isRevealing {return transition.apparatus}
+        guard !session.busy else {return nil}
+        let id=inspectedApparatus?.id ?? connectionPreviewID ?? session.hintApparatusID
+        return session.state.apparatus.first {$0.id==id}
+    }
+    private func machineRoute(_ tool:LabApparatus)->String {
+        let inputs=tool.inputs.map(FluidBoardSession.letter).joined(separator:" + ")
+        if tool.kind == .densityModifier {return "Chamber "+inputs}
+        let outputs=tool.outputs.map(FluidBoardSession.letter).joined(separator:" + ")
+        return (tool.inputs.count==1 ? "Input ":"Inputs ")+inputs+" → "+(tool.outputs.count==1 ? "Output ":"Outputs ")+outputs
+    }
+    private func machineMembership(_ index:Int)->String {
+        guard let tool=focusedApparatus else {return ""}
+        if tool.kind == .densityModifier,tool.inputs.contains(index) {return tool.title+" chamber"}
+        if tool.inputs.contains(index) {return tool.title+" input"}
+        if tool.outputs.contains(index) {return tool.title+" output"}
+        return ""
+    }
     private var apparatusControls:some View {
         HStack(spacing:10) {
             ForEach(session.state.apparatus) { apparatus in
@@ -25,11 +46,12 @@ struct FluidBoardView:View {
                         else {inspectedApparatus=apparatus}
                     }
                     .disabled(session.busy)
-                    .tint(session.hintApparatusID==apparatus.id ? .orange:(guide.ready ? .purple:.gray))
+                    .tint(session.hintApparatusID==apparatus.id ? .orange:(focusedApparatus?.id==apparatus.id ? machineAccent:(guide.ready ? .purple:.gray)))
                     .help(guide.message).accessibilityHint(guide.message)
                     Button {inspectedApparatus=apparatus} label: {Image(systemName:"info.circle")}
-                        .buttonStyle(.plain).frame(width:26,height:28)
+                        .buttonStyle(.plain).frame(width:26,height:28).disabled(session.busy)
                         .accessibilityLabel(apparatus.title+" recipe and requirements")
+                        .accessibilityHint("Highlights "+machineRoute(apparatus))
                 }.popover(isPresented:Binding(get:{inspectedApparatus?.id==apparatus.id},set:{if !$0 {inspectedApparatus=nil}})) {
                     machineGuide(apparatus)
                 }
@@ -41,6 +63,14 @@ struct FluidBoardView:View {
             let guide=session.state.apparatusGuidance(tool)
             return VStack(alignment:.leading,spacing:14) {
                 Text(tool.title).font(.headline)
+                Text(machineRoute(tool)).font(.system(.callout,design:.monospaced).weight(.semibold))
+                    .foregroundStyle(machineAccent).fixedSize(horizontal:false,vertical:true)
+                Text(tool.kind == .densityModifier ? "The highlighted chamber changes the liquid’s density.":"Dashed outlines mark inputs; solid outlines and arrowheads mark outputs.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                Button(tool.kind == .densityModifier ? "Show chamber":"Show connections",
+                       systemImage:tool.kind == .densityModifier ? "scope":"arrow.triangle.branch") {inspectedApparatus=nil}
+                    .buttonStyle(.bordered)
+                    .accessibilityHint(tool.kind == .densityModifier ? "Closes this guide and highlights the chamber for four seconds.":"Closes this guide and highlights the connected vials for four seconds.")
                 Text(guide.ready ? "Ready to activate":"What this machine needs").font(.subheadline).foregroundStyle(.secondary)
                 Text(guide.message).fixedSize(horizontal:false,vertical:true)
                 if tool.kind == .mixer {
@@ -124,6 +154,11 @@ struct FluidBoardView:View {
                         else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial,capExclusions:capExclusions) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer,capExclusions:capExclusions).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
+                        if let tool=focusedApparatus {
+                            LabMachineConnectionOverlay(tool:tool,rects:session.state.stacks.indices.map {hitRect($0,size:board.size)},tint:machineAccent)
+                                .allowsHitTesting(false).accessibilityHidden(true)
+                                .transition(.opacity)
+                        }
                         ForEach(session.state.stacks.indices,id:\.self) { index in
                             let rect=hitRect(index,size:board.size)
                             Button { session.select(index) } label: {
@@ -141,11 +176,12 @@ struct FluidBoardView:View {
                                             // roles upward so neither is hidden and the vial stays put.
                                             VStack(spacing:3) {
                                                 ForEach(tools) { apparatus in
-                                                    Label(apparatusPortLabel(apparatus,index:index),systemImage:apparatus.kind == .separator ? "arrow.triangle.branch":(apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down"))
+                                                    Label(apparatusPortLabel(apparatus,index:index)+(focusedApparatus?.id==apparatus.id ? " "+FluidBoardSession.letter(index):""),systemImage:apparatus.kind == .separator ? "arrow.triangle.branch":(apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down"))
                                                         .font(.system(size:8,weight:.bold,design:.monospaced))
                                                         .fixedSize(horizontal:true,vertical:false)
-                                                        .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
-                                                        .foregroundStyle(session.hintApparatusID==apparatus.id ? Color.orange:Color.purple)
+                                                        .padding(.horizontal,5).padding(.vertical,3)
+                                                        .background(focusedApparatus?.id==apparatus.id ? machineAccent:Color.black.opacity(0.72),in:Capsule())
+                                                        .foregroundStyle(focusedApparatus?.id==apparatus.id ? Color.black:(session.hintApparatusID==apparatus.id ? Color.orange:Color.purple))
                                                 }
                                             }.fixedSize().offset(y:-13-CGFloat(tools.count-1)*18)
                                         } else if session.state.rules[index] == .receiveOnly {
@@ -171,13 +207,13 @@ struct FluidBoardView:View {
                             }
                             .buttonStyle(LabVialPressStyle()).frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
                             .disabled(!session.canTap(index))
-                            .accessibilityLabel(session.accessibility(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
+                            .accessibilityLabel(session.accessibility(index)).accessibilityHint(machineMembership(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
                         }
                         if session.diagnostics {
                             diagnostics.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).padding(14)
                         }
                         if let error=session.error { Text(error).font(.callout).padding().background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:12)) }
-                    }
+                    }.animation(reduceMotion ? nil:.easeOut(duration:0.18),value:focusedApparatus?.id)
                 }.frame(minHeight:220)
                 VStack(spacing:14) {
                     HStack(spacing:debugGap) {
@@ -219,12 +255,17 @@ struct FluidBoardView:View {
                                 }.frame(maxWidth:.infinity).padding(.vertical,denseDebug ? 8:12).padding(.horizontal,denseDebug ? 3:9)
                                     .background(cueLabel(index).isEmpty ? ink.opacity(0.04):cueColor(index).opacity(0.13),in:RoundedRectangle(cornerRadius:10))
                                     .overlay(RoundedRectangle(cornerRadius:10).stroke(cueColor(index).opacity(0.65),lineWidth:1))
+                                    .overlay {
+                                        if !machineMembership(index).isEmpty {
+                                            RoundedRectangle(cornerRadius:10).stroke(machineAccent,lineWidth:2)
+                                        }
+                                    }
                                     .scaleEffect(!reduceMotion && session.selected==index ? 1.025:1)
                                     .offset(x:!reduceMotion && session.rejectedVial==index ? 3:0)
                                     .animation(reduceMotion ? nil:.easeInOut(duration:0.18),value:session.selected)
                                     .animation(reduceMotion ? nil:.easeInOut(duration:0.12),value:session.rejectedVial)
                             }.buttonStyle(LabVialPressStyle()).disabled(!session.canTap(index))
-                            .accessibilityLabel("Select "+session.accessibility(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
+                            .accessibilityLabel("Select "+session.accessibility(index)).accessibilityHint(machineMembership(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
                         }
                     }
                     if session.state.behavior.settlesByDensity || !session.state.apparatus.isEmpty {
@@ -274,7 +315,28 @@ struct FluidBoardView:View {
             }.background(Color(red:0.026,green:0.043,blue:0.060)).foregroundStyle(ink)
         }
         .preferredColorScheme(.dark)
-        .task { await session.runTrialIfRequested() }
+        .task {
+            await session.runTrialIfRequested()
+            // Isolated device-review launches can expose a guide without
+            // depending on touch forwarding through the screen-sharing host.
+            let args=ProcessInfo.processInfo.arguments
+            if LabTrialConfiguration.current != nil,args.contains("--visual-review"),
+               let option=args.firstIndex(of:"--inspect-machine"),option+1<args.count,
+               let id=Int(args[option+1]) {
+                inspectedApparatus=session.state.apparatus.first {$0.id==id}
+            }
+        }
+        .task(id:inspectedApparatus?.id) {
+            if let id=inspectedApparatus?.id {connectionPreviewID=id;return}
+            // The popover may cover a port on iPad. Retain its route briefly
+            // after dismissal so the unobstructed board explains the connection.
+            do {try await Task.sleep(for:.seconds(4))} catch {return}
+            connectionPreviewID=nil
+        }
+        .onChange(of:session.puzzle) { _,_ in inspectedApparatus=nil;connectionPreviewID=nil }
+        .onChange(of:session.busy) { _,busy in if busy {inspectedApparatus=nil;connectionPreviewID=nil} }
+        .onChange(of:session.selected) { _,_ in connectionPreviewID=nil }
+        .onChange(of:session.hintApparatusID) { _,_ in connectionPreviewID=nil }
         .onChange(of:reduceTransparency,initial:true) { _,value in session.renderer?.reduceTransparency=value }
         .onChange(of:session.presentation) { _,_ in session.renderer?.reduceTransparency=reduceTransparency }
         .onChange(of:reduceMotion,initial:true) { _,value in session.reduceTransformationMotion=value }
