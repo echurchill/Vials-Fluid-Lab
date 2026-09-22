@@ -17,8 +17,18 @@ import Combine
     @Published private(set) var presentation:LabBoardPresentation
     @Published private(set) var pace:LabBoardPace
     @Published private(set) var puzzle:LabBoardPuzzle
+    @Published private(set) var endlessBoard:LabEndlessBoard?
     @Published private(set) var journeyMode:Bool
-    var discipline:LabDiscipline {puzzle.discipline}
+    var isEndlessSorting:Bool {endlessBoard != nil}
+    var discipline:LabDiscipline {isEndlessSorting ? .sorting:puzzle.discipline}
+    var boardID:String {endlessBoard?.saveKey ?? puzzle.rawValue}
+    var boardTitle:String {endlessBoard?.title ?? puzzle.title}
+    var boardDetail:String {endlessBoard?.detail ?? puzzle.detail}
+    var boardHeader:String {isEndlessSorting ? "ENDLESS SORTING":(journeyMode ? "JOURNEY · \(discipline.title.uppercased())":discipline.header)}
+    var boardProgressSummary:String {isEndlessSorting ? "Generated curriculum":"\(completedPuzzleCount) complete"}
+    private var initialState:LabBoardState {endlessBoard?.initial ?? puzzle.initial}
+    private var gameKey:String {endlessBoard?.saveKey ?? puzzle.rawValue}
+    private var boardInstruction:String {isEndlessSorting ? "Tap a filled vial, then a matching color or an empty vial.":puzzle.instruction}
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
     @Published private(set) var transformation:LabApparatusTransition?
@@ -85,15 +95,15 @@ import Combine
     @Published var quality:LabRenderQuality = .automatic { didSet { renderer?.quality=quality;defaults?.set(quality.rawValue,forKey:"lab.quality");finishMeasurement(reason:"quality changed") } }
     private let feedback=LabBoardFeedback()
     var completedPuzzleCount:Int { discipline.levels.filter(hasCompleted).count }
-    func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool { puzzle == self.puzzle ? state.solved:(saved.games[puzzle.rawValue]?.state.solved ?? false) }
-    var learningTopics:[LabLearningTopic] {LabLearningTopic.topics(for:puzzle)}
+    func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool { !isEndlessSorting && puzzle == self.puzzle ? state.solved:(saved.games[puzzle.rawValue]?.state.solved ?? false) }
+    var learningTopics:[LabLearningTopic] {isEndlessSorting ? []:LabLearningTopic.topics(for:puzzle)}
     var unseenLearningTopics:[LabLearningTopic] {learningTopics.filter {!saved.seenLearningTopics.contains($0.rawValue)}}
     func markLearningTopicSeen(_ topic:LabLearningTopic) {
         guard learningTopics.contains(topic),saved.seenLearningTopics.insert(topic.rawValue).inserted else {return}
         checkpoint()
     }
-    var journeyNext:[LabBoardPuzzle] {LabJourney.stop(puzzle)?.next ?? []}
-    var nextSuggestedPuzzle:LabBoardPuzzle? {journeyMode ? (journeyNext.count==1 ? journeyNext[0]:nil):puzzle.next}
+    var journeyNext:[LabBoardPuzzle] {isEndlessSorting ? []:(LabJourney.stop(puzzle)?.next ?? [])}
+    var nextSuggestedPuzzle:LabBoardPuzzle? {isEndlessSorting ? nil:(journeyMode ? (journeyNext.count==1 ? journeyNext[0]:nil):puzzle.next)}
     func nextPuzzle() {
         guard !busy,let next=nextSuggestedPuzzle else {return}
         changePuzzle(next,inJourney:journeyMode)
@@ -189,13 +199,15 @@ import Combine
         soundEnabled=self.defaults?.bool(forKey:"lab.sound") ?? false
         hapticsEnabled=self.defaults?.object(forKey:"lab.haptics") as? Bool ?? (self.defaults != nil)
         quality=trial?.quality ?? LabRenderQuality(rawValue:self.defaults?.string(forKey:"lab.quality") ?? "automatic") ?? .automatic
-        saved=save;presentation=save.presentation;pace=save.pace;puzzle=save.puzzle
-        journeyMode=save.journeyMode && LabJourney.stop(save.puzzle) != nil
-        var restored=save.games[save.puzzle.rawValue] ?? LabBoardGame(state:save.puzzle.initial)
+        saved=save;presentation=save.presentation;pace=save.pace;puzzle=save.puzzle;endlessBoard=save.endlessBoard
+        journeyMode=save.endlessBoard == nil && save.journeyMode && LabJourney.stop(save.puzzle) != nil
+        let restoredKey=save.endlessBoard?.saveKey ?? save.puzzle.rawValue
+        let restoredInitial=save.endlessBoard?.initial ?? save.puzzle.initial
+        var restored=save.games[restoredKey] ?? LabBoardGame(state:restoredInitial)
         restored.cancel() // A launch restores the last committed move.
         game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
         feedback.soundEnabled=soundEnabled;feedback.hapticsEnabled=hapticsEnabled
-        notice=puzzle.instruction
+        notice=boardInstruction
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         refresh()
@@ -232,8 +244,9 @@ import Combine
     private func checkpoint() {
         performance.traceBegin("Checkpoint");defer { performance.traceEnd("Checkpoint") }
         var stable=game;stable.cancel()
-        saved.games[puzzle.rawValue]=stable;saved.presentation=presentation;saved.pace=pace;saved.puzzle=puzzle
-        saved.lastPuzzles[puzzle.discipline.rawValue]=puzzle.rawValue;saved.journeyMode=journeyMode
+        saved.games[gameKey]=stable;saved.presentation=presentation;saved.pace=pace;saved.puzzle=puzzle;saved.endlessBoard=endlessBoard
+        if !isEndlessSorting {saved.lastPuzzles[puzzle.discipline.rawValue]=puzzle.rawValue}
+        saved.journeyMode=journeyMode
         if let data=try? JSONEncoder().encode(saved) { defaults?.set(data,forKey:"lab.comparison.v1") }
     }
     func checkpointData() throws -> Data { checkpoint();return try JSONEncoder().encode(saved) }
@@ -251,22 +264,36 @@ import Combine
         guard !busy,pace != value else { return };finishMeasurement(reason:"pace changed");pace=value;updateSpeed();checkpoint()
     }
     func changeDiscipline(_ value:LabDiscipline) {
-        guard !busy,value != discipline || journeyMode else {return}
+        guard !busy,value != discipline || journeyMode || isEndlessSorting else {return}
         let remembered=saved.lastPuzzles[value.rawValue].flatMap(LabBoardPuzzle.init(rawValue:))
         changePuzzle(remembered?.discipline==value ? remembered!:value.levels[0])
     }
     func changePuzzle(_ value:LabBoardPuzzle,inJourney:Bool=false) {
         guard !busy else {return}
-        journeyMode=inJourney && LabJourney.stop(value) != nil
-        guard value != puzzle else {checkpoint();return}
+        let enteringJourney=inJourney && LabJourney.stop(value) != nil
+        guard value != puzzle || isEndlessSorting || journeyMode != enteringJourney else {checkpoint();return}
         cancelHint()
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
-        finishMeasurement(reason:"puzzle changed");checkpoint();puzzle=value;game=saved.games[value.rawValue] ?? LabBoardGame(state:value.initial);game.cancel()
+        finishMeasurement(reason:"puzzle changed");checkpoint();endlessBoard=nil;journeyMode=enteringJourney
+        puzzle=value;game=saved.games[value.rawValue] ?? LabBoardGame(state:value.initial);game.cancel()
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         notice=value.instruction;checkpoint();refresh()
+    }
+    func changeEndlessBoard(_ value:LabEndlessBoard) {
+        guard !busy else {return}
+        if endlessBoard?.saveKey == value.saveKey {checkpoint();return}
+        cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
+        finishMeasurement(reason:"endless level changed");checkpoint()
+        endlessBoard=value;journeyMode=false
+        game=saved.games[value.saveKey] ?? LabBoardGame(state:value.initial);game.cancel()
+        undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
+        selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
+        if presentation == .fluid {prepareFluid()}
+        if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
+        notice=boardInstruction;checkpoint();refresh()
     }
     func refresh() {
         if !busy,!pendingReveal.isEmpty {
@@ -458,7 +485,7 @@ import Combine
         performance.recordFrame(interval:Double(deltaTime),cpuMS:(ProcessInfo.processInfo.systemUptime-updateStart)*1000,gpuMS:nil)
     }
     func reset(keepingDiscoveries:Bool=true) {
-        let initial=keepingDiscoveries ? puzzle.initial.retainingDiscoveries(from:state):puzzle.initial
+        let initial=keepingDiscoveries ? initialState.retainingDiscoveries(from:state):initialState
         cancelHint()
         cancelConcurrent()
         transformation=nil;pendingReveal=[]
@@ -469,14 +496,14 @@ import Combine
         renderer?.reset(state:initial)
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
-        notice=puzzle.instruction;updatePause();checkpoint();refresh()
+        notice=boardInstruction;updatePause();checkpoint();refresh()
     }
     /// Clears every saved board, not just the currently selected puzzle.
     /// reset() invalidates in-flight worker results before the fresh checkpoint.
     func resetAllProgress() {
         finishMeasurement(reason:"all progress reset")
         saved=LabComparisonSave(journeyMode:true);journeyMode=true
-        puzzle=saved.puzzle;presentation=saved.presentation;pace=saved.pace
+        puzzle=saved.puzzle;endlessBoard=nil;presentation=saved.presentation;pace=saved.pace
         comparisonSpeed=nil;slow=false;points=false;diagnostics=false;orbit=0.12
         error=nil;reportURL=nil
         reset(keepingDiscoveries:false)
@@ -510,12 +537,12 @@ import Combine
         }
         hintPlan=[];let snapshot=state
         hintRevision &+= 1;let revision=hintRevision
-        findingHint=true;notice="Finding a route through this larger board…";let puzzle=self.puzzle
+        findingHint=true;notice="Finding a route through this larger board…";let puzzle=self.puzzle,isAuthored = !isEndlessSorting
         hintTask=Task { @MainActor [weak self] in
             let behavior=snapshot.behavior
             let route=await Task.detached(priority:.userInitiated) {
                 if behavior == .sorting || behavior == .discovery {return snapshot.solution().map {$0.map(LabBoardOperation.pour)}}
-                if snapshot==puzzle.initial,let authored=puzzle.authoredRoute(from:snapshot) {return authored}
+                if isAuthored,snapshot==puzzle.initial,let authored=puzzle.authoredRoute(from:snapshot) {return authored}
                 return snapshot.operationSolution()
             }.value
             guard let self,self.hintRevision==revision else {return}
@@ -622,7 +649,7 @@ import Combine
         feedback.setPouring(visibleStream && !paused && !suspended)
     }
     private func beginMeasurement() {
-        performance.context=["puzzle":puzzle.rawValue,"vialCount":state.stacks.count,"colorCount":Set(state.colors).count,"quality":quality.rawValue,"maximumRenderDimension":quality.maximumDimension,"particleCount":presentation == .fluid ? (renderer?.particleCount ?? 0):(presentation == .fluid2D ? fluid2D.particles.count:0)]
+        performance.context=["puzzle":boardID,"vialCount":state.stacks.count,"colorCount":Set(state.colors).count,"quality":quality.rawValue,"maximumRenderDimension":quality.maximumDimension,"particleCount":presentation == .fluid ? (renderer?.particleCount ?? 0):(presentation == .fluid2D ? fluid2D.particles.count:0)]
         if presentation == .fluid2D {
             performance.context["quality"]="canvas-native"
             performance.context.removeValue(forKey:"maximumRenderDimension")
@@ -673,7 +700,7 @@ import Combine
         let commitOK=began && state==initial.applying(move) && !busy
         undo();let undoOK=state==initial && !busy
         let reloaded=(try? checkpointData()).flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) }
-        let saveOK=reloaded?.games[puzzle.rawValue]?.state==initial
+        let saveOK=reloaded?.games[gameKey]?.state==initial
         reset()
         return ["pause":pauseOK,"suspension":suspendOK,"resume":resumeOK,"reset":resetOK,"commit":commitOK,"undo":undoOK,"saveReload":saveOK]
     }
@@ -1144,7 +1171,7 @@ extension FluidBoardSession {
         let commitOK=state==initial.applying(move) && !busy
         undo();let undoOK=state==initial && !busy
         let save=(try? checkpointData()).flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) }
-        let reloadOK=save?.games[puzzle.rawValue]?.state==initial
+        let reloadOK=save?.games[gameKey]?.state==initial
         reset()
         return ["pause":pauseOK,"suspension":suspendOK,"resume":resumeOK,"reset":resetOK,"commit":commitOK,"undo":undoOK,"saveReload":reloadOK]
     }

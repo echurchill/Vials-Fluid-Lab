@@ -20,6 +20,11 @@ struct FluidBoardView:View {
     private let ink=Color(red:0.80,green:0.88,blue:0.90)
     private let accent=Color(red:0.28,green:0.85,blue:0.79)
     private let machineAccent=Color(red:0.78,green:0.62,blue:1)
+    private func openEndless(_ difficulty:LabEndlessDifficulty,level:Int?=nil) {
+        let remembered=session.endlessBoard?.difficulty==difficulty ? session.endlessBoard?.number:nil
+        let number=max(1,level ?? remembered ?? 1)
+        session.changeEndlessBoard(.generated(difficulty:difficulty,number:number))
+    }
     private var focusedApparatus:LabApparatus? {
         if let transition=session.transformation,!transition.isRevealing {return transition.apparatus}
         guard !session.busy else {return nil}
@@ -65,6 +70,7 @@ struct FluidBoardView:View {
         }.presentationCompactAdaptation(.popover)
     }
     private var boardNotice:String {
+        if session.isEndlessSorting,session.solved {return "Generated level complete. Continue when you are ready, or play again."}
         if session.journeyMode {
             if session.solved {
                 return session.journeyNext.isEmpty ? "Path complete. Explore another branch in Journey.":(session.journeyNext.count>1 ? "Step complete. Choose what you would like to learn next.":"Step complete. Continue your Journey when you are ready.")
@@ -73,7 +79,7 @@ struct FluidBoardView:View {
                 return LabJourney.stop(session.puzzle)?.lesson ?? session.notice
             }
         }
-        return session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice
+        return !session.isEndlessSorting && session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice
     }
     private var apparatusControls:some View {
         HStack(spacing:10) {
@@ -135,8 +141,8 @@ struct FluidBoardView:View {
             VStack(spacing:0) {
                 HStack {
                     VStack(alignment:.leading,spacing:4) {
-                        Text(session.journeyMode ? "VIALS / JOURNEY · \(session.discipline.title.uppercased())":"VIALS / \(session.discipline.header)").font(.system(size:10,weight:.semibold,design:.monospaced)).tracking(3).foregroundStyle(ink.opacity(0.5))
-                        Text(session.puzzle.title).font(.system(size:compact ? 28:34,design:.serif)).foregroundStyle(ink)
+                        Text("VIALS / \(session.boardHeader)").font(.system(size:10,weight:.semibold,design:.monospaced)).tracking(3).foregroundStyle(ink.opacity(0.5))
+                        Text(session.boardTitle).font(.system(size:compact ? 28:34,design:.serif)).foregroundStyle(ink)
                     }
                     Spacer()
                     if !session.learningTopics.isEmpty {
@@ -157,7 +163,7 @@ struct FluidBoardView:View {
                         Divider()
                         Button(session.lastPour == nil ? "Compare a pour":"Compare last pour") { comparison=session.comparisonExample }.disabled(!session.canComparePour)
                         Button("Pour study") { sheet = .study }
-                        Button("Original game") { sheet = .classic }
+                        Button("Original game (legacy)") { sheet = .classic }
                         Divider()
                         Button("Reset all progress…",role:.destructive) { showResetProgress=true }
                     } label: { Image(systemName:"ellipsis.circle").frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Board options")
@@ -167,8 +173,16 @@ struct FluidBoardView:View {
                         .buttonStyle(.borderedProminent).tint(session.journeyMode ? accent:Color.gray.opacity(0.35))
                         .foregroundStyle(session.journeyMode ? Color.black:ink)
                         .accessibilityIdentifier("lab.journey")
-                    if geometry.size.width<900 || session.journeyMode {
-                        Menu(session.journeyMode ? "Explore labs":session.discipline.title+" Lab") {
+                    Menu {
+                        ForEach(LabEndlessDifficulty.allCases) { difficulty in
+                            Button(difficulty.title) {openEndless(difficulty)}
+                        }
+                    } label: {Label("Endless",systemImage:"infinity")}
+                    .buttonStyle(.borderedProminent).tint(session.isEndlessSorting ? accent:Color.gray.opacity(0.35))
+                    .foregroundStyle(session.isEndlessSorting ? Color.black:ink)
+                    .accessibilityLabel("Endless Sorting")
+                    if geometry.size.width<900 || session.journeyMode || session.isEndlessSorting {
+                        Menu(session.journeyMode || session.isEndlessSorting ? "Explore labs":session.discipline.title+" Lab") {
                             ForEach(LabDiscipline.allCases,id:\.self) { discipline in
                                 Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
                             }
@@ -189,10 +203,10 @@ struct FluidBoardView:View {
                     }.pickerStyle(.segmented).frame(maxWidth:220)
                     Spacer(minLength:0)
                     Menu {
-                        puzzleChoices
+                        boardChoices
                     } label: { Image(systemName:"square.grid.2x2").frame(width:28,height:28) }.accessibilityLabel("Choose puzzle")
                 }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
-                HStack { Text(session.puzzle.detail);Spacer();Text("\(session.completedPuzzleCount) complete") }.font(.system(size:10,design:.monospaced)).foregroundStyle(ink.opacity(0.55)).padding(.horizontal,compact ? 20:32)
+                HStack { Text(session.boardDetail);Spacer();Text(session.boardProgressSummary) }.font(.system(size:10,design:.monospaced)).foregroundStyle(ink.opacity(0.55)).padding(.horizontal,compact ? 20:32)
                 HStack {
                     Text(session.paused ? "Paused":session.phase).font(.system(size:compact ? 19:24,weight:.light,design:.serif))
                     Spacer()
@@ -336,7 +350,14 @@ struct FluidBoardView:View {
                         Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || session.moveCount == 0)
                         Button(session.findingHint ? "Finding…":"Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved || session.findingHint)
                         Spacer(minLength:8)
-                        if session.journeyMode && session.journeyNext.count != 1 {
+                        if let endless=session.endlessBoard {
+                            Button("Next: \(endless.number+1)",systemImage:"arrow.right") {openEndless(endless.difficulty,level:endless.number+1)}
+                                .lineLimit(1).minimumScaleFactor(0.75)
+                                .buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
+                                .opacity(session.solved ? 1:0).disabled(!session.solved)
+                                .allowsHitTesting(session.solved).accessibilityHidden(!session.solved)
+                                .accessibilityIdentifier("endless.nextLevel")
+                        } else if session.journeyMode && session.journeyNext.count != 1 {
                             Group {
                                 if session.journeyNext.isEmpty {
                                     Button("Journey map",systemImage:"map") {sheet = .journey}
@@ -399,7 +420,7 @@ struct FluidBoardView:View {
                 inspectedApparatus=session.state.apparatus.first {$0.id==id}
             }
         }
-        .task(id:"\(session.puzzle.rawValue)/\(sheet?.rawValue ?? "board")/\(scenePhase)") {
+        .task(id:"\(session.boardID)/\(sheet?.rawValue ?? "board")/\(scenePhase)") {
             // Let a Journey sheet or lab menu finish dismissing before opening
             // the introduction. Navigation cancels stale presentation requests.
             do {try await Task.sleep(for:.milliseconds(400))} catch {return}
@@ -412,7 +433,7 @@ struct FluidBoardView:View {
             do {try await Task.sleep(for:.seconds(4))} catch {return}
             connectionPreviewID=nil
         }
-        .onChange(of:session.puzzle) { _,_ in inspectedApparatus=nil;connectionPreviewID=nil;showLearningGuide=false }
+        .onChange(of:session.boardID) { _,_ in inspectedApparatus=nil;connectionPreviewID=nil;showLearningGuide=false }
         .onChange(of:session.busy) { _,busy in if busy {inspectedApparatus=nil;connectionPreviewID=nil} }
         .onChange(of:session.selected) { _,_ in connectionPreviewID=nil }
         .onChange(of:session.hintApparatusID) { _,_ in connectionPreviewID=nil }
@@ -436,7 +457,7 @@ struct FluidBoardView:View {
             }
             Button("Cancel",role:.cancel) {}
         } message: {
-            Text("Start again at Level 1. This clears all saved puzzles, completion marks, undo history, and Original game progress, scores, and ratings. This can’t be undone.")
+            Text("Start again at Level 1. This clears all saved Lab puzzles, completion marks, undo history, and Endless Sorting progress. This can’t be undone.")
         }
         .sheet(item:$comparison) { example in LabPourComparisonView(example:example) }
         .sheet(item:$sheet) { item in
@@ -456,6 +477,20 @@ struct FluidBoardView:View {
     @ViewBuilder private var puzzleChoices:some View {
         ForEach(session.discipline.levels,id:\.self) { puzzle in
             Button("\(puzzle.number). \(puzzle.title)\(session.hasCompleted(puzzle) ? " ✓":"")") { session.changePuzzle(puzzle) }
+        }
+    }
+    @ViewBuilder private var boardChoices:some View {
+        if let endless=session.endlessBoard {
+            Button("Previous level") {openEndless(endless.difficulty,level:endless.number-1)}.disabled(endless.number==1)
+            Button("Next level") {openEndless(endless.difficulty,level:endless.number+1)}
+            Divider()
+            ForEach(LabEndlessDifficulty.allCases) {difficulty in
+                Button(difficulty.title+(difficulty==endless.difficulty ? " ✓":"")) {openEndless(difficulty,level:difficulty==endless.difficulty ? endless.number:1)}
+            }
+            Divider()
+            Button("Return to Sorting Lab") {session.changeDiscipline(.sorting)}
+        } else {
+            puzzleChoices
         }
     }
     private func cueLabel(_ index:Int)->String {

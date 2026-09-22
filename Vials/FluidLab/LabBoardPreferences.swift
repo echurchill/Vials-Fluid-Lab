@@ -334,26 +334,54 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
     }
 }
 
+nonisolated enum LabEndlessDifficulty:String,CaseIterable,Codable,Identifiable {
+    case easy,medium,hard
+    var id:String {rawValue}
+    var title:String {rawValue.capitalized}
+}
+
+/// A generated Original-game sorting board hosted by the shared Lab engine.
+/// Storing its exact initial state keeps saves deterministic even if generation
+/// tuning changes later, while the source metadata supports level navigation.
+nonisolated struct LabEndlessBoard:Codable,Equatable {
+    let difficulty:LabEndlessDifficulty
+    let number:Int
+    let generationVariant:Int
+    let initial:LabBoardState
+    var saveKey:String {"endless.\(difficulty.rawValue).\(number).\(generationVariant)"}
+    var title:String {"\(difficulty.title) \(number)"}
+    var detail:String {
+        let range=(initial.capacities.min() ?? 0)...(initial.capacities.max() ?? 0)
+        var parts=["Generated level \(number)","\(initial.stacks.count) vials","\(Set(initial.colors).count) colors"]
+        if range.lowerBound != 4 || range.upperBound != 4 {
+            parts.append(range.lowerBound==range.upperBound ? "\(range.lowerBound) units":"\(range.lowerBound)–\(range.upperBound) units")
+        }
+        return parts.joined(separator:" · ")
+    }
+}
+
 struct LabComparisonSave:Codable {
     var seenLearningTopics:Set<String> = []
     var journeyMode:Bool = false
     var presentation:LabBoardPresentation = .fluid
     var pace:LabBoardPace = .relaxed
     var puzzle:LabBoardPuzzle = .firstSort
+    var endlessBoard:LabEndlessBoard?
     var games:[String:LabBoardGame] = [:]
     var lastPuzzles:[String:String] = [:]
     /// Revised density starts must replace saved pre-settlement setups, without
     /// disturbing progress in the other three laboratories.
     var densitySetupVersion:Int = 1
-    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,games,lastPuzzles,densitySetupVersion,journeyMode,seenLearningTopics}
-    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1,journeyMode:Bool=false,seenLearningTopics:Set<String>=[]) {
-        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion;self.journeyMode=journeyMode;self.seenLearningTopics=seenLearningTopics
+    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,endlessBoard,games,lastPuzzles,densitySetupVersion,journeyMode,seenLearningTopics}
+    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,endlessBoard:LabEndlessBoard?=nil,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1,journeyMode:Bool=false,seenLearningTopics:Set<String>=[]) {
+        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.endlessBoard=endlessBoard;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion;self.journeyMode=journeyMode;self.seenLearningTopics=seenLearningTopics
     }
     init(from decoder:Decoder)throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
         presentation=try values.decodeIfPresent(LabBoardPresentation.self,forKey:.presentation) ?? .fluid
         pace=try values.decodeIfPresent(LabBoardPace.self,forKey:.pace) ?? .relaxed
         puzzle=try values.decodeIfPresent(LabBoardPuzzle.self,forKey:.puzzle) ?? .firstSort
+        endlessBoard=try values.decodeIfPresent(LabEndlessBoard.self,forKey:.endlessBoard)
         games=try values.decodeIfPresent([String:LabBoardGame].self,forKey:.games) ?? [:]
         lastPuzzles=try values.decodeIfPresent([String:String].self,forKey:.lastPuzzles) ?? [:]
         densitySetupVersion=try values.decodeIfPresent(Int.self,forKey:.densitySetupVersion) ?? 0
