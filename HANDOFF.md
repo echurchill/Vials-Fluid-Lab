@@ -1,5 +1,7 @@
 # Vials Fluid Lab — handoff to the next chat
 
+September 22 push checkpoint: teaching bridges, learning guides and async GPU warning fix committed and pushed as `7217dd1` on `codex/fluid-lab`. Earlier local/unpushed notes below describe prior checkpoints. Remaining UI checks are unchanged.
+
 ## September 22 checkpoint: GPU warning fixed; Mac checks resumed
 
 User reconnected iPad and reported Xcode's async `waitUntilCompleted()` warning. Changed only that optional profiler call to `await command.completed()`; both Mac/iOS builds pass with the reported warning removed. Latest signed build installed/launched on the M4 iPad. Mac live first-use guides, paging, dismissal, replay, Ready to blend completion/Next, and One step heavier completion/Next passed. Full iPad visual acceptance remains pending; QuickTime has a file picker, no preview/recording. See Prototype42 follow-up for remaining checks. The earlier locked-Mac/iPad-unavailable notes below are historical. Caffeinate used during checks, stopped afterward. Changes are still local/unpushed; preserve unrelated root PNG.

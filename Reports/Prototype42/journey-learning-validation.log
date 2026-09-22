@@ -11,7 +11,7 @@ Vials/FluidLab/LabBoardSession.swift:783:33: warning: instance method 'waitUntil
 353 |  */
 354 | - (void)waitUntilCompleted NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Use 'await completed()' instead.");
     | `- note: 'waitUntilCompleted()' declared here
-355 | 
+355 |
 356 | /*!
 PASS Learning: context, first-use persistence, replay, lab sharing, legacy/unknown-topic migration, reset
 PASS Journey: 24 solvable/reachable stops, no cycles, optional branch, cross-lab navigation, direct lab escape, shared progress, save migration, busy guards and full reset
