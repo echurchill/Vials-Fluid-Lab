@@ -626,3 +626,8 @@ September 21 implementation update: ordinary pours now overlap across all six la
 ## Implemented: shapes identify tool roles (September 21, Prototype39)
 
 Traditional test tubes now identify ordinary sources/storage and final targets across all labs. Mixer and separator/Recovery working ports use the existing round bulb flask. Density-changing chambers use the existing flat-bottomed tapered flask. The pear silhouette remains available for a future experiment, without assigning it a mechanic yet. Final target role wins over tools; density wins over another tool on a shared non-target chamber. Shared-role badges supplement shape. Shapes never change when contents, density or completion change. Existing capacity scaling, profile knots and camera/layout policy are preserved. See Prototype39 for regression and device evidence.
+
+
+## Implemented: open Journey learning map (September 21, Prototype41)
+
+Journey connects 19 existing teaching boards across Sorting, Density, Mixing, Recovery and Crossover, with Discovery as an optional branch. Every stop stays open, shares progress with its lab and states its learning goal. Completion follows the graph across labs or offers branch choices. This is a curated route over existing levels, not a new set of mechanics or puzzle layouts. Older saves retain direct lab navigation. See Prototype41 for graph/session validation, live Mac interaction checks and remaining iPad visual review.

@@ -17,6 +17,7 @@ import Combine
     @Published private(set) var presentation:LabBoardPresentation
     @Published private(set) var pace:LabBoardPace
     @Published private(set) var puzzle:LabBoardPuzzle
+    @Published private(set) var journeyMode:Bool
     var discipline:LabDiscipline {puzzle.discipline}
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
@@ -85,7 +86,16 @@ import Combine
     private let feedback=LabBoardFeedback()
     var completedPuzzleCount:Int { discipline.levels.filter(hasCompleted).count }
     func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool { puzzle == self.puzzle ? state.solved:(saved.games[puzzle.rawValue]?.state.solved ?? false) }
-    func nextPuzzle() { if !busy,let next=puzzle.next { changePuzzle(next) } }
+    var journeyNext:[LabBoardPuzzle] {LabJourney.stop(puzzle)?.next ?? []}
+    var nextSuggestedPuzzle:LabBoardPuzzle? {journeyMode ? (journeyNext.count==1 ? journeyNext[0]:nil):puzzle.next}
+    func nextPuzzle() {
+        guard !busy,let next=nextSuggestedPuzzle else {return}
+        changePuzzle(next,inJourney:journeyMode)
+    }
+    func startJourney(at stop:LabBoardPuzzle) {
+        guard LabJourney.stop(stop) != nil else {return}
+        changePuzzle(stop,inJourney:true)
+    }
     let performance=LabPerformanceRecorder()
     private var trialStarted=false
     private var suspended=false
@@ -163,7 +173,7 @@ import Combine
         self.allowsConcurrentPours=allowsConcurrentPours
         let trial=LabTrialConfiguration.current
         self.defaults=trial == nil ? defaults:nil;self.device=device;self.library=library
-        var save=self.defaults?.data(forKey:"lab.comparison.v1").flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) } ?? LabComparisonSave()
+        var save=self.defaults?.data(forKey:"lab.comparison.v1").flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) } ?? LabComparisonSave(journeyMode:true)
         if let restoredSave { save=restoredSave }
         if let trial { save=LabComparisonSave(presentation:trial.presentation,pace:trial.pace,puzzle:trial.puzzle,games:[:]) }
         if save.densitySetupVersion<1 {
@@ -174,6 +184,7 @@ import Combine
         hapticsEnabled=self.defaults?.object(forKey:"lab.haptics") as? Bool ?? (self.defaults != nil)
         quality=trial?.quality ?? LabRenderQuality(rawValue:self.defaults?.string(forKey:"lab.quality") ?? "automatic") ?? .automatic
         saved=save;presentation=save.presentation;pace=save.pace;puzzle=save.puzzle
+        journeyMode=save.journeyMode && LabJourney.stop(save.puzzle) != nil
         var restored=save.games[save.puzzle.rawValue] ?? LabBoardGame(state:save.puzzle.initial)
         restored.cancel() // A launch restores the last committed move.
         game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
@@ -216,7 +227,7 @@ import Combine
         performance.traceBegin("Checkpoint");defer { performance.traceEnd("Checkpoint") }
         var stable=game;stable.cancel()
         saved.games[puzzle.rawValue]=stable;saved.presentation=presentation;saved.pace=pace;saved.puzzle=puzzle
-        saved.lastPuzzles[puzzle.discipline.rawValue]=puzzle.rawValue
+        saved.lastPuzzles[puzzle.discipline.rawValue]=puzzle.rawValue;saved.journeyMode=journeyMode
         if let data=try? JSONEncoder().encode(saved) { defaults?.set(data,forKey:"lab.comparison.v1") }
     }
     func checkpointData() throws -> Data { checkpoint();return try JSONEncoder().encode(saved) }
@@ -234,12 +245,14 @@ import Combine
         guard !busy,pace != value else { return };finishMeasurement(reason:"pace changed");pace=value;updateSpeed();checkpoint()
     }
     func changeDiscipline(_ value:LabDiscipline) {
-        guard !busy,value != discipline else {return}
+        guard !busy,value != discipline || journeyMode else {return}
         let remembered=saved.lastPuzzles[value.rawValue].flatMap(LabBoardPuzzle.init(rawValue:))
         changePuzzle(remembered?.discipline==value ? remembered!:value.levels[0])
     }
-    func changePuzzle(_ value:LabBoardPuzzle) {
-        guard !busy,value != puzzle else { return }
+    func changePuzzle(_ value:LabBoardPuzzle,inJourney:Bool=false) {
+        guard !busy else {return}
+        journeyMode=inJourney && LabJourney.stop(value) != nil
+        guard value != puzzle else {checkpoint();return}
         cancelHint()
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         finishMeasurement(reason:"puzzle changed");checkpoint();puzzle=value;game=saved.games[value.rawValue] ?? LabBoardGame(state:value.initial);game.cancel()
@@ -456,7 +469,7 @@ import Combine
     /// reset() invalidates in-flight worker results before the fresh checkpoint.
     func resetAllProgress() {
         finishMeasurement(reason:"all progress reset")
-        saved=LabComparisonSave()
+        saved=LabComparisonSave(journeyMode:true);journeyMode=true
         puzzle=saved.puzzle;presentation=saved.presentation;pace=saved.pace
         comparisonSpeed=nil;slow=false;points=false;diagnostics=false;orbit=0.12
         error=nil;reportURL=nil

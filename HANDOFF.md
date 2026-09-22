@@ -1,5 +1,12 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## Latest: Journey implemented and Mac interactions verified (September 21)
+
+User approved a Journey entry and branching learning map. Added 19 curated existing teaching stops with learning goals, completion/current markers, open access, shared lab progress, cross-lab Next, fork choice and path-ending map action. Sorting branches to Density/Mixing/optional Discovery; Mixing → Recovery; Density/Recovery → Crossover. No new puzzle layouts or physics changes. New saves/fresh reset enter Journey; old saves stay in direct labs. Explore labs exits Journey; selecting a map stop resumes the existing board.
+
+Both final builds, new graph/navigation/save tests and existing 19 experimental session routes pass. Wide/compact offscreen map renders inspected. Live Mac checks with caffeinate passed: map scrolling/selection/close, Second chance → Equal partners, same-lab exit, seven-pour Cross currents fork → optional Discovery, and 11-operation Full spectrum → terminal Journey map. All three presentations were exercised. Explicit button accessibility traits were added and verified after rebuild/relaunch. Mac screenshots remain undersized/distorted, so full-resolution live visual acceptance is not claimed. iPad was unavailable during this follow-up and was not accessed; portrait/landscape review and installing the final accessibility-only correction remain pending. Reports/Prototype41 contains evidence/limitations. Machine guidance checkpoint 505b0dd was already pushed; Journey is the accompanying commit. Scheduled monitor stays paused; unrelated root PNG untouched.
+
+
 ## Latest: machine connection guidance (September 21)
 
 User requested checkpoint push, then clearer machine connections. Prototype37–39 were committed/pushed as 761328d37c390156812d33a3de51c6a9bf148437; remote verified. New Prototype40 is local/unpushed: machine information, machine hints and active operations highlight their inputs/outputs, matching footer cards and role badges. Dashed lavender inputs, solid outputs and directional curves below the vessels. Shared ports highlight the relevant machine role. Density highlights its chamber only.

@@ -2,7 +2,7 @@ import SwiftUI
 import MetalKit
 import Combine
 
-private enum BoardSheet:String,Identifiable { case classic,study;var id:String { rawValue } }
+private enum BoardSheet:String,Identifiable { case classic,study,journey;var id:String { rawValue } }
 
 struct FluidBoardView:View {
     @StateObject private var session=FluidBoardSession(allowsConcurrentPours:true)
@@ -35,6 +35,17 @@ struct FluidBoardView:View {
         if tool.inputs.contains(index) {return tool.title+" input"}
         if tool.outputs.contains(index) {return tool.title+" output"}
         return ""
+    }
+    private var boardNotice:String {
+        if session.journeyMode {
+            if session.solved {
+                return session.journeyNext.isEmpty ? "Path complete. Explore another branch in Journey.":(session.journeyNext.count>1 ? "Step complete. Choose what you would like to learn next.":"Step complete. Continue your Journey when you are ready.")
+            }
+            if session.moveCount==0 && !session.busy && session.selected==nil && session.hintApparatusID==nil && session.hintTarget==nil {
+                return LabJourney.stop(session.puzzle)?.lesson ?? session.notice
+            }
+        }
+        return session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice
     }
     private var apparatusControls:some View {
         HStack(spacing:10) {
@@ -95,7 +106,7 @@ struct FluidBoardView:View {
             VStack(spacing:0) {
                 HStack {
                     VStack(alignment:.leading,spacing:4) {
-                        Text("VIALS / \(session.discipline.header)").font(.system(size:10,weight:.semibold,design:.monospaced)).tracking(3).foregroundStyle(ink.opacity(0.5))
+                        Text(session.journeyMode ? "VIALS / JOURNEY · \(session.discipline.title.uppercased())":"VIALS / \(session.discipline.header)").font(.system(size:10,weight:.semibold,design:.monospaced)).tracking(3).foregroundStyle(ink.opacity(0.5))
                         Text(session.puzzle.title).font(.system(size:compact ? 28:34,design:.serif)).foregroundStyle(ink)
                     }
                     Spacer()
@@ -116,8 +127,12 @@ struct FluidBoardView:View {
                     } label: { Image(systemName:"ellipsis.circle").frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Board options")
                 }.padding(.horizontal,compact ? 20:32).padding(.top,20).padding(.bottom,12)
                 HStack(spacing:12) {
-                    if compact {
-                        Menu(session.discipline.title+" Lab") {
+                    Button("Journey",systemImage:"map") {sheet = .journey}
+                        .buttonStyle(.borderedProminent).tint(session.journeyMode ? accent:Color.gray.opacity(0.35))
+                        .foregroundStyle(session.journeyMode ? Color.black:ink)
+                        .accessibilityIdentifier("lab.journey")
+                    if geometry.size.width<900 || session.journeyMode {
+                        Menu(session.journeyMode ? "Explore labs":session.discipline.title+" Lab") {
                             ForEach(LabDiscipline.allCases,id:\.self) { discipline in
                                 Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
                             }
@@ -280,12 +295,30 @@ struct FluidBoardView:View {
                             }
                         }
                     }
-                    Text(session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity).lineLimit(2).frame(height:34).multilineTextAlignment(.center)
+                    Text(boardNotice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity).lineLimit(2).frame(height:34).multilineTextAlignment(.center)
                     HStack(spacing:12) {
                         Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || session.moveCount == 0)
                         Button(session.findingHint ? "Finding…":"Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved || session.findingHint)
                         Spacer(minLength:8)
-                        if let next=session.puzzle.next {
+                        if session.journeyMode && session.journeyNext.count != 1 {
+                            Group {
+                                if session.journeyNext.isEmpty {
+                                    Button("Journey map",systemImage:"map") {sheet = .journey}
+                                        .accessibilityIdentifier("journey.finish")
+                                } else {
+                                    Menu("Choose path") {
+                                        ForEach(session.journeyNext,id:\.self) { stop in
+                                            Button(stop.discipline.title+(stop.discipline == .discovery ? " (optional)":"")+": "+stop.title) {session.startJourney(at:stop)}
+                                        }
+                                        Divider()
+                                        Button("View Journey map") {sheet = .journey}
+                                    }.menuStyle(.button).accessibilityIdentifier("journey.choosePath")
+                                }
+                            }.buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
+                                .lineLimit(1).minimumScaleFactor(0.75)
+                                .opacity(session.solved ? 1:0).disabled(!session.solved)
+                                .allowsHitTesting(session.solved).accessibilityHidden(!session.solved)
+                        } else if let next=session.nextSuggestedPuzzle {
                             // Keep the slot in the toolbar while playing so
                             // completion never inserts a row or resizes the board.
                             Button("Next: \(next.title)",systemImage:"arrow.right") { session.nextPuzzle() }
@@ -320,6 +353,7 @@ struct FluidBoardView:View {
             // Isolated device-review launches can expose a guide without
             // depending on touch forwarding through the screen-sharing host.
             let args=ProcessInfo.processInfo.arguments
+            if LabTrialConfiguration.current != nil,args.contains("--visual-review"),args.contains("--journey-map") {sheet = .journey}
             if LabTrialConfiguration.current != nil,args.contains("--visual-review"),
                let option=args.firstIndex(of:"--inspect-machine"),option+1<args.count,
                let id=Int(args[option+1]) {
@@ -356,10 +390,17 @@ struct FluidBoardView:View {
         }
         .sheet(item:$comparison) { example in LabPourComparisonView(example:example) }
         .sheet(item:$sheet) { item in
-            ZStack(alignment:.topTrailing) {
-                if item == .study { FluidLabView() } else { ContentView() }
-                Button("Return to board",systemImage:"xmark.circle.fill") { sheet=nil }.buttonStyle(.bordered).padding()
-            }.frame(minWidth:360,minHeight:640)
+            if item == .journey {
+                LabJourneyMapView(current:session.journeyMode ? session.puzzle:nil,
+                    completed:Set(LabJourney.stops.map(\.puzzle).filter(session.hasCompleted)),
+                    choose:{session.startJourney(at:$0);sheet=nil},close:{sheet=nil})
+                    .frame(minWidth:360,idealWidth:960,minHeight:640,idealHeight:800)
+            } else {
+                ZStack(alignment:.topTrailing) {
+                    if item == .study { FluidLabView() } else { ContentView() }
+                    Button("Return to board",systemImage:"xmark.circle.fill") { sheet=nil }.buttonStyle(.bordered).padding()
+                }.frame(minWidth:360,minHeight:640)
+            }
         }
     }
     @ViewBuilder private var puzzleChoices:some View {

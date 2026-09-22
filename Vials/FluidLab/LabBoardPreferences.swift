@@ -231,7 +231,42 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
         return state.solved ? result:nil
     }
 }
+/// A curated learning path over the existing boards. Progress is deliberately
+/// shared with direct lab play; edges suggest learning order, never lock access.
+nonisolated struct LabJourneyStop:Identifiable {
+    let puzzle:LabBoardPuzzle
+    let lesson:String
+    let next:[LabBoardPuzzle]
+    var id:LabBoardPuzzle {puzzle}
+}
+nonisolated enum LabJourney {
+    static let stops:[LabJourneyStop]=[
+        .init(puzzle:.firstSort,lesson:"Group matching colors and use an empty vial to make room.",next:[.crossCurrents]),
+        .init(puzzle:.crossCurrents,lesson:"Plan a few pours ahead before choosing your next branch.",next:[.heavyLanding,.warmBlend,.firstReveal]),
+        .init(puzzle:.heavyLanding,lesson:"Heavy liquid sinks through light liquid. Match the target’s layers.",next:[.threeDeep]),
+        .init(puzzle:.threeDeep,lesson:"Arrange light, medium and heavy liquids in one target.",next:[.shadesOfBlue]),
+        .init(puzzle:.shadesOfBlue,lesson:"The color is the same; use density symbols to tell the layers apart.",next:[.equalPartners]),
+        .init(puzzle:.warmBlend,lesson:"Make orange from one unit of red and one unit of yellow.",next:[.coolBlend]),
+        .init(puzzle:.coolBlend,lesson:"Use the mixer to create green, then deliver it to the target.",next:[.violetReaction]),
+        .init(puzzle:.violetReaction,lesson:"Complete the recipe family: blue and red make purple.",next:[.splitPurple]),
+        .init(puzzle:.splitPurple,lesson:"Recover two ingredients from a mixture without losing any liquid.",next:[.secondChance]),
+        .init(puzzle:.secondChance,lesson:"Keep one recovered ingredient and remix the other into a new color.",next:[.equalPartners]),
+        .init(puzzle:.equalPartners,lesson:"Bring ingredients to the same density before mixing them.",next:[.weightedOrange]),
+        .init(puzzle:.weightedOrange,lesson:"Mix the requested color, make it heavier, then fill the target.",next:[.layerCake]),
+        .init(puzzle:.layerCake,lesson:"Combine a recipe with a target that requires a particular layer order.",next:[.twinProducts]),
+        .init(puzzle:.twinProducts,lesson:"Plan two recipes and send each through the right density chamber.",next:[.fullSpectrum]),
+        .init(puzzle:.fullSpectrum,lesson:"Combine color, quantity and density to complete both targets.",next:[]),
+        .init(puzzle:.firstReveal,lesson:"Pour a known color to discover what is underneath.",next:[.peekAhead]),
+        .init(puzzle:.peekAhead,lesson:"Choose which vial to investigate while keeping room to pour.",next:[.buriedClue]),
+        .init(puzzle:.buriedClue,lesson:"Use what you have uncovered to plan the next few moves.",next:[.hiddenGarden]),
+        .init(puzzle:.hiddenGarden,lesson:"Put your discoveries together to sort three hidden colors.",next:[])
+    ]
+    static func stop(_ puzzle:LabBoardPuzzle)->LabJourneyStop? {stops.first {$0.puzzle==puzzle}}
+    static func branch(_ discipline:LabDiscipline)->[LabJourneyStop] {stops.filter {$0.puzzle.discipline==discipline}}
+}
+
 struct LabComparisonSave:Codable {
+    var journeyMode:Bool = false
     var presentation:LabBoardPresentation = .fluid
     var pace:LabBoardPace = .relaxed
     var puzzle:LabBoardPuzzle = .firstSort
@@ -240,9 +275,9 @@ struct LabComparisonSave:Codable {
     /// Revised density starts must replace saved pre-settlement setups, without
     /// disturbing progress in the other three laboratories.
     var densitySetupVersion:Int = 1
-    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,games,lastPuzzles,densitySetupVersion}
-    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1) {
-        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion
+    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,games,lastPuzzles,densitySetupVersion,journeyMode}
+    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1,journeyMode:Bool=false) {
+        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion;self.journeyMode=journeyMode
     }
     init(from decoder:Decoder)throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
@@ -252,6 +287,7 @@ struct LabComparisonSave:Codable {
         games=try values.decodeIfPresent([String:LabBoardGame].self,forKey:.games) ?? [:]
         lastPuzzles=try values.decodeIfPresent([String:String].self,forKey:.lastPuzzles) ?? [:]
         densitySetupVersion=try values.decodeIfPresent(Int.self,forKey:.densitySetupVersion) ?? 0
+        journeyMode=try values.decodeIfPresent(Bool.self,forKey:.journeyMode) ?? false
     }
 }
 
