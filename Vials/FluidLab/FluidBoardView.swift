@@ -7,6 +7,9 @@ private enum BoardSheet:String,Identifiable { case classic,study,journey;var id:
 struct FluidBoardView:View {
     @StateObject private var session=FluidBoardSession(allowsConcurrentPours:true)
     @State private var showResetProgress=false
+    @State private var showLearningGuide=false
+    @State private var learningTopics:[LabLearningTopic]=[]
+    @State private var learningIndex=0
     @State private var inspectedApparatus:LabApparatus?
     @State private var connectionPreviewID:Int?
     @State private var sheet:BoardSheet?
@@ -35,6 +38,31 @@ struct FluidBoardView:View {
         if tool.inputs.contains(index) {return tool.title+" input"}
         if tool.outputs.contains(index) {return tool.title+" output"}
         return ""
+    }
+    private func openLearningGuide(firstUse:Bool) {
+        guard !session.busy,sheet==nil,comparison==nil,!showResetProgress,!showLearningGuide else {return}
+        if firstUse {
+            guard LabTrialConfiguration.current==nil,scenePhase == .active,session.moveCount==0,!session.solved,
+                  session.selected==nil,inspectedApparatus==nil,!session.findingHint,
+                  session.hintTarget==nil,session.hintApparatusID==nil else {return}
+        }
+        let topics=firstUse ? session.unseenLearningTopics:session.learningTopics
+        guard !topics.isEmpty else {return}
+        learningTopics=topics;learningIndex=0;showLearningGuide=true
+    }
+    private var learningGuide:some View {
+        Group {
+            if learningTopics.indices.contains(learningIndex) {
+                let topic=learningTopics[learningIndex]
+                LabLearningGuideView(topic:topic,position:learningIndex+1,total:learningTopics.count,
+                    route:session.state.apparatus.first(where:{LabLearningTopic.topic(for:$0)==topic}).map(machineRoute),
+                    advance:{
+                        if learningIndex+1<learningTopics.count {learningIndex+=1}
+                        else {showLearningGuide=false}
+                    },close:{showLearningGuide=false})
+                    .task(id:topic) {session.markLearningTopicSeen(topic)}
+            }
+        }.presentationCompactAdaptation(.popover)
     }
     private var boardNotice:String {
         if session.journeyMode {
@@ -74,6 +102,7 @@ struct FluidBoardView:View {
             let guide=session.state.apparatusGuidance(tool)
             return VStack(alignment:.leading,spacing:14) {
                 Text(tool.title).font(.headline)
+                Text(LabLearningTopic.topic(for:tool).explanation).font(.callout).fixedSize(horizontal:false,vertical:true)
                 Text(machineRoute(tool)).font(.system(.callout,design:.monospaced).weight(.semibold))
                     .foregroundStyle(machineAccent).fixedSize(horizontal:false,vertical:true)
                 Text(tool.kind == .densityModifier ? "The highlighted chamber changes the liquid’s density.":"Dashed outlines mark inputs; solid outlines and arrowheads mark outputs.")
@@ -95,7 +124,7 @@ struct FluidBoardView:View {
 
     }
 
-    var body:some View {
+    private var boardLayout:some View {
         GeometryReader { geometry in
             let compact=geometry.size.width<680
             let vialCount=session.state.stacks.count
@@ -110,6 +139,13 @@ struct FluidBoardView:View {
                         Text(session.puzzle.title).font(.system(size:compact ? 28:34,design:.serif)).foregroundStyle(ink)
                     }
                     Spacer()
+                    if !session.learningTopics.isEmpty {
+                        Button {openLearningGuide(firstUse:false)} label: {Image(systemName:"questionmark.circle").frame(width:32,height:32)}
+                            .buttonStyle(.plain).disabled(session.busy)
+                            .accessibilityLabel("Learning guide").accessibilityHint("Replay explanations for this level’s tools and liquids.")
+                            .accessibilityIdentifier("lab.learningGuide")
+                            .popover(isPresented:$showLearningGuide) {learningGuide}
+                    }
                     Button { session.diagnostics.toggle() } label: { Image(systemName:"slider.horizontal.3").frame(width:34,height:34) }
                         .buttonStyle(.plain).accessibilityLabel("Board diagnostics")
                     Menu {
@@ -347,7 +383,10 @@ struct FluidBoardView:View {
                 }.padding(.horizontal,compact ? 20:32).padding(.vertical,18).background(Color(red:0.065,green:0.060,blue:0.075))
             }.background(Color(red:0.026,green:0.043,blue:0.060)).foregroundStyle(ink)
         }
-        .preferredColorScheme(.dark)
+    }
+
+    private var interactiveBoard:some View {
+        boardLayout.preferredColorScheme(.dark)
         .task {
             await session.runTrialIfRequested()
             // Isolated device-review launches can expose a guide without
@@ -360,6 +399,12 @@ struct FluidBoardView:View {
                 inspectedApparatus=session.state.apparatus.first {$0.id==id}
             }
         }
+        .task(id:"\(session.puzzle.rawValue)/\(sheet?.rawValue ?? "board")/\(scenePhase)") {
+            // Let a Journey sheet or lab menu finish dismissing before opening
+            // the introduction. Navigation cancels stale presentation requests.
+            do {try await Task.sleep(for:.milliseconds(400))} catch {return}
+            openLearningGuide(firstUse:true)
+        }
         .task(id:inspectedApparatus?.id) {
             if let id=inspectedApparatus?.id {connectionPreviewID=id;return}
             // The popover may cover a port on iPad. Retain its route briefly
@@ -367,18 +412,23 @@ struct FluidBoardView:View {
             do {try await Task.sleep(for:.seconds(4))} catch {return}
             connectionPreviewID=nil
         }
-        .onChange(of:session.puzzle) { _,_ in inspectedApparatus=nil;connectionPreviewID=nil }
+        .onChange(of:session.puzzle) { _,_ in inspectedApparatus=nil;connectionPreviewID=nil;showLearningGuide=false }
         .onChange(of:session.busy) { _,busy in if busy {inspectedApparatus=nil;connectionPreviewID=nil} }
         .onChange(of:session.selected) { _,_ in connectionPreviewID=nil }
         .onChange(of:session.hintApparatusID) { _,_ in connectionPreviewID=nil }
+    }
+
+    var body:some View {
+        interactiveBoard
         .onChange(of:reduceTransparency,initial:true) { _,value in session.renderer?.reduceTransparency=value }
         .onChange(of:session.presentation) { _,_ in session.renderer?.reduceTransparency=reduceTransparency }
         .onChange(of:reduceMotion,initial:true) { _,value in session.reduceTransformationMotion=value }
         .onAppear { if reduceMotion { session.paused=true;session.renderer?.paused=true } }
-        .onChange(of:sheet) { _,value in session.setSuspended(value != nil || comparison != nil || showResetProgress || scenePhase != .active) }
-        .onChange(of:scenePhase) { _,value in session.setSuspended(value != .active || sheet != nil || comparison != nil || showResetProgress) }
-        .onChange(of:comparison?.id) { _,value in session.setSuspended(value != nil || sheet != nil || showResetProgress || scenePhase != .active) }
-        .onChange(of:showResetProgress) { _,value in session.setSuspended(value || sheet != nil || comparison != nil || scenePhase != .active) }
+        .onChange(of:sheet) { _,value in session.setSuspended(value != nil || comparison != nil || showResetProgress || showLearningGuide || scenePhase != .active) }
+        .onChange(of:scenePhase) { _,value in session.setSuspended(value != .active || sheet != nil || comparison != nil || showResetProgress || showLearningGuide) }
+        .onChange(of:comparison?.id) { _,value in session.setSuspended(value != nil || sheet != nil || showResetProgress || showLearningGuide || scenePhase != .active) }
+        .onChange(of:showResetProgress) { _,value in session.setSuspended(value || sheet != nil || comparison != nil || showLearningGuide || scenePhase != .active) }
+        .onChange(of:showLearningGuide) { _,value in session.setSuspended(value || sheet != nil || comparison != nil || showResetProgress || scenePhase != .active) }
         .confirmationDialog("Reset all progress?",isPresented:$showResetProgress,titleVisibility:.visible) {
             Button("Reset all progress",role:.destructive) {
                 session.resetAllProgress()

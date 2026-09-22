@@ -38,27 +38,27 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
     case fiveStreams,tallOrder,sixfold,valveCircuit
     case heavyLanding,threeDeep,shadesOfBlue,twinColumns,againstThePour
     case warmBlend,coolBlend,violetReaction,colorWheel,measuredBatch
-    case firstReveal,peekAhead,buriedClue,hiddenGarden
+    case firstReveal,peekAhead,buriedClue,thirdColor,hiddenGarden
     case splitPurple,roomForBoth,secondChance,keepEveryDrop
-    case equalPartners,weightedOrange,layerCake,twinProducts,fullSpectrum
+    case readyToBlend,oneStepHeavier,floatAgain,equalPartners,weightedOrange,layerCake,twinProducts,fullSpectrum
     var discipline:LabDiscipline {
         switch self {
-        case .firstReveal,.peekAhead,.buriedClue,.hiddenGarden:.discovery
+        case .firstReveal,.peekAhead,.buriedClue,.thirdColor,.hiddenGarden:.discovery
         case .splitPurple,.roomForBoth,.secondChance,.keepEveryDrop:.recovery
         case .heavyLanding,.threeDeep,.shadesOfBlue,.twinColumns,.againstThePour:.density
         case .warmBlend,.coolBlend,.violetReaction,.colorWheel,.measuredBatch:.mixing
-        case .equalPartners,.weightedOrange,.layerCake,.twinProducts,.fullSpectrum:.crossover
+        case .readyToBlend,.oneStepHeavier,.floatAgain,.equalPartners,.weightedOrange,.layerCake,.twinProducts,.fullSpectrum:.crossover
         default:.sorting
         }
     }
     var title:String {
         switch self {
         case .firstSort:"First sort";case .crossCurrents:"Cross currents";case .lastDrops:"Last drops";case .greenArrival:"Green arrival";case .tidalPool:"Tidal pool";case .glassGarden:"Glass garden";case .switchback:"Switchback";case .estuary:"Estuary";case .crossingPaths:"Crossing paths";case .deepCurrent:"Deep current";case .orchard:"Orchard";case .confluence:"Confluence";case .fiveStreams:"Five streams";case .tallOrder:"Tall order";case .sixfold:"Sixfold";case .valveCircuit:"Valve circuit"
-        case .firstReveal:"First reveal";case .peekAhead:"Peek ahead";case .buriedClue:"Buried clue";case .hiddenGarden:"Hidden garden"
+        case .firstReveal:"First reveal";case .peekAhead:"Peek ahead";case .buriedClue:"Buried clue";case .thirdColor:"Third color";case .hiddenGarden:"Hidden garden"
         case .splitPurple:"Split purple";case .roomForBoth:"Room for both";case .secondChance:"Second chance";case .keepEveryDrop:"Keep every drop"
         case .heavyLanding:"Heavy landing";case .threeDeep:"Three deep";case .shadesOfBlue:"Shades of blue";case .twinColumns:"Twin columns";case .againstThePour:"Against the pour"
         case .warmBlend:"Warm blend";case .coolBlend:"Cool blend";case .violetReaction:"Violet reaction";case .colorWheel:"Color wheel";case .measuredBatch:"Measured batch"
-        case .equalPartners:"Equal partners";case .weightedOrange:"Weighted orange";case .layerCake:"Layer cake";case .twinProducts:"Twin products";case .fullSpectrum:"Full spectrum"
+        case .readyToBlend:"Ready to blend";case .oneStepHeavier:"One step heavier";case .floatAgain:"Float again";case .equalPartners:"Equal partners";case .weightedOrange:"Weighted orange";case .layerCake:"Layer cake";case .twinProducts:"Twin products";case .fullSpectrum:"Full spectrum"
         }
     }
     var instruction:String {discipline == .discovery ? "Pour known colors to reveal what is below. Discoveries stay known.":(discipline == .sorting ? "Tap a filled vial, then a matching color or an empty vial.":"Match the outlined target vials.")}
@@ -106,6 +106,7 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
         case .firstReveal: LabBoardState(layers:[[0,1],[1,0],[],[]],capacities:[2,2,2,2],behavior:.discovery,obscured:true)
         case .peekAhead: LabBoardState(layers:[[0,1],[1,0],[0,1],[]],capacities:[3,3,3,3],behavior:.discovery,obscured:true)
         case .buriedClue: LabBoardState(layers:[[0,1,0],[1,0,1],[],[]],capacities:[3,3,3,3],behavior:.discovery,obscured:true)
+        case .thirdColor: LabBoardState(layers:[[0,1],[1,2],[2,0],[],[]],capacities:[2,2,2,2,2],behavior:.discovery,obscured:true)
         case .hiddenGarden: LabBoardState(layers:[[0,1,2],[2,0,1],[1,2,0],[],[]],capacities:[3,3,3,3,3],behavior:.discovery,obscured:true)
         case .splitPurple: LabBoardState(layers:[[6,6],[],[]],capacities:[2,1,1],rules:[.normal,.sourceOnly,.sourceOnly],behavior:.mixing,
             targets:[.init(vial:1,layers:[.init(0)]),.init(vial:2,layers:[.init(8)])],apparatus:[.separator(input:0,outputs:[1,2])])
@@ -148,6 +149,13 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
             rules:[.normal,.normal,.normal,.normal,.normal,.sourceOnly,.normal,.normal],behavior:.mixing,
             targets:[LabVialTarget(vial:6,layers:Array(repeating:.init(1),count:4)),LabVialTarget(vial:7,layers:Array(repeating:.init(2),count:2))],
             apparatus:[.mixer(inputs:[3,4],output:5)])
+        case .readyToBlend: LabBoardState(
+            layers:[[8],[4],[]],capacities:[1,1,2],rules:[.normal,.normal,.sourceOnly],behavior:.crossover,
+            targets:[.init(vial:2,layers:[.init(1),.init(1)])],apparatus:[.mixer(inputs:[0,1],output:2)])
+        case .oneStepHeavier,.floatAgain: LabBoardState(
+            layers:[[0],[],[]],capacities:[1,1,1],behavior:.crossover,
+            targets:[.init(vial:2,layers:[.init(0,self == .oneStepHeavier ? .heavy:.light)])],
+            apparatus:[.modifier(chamber:1,direction:self == .oneStepHeavier ? .heavier:.lighter)])
         case .equalPartners: LabBoardState(
             layers:[[8],[4],[],[],[],[],[]],capacities:[1,1,1,1,1,2,2],
             rules:[.normal,.normal,.normal,.normal,.normal,.sourceOnly,.normal],densityLayers:[[.light],[.medium],[],[],[],[],[]],behavior:.crossover,
@@ -182,7 +190,8 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
     }
     var authoredSteps:[LabAuthoredStep]? {
         switch self {
-        case .splitPurple:return [.activate(0)]
+        case .splitPurple,.readyToBlend:return [.activate(0)]
+        case .oneStepHeavier,.floatAgain:return [.pour(0,1),.activate(0),.pour(1,2)]
         case .roomForBoth:return [.pour(1,3),.activate(0)]
         case .secondChance:return [.activate(0),.activate(1)]
         case .keepEveryDrop:return [.activate(0),.activate(1),.activate(2),.pour(3,7),.pour(4,7)]
@@ -245,12 +254,16 @@ nonisolated enum LabJourney {
         .init(puzzle:.crossCurrents,lesson:"Plan a few pours ahead before choosing your next branch.",next:[.heavyLanding,.warmBlend,.firstReveal]),
         .init(puzzle:.heavyLanding,lesson:"Heavy liquid sinks through light liquid. Match the target’s layers.",next:[.threeDeep]),
         .init(puzzle:.threeDeep,lesson:"Arrange light, medium and heavy liquids in one target.",next:[.shadesOfBlue]),
-        .init(puzzle:.shadesOfBlue,lesson:"The color is the same; use density symbols to tell the layers apart.",next:[.equalPartners]),
+        .init(puzzle:.shadesOfBlue,lesson:"The color is the same; use density symbols to tell the layers apart.",next:[.readyToBlend]),
         .init(puzzle:.warmBlend,lesson:"Make orange from one unit of red and one unit of yellow.",next:[.coolBlend]),
         .init(puzzle:.coolBlend,lesson:"Use the mixer to create green, then deliver it to the target.",next:[.violetReaction]),
         .init(puzzle:.violetReaction,lesson:"Complete the recipe family: blue and red make purple.",next:[.splitPurple]),
-        .init(puzzle:.splitPurple,lesson:"Recover two ingredients from a mixture without losing any liquid.",next:[.secondChance]),
-        .init(puzzle:.secondChance,lesson:"Keep one recovered ingredient and remix the other into a new color.",next:[.equalPartners]),
+        .init(puzzle:.splitPurple,lesson:"Recover two ingredients from a mixture without losing any liquid.",next:[.roomForBoth]),
+        .init(puzzle:.roomForBoth,lesson:"Clear a blocked output before separating; keep both recovered ingredients.",next:[.secondChance]),
+        .init(puzzle:.secondChance,lesson:"Keep one recovered ingredient and remix the other into a new color.",next:[.readyToBlend]),
+        .init(puzzle:.readyToBlend,lesson:"Two ready ingredients become two units of a new color. Activate the mixer.",next:[.oneStepHeavier]),
+        .init(puzzle:.oneStepHeavier,lesson:"Move liquid through the chamber to make it one step heavier, then fill the target.",next:[.floatAgain]),
+        .init(puzzle:.floatAgain,lesson:"Make medium liquid light. Its color and amount stay the same.",next:[.equalPartners]),
         .init(puzzle:.equalPartners,lesson:"Bring ingredients to the same density before mixing them.",next:[.weightedOrange]),
         .init(puzzle:.weightedOrange,lesson:"Mix the requested color, make it heavier, then fill the target.",next:[.layerCake]),
         .init(puzzle:.layerCake,lesson:"Combine a recipe with a target that requires a particular layer order.",next:[.twinProducts]),
@@ -258,14 +271,71 @@ nonisolated enum LabJourney {
         .init(puzzle:.fullSpectrum,lesson:"Combine color, quantity and density to complete both targets.",next:[]),
         .init(puzzle:.firstReveal,lesson:"Pour a known color to discover what is underneath.",next:[.peekAhead]),
         .init(puzzle:.peekAhead,lesson:"Choose which vial to investigate while keeping room to pour.",next:[.buriedClue]),
-        .init(puzzle:.buriedClue,lesson:"Use what you have uncovered to plan the next few moves.",next:[.hiddenGarden]),
+        .init(puzzle:.buriedClue,lesson:"Use what you have uncovered to plan the next few moves.",next:[.thirdColor]),
+        .init(puzzle:.thirdColor,lesson:"Discover three colors in shallow vials before tackling deeper hidden layers.",next:[.hiddenGarden]),
         .init(puzzle:.hiddenGarden,lesson:"Put your discoveries together to sort three hidden colors.",next:[])
     ]
     static func stop(_ puzzle:LabBoardPuzzle)->LabJourneyStop? {stops.first {$0.puzzle==puzzle}}
     static func branch(_ discipline:LabDiscipline)->[LabJourneyStop] {stops.filter {$0.puzzle.discipline==discipline}}
 }
 
+/// Stable identifiers keep first-use teaching shared between Journey and direct labs.
+/// The saved set uses strings so a future/unknown topic never invalidates a save.
+nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
+    case discovery,density,mixing,recovery,heavier,lighter
+    var id:String {rawValue}
+    var title:String {
+        switch self {
+        case .discovery:"Discover hidden liquids"
+        case .density:"Read the layers"
+        case .mixing:"Use a mixer"
+        case .recovery:"Recover the ingredients"
+        case .heavier:"Make liquid heavier"
+        case .lighter:"Make liquid lighter"
+        }
+    }
+    var explanation:String {
+        switch self {
+        case .discovery:"Only exposed liquid is known. Pour a visible color to reveal the next layer. Once discovered, a layer stays known even after Undo or Play again."
+        case .density:"Pale upward triangles mean light; no triangles mean medium; dark downward triangles mean heavy. Heavier liquid sinks below lighter liquid. Match each target’s color, amount and density."
+        case .mixing:"Put one unit in each mixer input, at the same density. Activate Mix to make two units of a new color. The output must be empty, with room for both units."
+        case .recovery:"Put exactly two units of one mixed color, at one density, in the separator input. Activate Separate to recover one unit of each ingredient. Both outputs need room."
+        case .heavier:"Pour into the marked chamber, then activate Make heavier. Each activation changes light to medium or medium to heavy. Color and amount stay the same. Pour the result into its target or the next tool."
+        case .lighter:"Pour into the marked chamber, then activate Make lighter. Each activation changes heavy to medium or medium to light. Color and amount stay the same. Pour the result into its target or the next tool."
+        }
+    }
+    var reminder:String {
+        switch self {
+        case .discovery:"Hidden colors are a clue to uncover, not a new kind of liquid. Use empty space to investigate."
+        case .density:"Target strips read left to right, from the bottom of the vial to the top. Select a target vial to learn what is missing."
+        case .mixing:"Red + yellow = orange; yellow + blue = green; blue + red = purple."
+        case .recovery:"Orange separates into red and yellow; green into yellow and blue; purple into blue and red. No liquid is lost."
+        case .heavier,.lighter:"Use the machine’s information button to highlight its chamber and check whether it is ready."
+        }
+    }
+    static func topic(for tool:LabApparatus)->Self {
+        switch tool.kind {
+        case .mixer:.mixing
+        case .separator:.recovery
+        case .densityModifier:tool.direction == .heavier ? .heavier:.lighter
+        }
+    }
+    static func topics(for puzzle:LabBoardPuzzle)->[Self] {
+        let state=puzzle.initial
+        var result:[Self]=[]
+        if state.behavior == .discovery {result.append(.discovery)}
+        let densities=Set(state.densities+state.targets.flatMap {$0.layers.map(\.density)})
+        if state.behavior.settlesByDensity && (densities.count>1 || state.apparatus.contains {$0.kind == .densityModifier}) {result.append(.density)}
+        for tool in state.apparatus {
+            let topic=topic(for:tool)
+            if !result.contains(topic) {result.append(topic)}
+        }
+        return result
+    }
+}
+
 struct LabComparisonSave:Codable {
+    var seenLearningTopics:Set<String> = []
     var journeyMode:Bool = false
     var presentation:LabBoardPresentation = .fluid
     var pace:LabBoardPace = .relaxed
@@ -275,9 +345,9 @@ struct LabComparisonSave:Codable {
     /// Revised density starts must replace saved pre-settlement setups, without
     /// disturbing progress in the other three laboratories.
     var densitySetupVersion:Int = 1
-    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,games,lastPuzzles,densitySetupVersion,journeyMode}
-    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1,journeyMode:Bool=false) {
-        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion;self.journeyMode=journeyMode
+    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,games,lastPuzzles,densitySetupVersion,journeyMode,seenLearningTopics}
+    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1,journeyMode:Bool=false,seenLearningTopics:Set<String>=[]) {
+        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion;self.journeyMode=journeyMode;self.seenLearningTopics=seenLearningTopics
     }
     init(from decoder:Decoder)throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
@@ -287,6 +357,7 @@ struct LabComparisonSave:Codable {
         games=try values.decodeIfPresent([String:LabBoardGame].self,forKey:.games) ?? [:]
         lastPuzzles=try values.decodeIfPresent([String:String].self,forKey:.lastPuzzles) ?? [:]
         densitySetupVersion=try values.decodeIfPresent(Int.self,forKey:.densitySetupVersion) ?? 0
+        seenLearningTopics=try values.decodeIfPresent(Set<String>.self,forKey:.seenLearningTopics) ?? []
         journeyMode=try values.decodeIfPresent(Bool.self,forKey:.journeyMode) ?? false
     }
 }

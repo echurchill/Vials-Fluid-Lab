@@ -86,6 +86,12 @@ import Combine
     private let feedback=LabBoardFeedback()
     var completedPuzzleCount:Int { discipline.levels.filter(hasCompleted).count }
     func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool { puzzle == self.puzzle ? state.solved:(saved.games[puzzle.rawValue]?.state.solved ?? false) }
+    var learningTopics:[LabLearningTopic] {LabLearningTopic.topics(for:puzzle)}
+    var unseenLearningTopics:[LabLearningTopic] {learningTopics.filter {!saved.seenLearningTopics.contains($0.rawValue)}}
+    func markLearningTopicSeen(_ topic:LabLearningTopic) {
+        guard learningTopics.contains(topic),saved.seenLearningTopics.insert(topic.rawValue).inserted else {return}
+        checkpoint()
+    }
     var journeyNext:[LabBoardPuzzle] {LabJourney.stop(puzzle)?.next ?? []}
     var nextSuggestedPuzzle:LabBoardPuzzle? {journeyMode ? (journeyNext.count==1 ? journeyNext[0]:nil):puzzle.next}
     func nextPuzzle() {
@@ -774,7 +780,7 @@ import Combine
                         guard !Task.isCancelled,!suspended else {throw NSError(domain:"DensityProfile",code:2,userInfo:[NSLocalizedDescriptionKey:"Profile interrupted"])}
                         let began=ProcessInfo.processInfo.systemUptime
                         let command=surface.encodeFrame(target:target,deltaTime:0)
-                        command.waitUntilCompleted()
+                        await command.completed()
                         guard command.status == .completed,command.gpuEndTime>command.gpuStartTime else {throw command.error ?? NSError(domain:"DensityProfile",code:3,userInfo:[NSLocalizedDescriptionKey:"No valid GPU timing"])}
                         if frame>=20 {gpu.append((command.gpuEndTime-command.gpuStartTime)*1000);host.append((ProcessInfo.processInfo.systemUptime-began)*1000)}
                         try await Task.sleep(for:.milliseconds(16))

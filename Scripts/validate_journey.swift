@@ -30,6 +30,14 @@ import Metal
             for move in route! {final=final.applying(move)!}
             check(final.solved,"Journey route does not solve")
         }
+        check(LabJourney.stop(.splitPurple)!.next==[.roomForBoth],"Recovery skips blocked-output practice")
+        check(LabJourney.stop(.buriedClue)!.next==[.thirdColor],"Discovery skips shallow three-color practice")
+        check(LabJourney.stop(.readyToBlend)!.next==[.oneStepHeavier] && LabJourney.stop(.oneStepHeavier)!.next==[.floatAgain] && LabJourney.stop(.floatAgain)!.next==[.equalPartners],"Combined path skips isolated tool practice")
+        for puzzle in [LabBoardPuzzle.readyToBlend,.oneStepHeavier,.floatAgain] {
+            let state=puzzle.initial
+            check(state.stacks.count==3 && state.apparatus.count==1,"Bridge introduces too many tools")
+            check(puzzle.authoredRoute()!.count<=3,"Bridge is no longer a short exercise")
+        }
         let direct=FluidBoardSession(defaults:nil,device:nil,restoredSave:.init(presentation:.classic,puzzle:.crossCurrents))
         check(!direct.journeyMode && direct.nextSuggestedPuzzle == .lastDrops,"Direct lab navigation changed")
         direct.startJourney(at:.crossCurrents)
@@ -48,9 +56,9 @@ import Metal
         reloaded.startJourney(at:.violetReaction);reloaded.nextPuzzle()
         check(reloaded.journeyMode && reloaded.puzzle == .splitPurple,"Mixing to Recovery bridge failed")
         reloaded.startJourney(at:.shadesOfBlue);reloaded.nextPuzzle()
-        check(reloaded.puzzle == .equalPartners,"Density to combined bridge failed")
+        check(reloaded.puzzle == .readyToBlend,"Density to combined bridge failed")
         reloaded.startJourney(at:.secondChance);reloaded.nextPuzzle()
-        check(reloaded.puzzle == .equalPartners,"Recovery to combined bridge failed")
+        check(reloaded.puzzle == .readyToBlend,"Recovery to combined bridge failed")
         reloaded.startJourney(at:.fullSpectrum);check(reloaded.nextSuggestedPuzzle==nil && reloaded.journeyNext.isEmpty,"Final stop loops")
         reloaded.changePuzzle(.valveCircuit);check(!reloaded.journeyMode,"Direct puzzle retained Journey context")
         let prior=reloaded.puzzle;reloaded.startJourney(at:.valveCircuit)
@@ -74,6 +82,35 @@ import Metal
         check(busy.puzzle == .firstSort && !busy.journeyMode,"Journey switched during a pour")
         busy.resetAllProgress()
         check(busy.journeyMode && busy.puzzle == .firstSort && !busy.hasCompleted(.heavyLanding),"Fresh reset did not restore Journey start")
-        print("PASS Journey: 19 solvable/reachable stops, no cycles, optional branch, cross-lab navigation, direct lab escape, shared progress, save migration, busy guards and full reset")
+        let learner=FluidBoardSession(defaults:nil,device:nil,restoredSave:.init(presentation:.classic,puzzle:.oneStepHeavier))
+        check(learner.unseenLearningTopics==[.density,.heavier],"Chamber teaching order missing")
+        learner.markLearningTopicSeen(.mixing)
+        check(learner.unseenLearningTopics==[.density,.heavier],"Unrelated tip marked as seen")
+        learner.markLearningTopicSeen(.density)
+        check(learner.unseenLearningTopics==[.heavier],"Seen tip repeats")
+        learner.markLearningTopicSeen(.heavier)
+        let learned=try JSONDecoder().decode(LabComparisonSave.self,from:learner.checkpointData())
+        let returning=FluidBoardSession(defaults:nil,device:nil,restoredSave:learned)
+        check(returning.unseenLearningTopics.isEmpty && returning.learningTopics.count==2,"Replay or persistence lost")
+        returning.reset();check(returning.unseenLearningTopics.isEmpty,"Puzzle reset repeats teaching")
+        returning.startJourney(at:.floatAgain)
+        check(returning.unseenLearningTopics==[.lighter],"Different chamber direction skipped")
+        returning.changeDiscipline(.crossover)
+        check(returning.unseenLearningTopics==[.lighter],"Journey and labs do not share teaching")
+        returning.resetAllProgress();returning.changePuzzle(.oneStepHeavier)
+        check(returning.unseenLearningTopics==[.density,.heavier],"Full reset did not clear teaching")
+        var legacyLearning=legacy
+        legacyLearning.removeValue(forKey:"seenLearningTopics")
+        let migrated=try JSONDecoder().decode(LabComparisonSave.self,from:JSONSerialization.data(withJSONObject:legacyLearning))
+        check(migrated.seenLearningTopics.isEmpty && migrated.games.mapValues(\.state)==progress.games.mapValues(\.state),"Legacy learning migration lost progress")
+        legacyLearning["seenLearningTopics"]=["future-topic","mixing"]
+        let future=try JSONDecoder().decode(LabComparisonSave.self,from:JSONSerialization.data(withJSONObject:legacyLearning))
+        check(future.seenLearningTopics.contains("future-topic"),"Unknown learning topic invalidated save")
+        check(LabLearningTopic.topics(for:.firstReveal)==[.discovery],"Discovery guide missing")
+        check(LabLearningTopic.topics(for:.readyToBlend)==[.mixing],"Simple mixer lesson overloaded")
+        check(LabLearningTopic.topics(for:.secondChance)==[.recovery,.mixing],"Direct Recovery entry misses a tool")
+        check(LabLearningTopic.topics(for:.firstSort).isEmpty,"Sorting unexpectedly shows tool guides")
+        print("PASS Learning: context, first-use persistence, replay, lab sharing, legacy/unknown-topic migration, reset")
+        print("PASS Journey: \(stops.count) solvable/reachable stops, no cycles, optional branch, cross-lab navigation, direct lab escape, shared progress, save migration, busy guards and full reset")
     }
 }

@@ -102,6 +102,6 @@ import Metal
         let migrationData=try! migrated.checkpointData(),migration=try! JSONDecoder().decode(LabComparisonSave.self,from:migrationData)
         require(migration.densitySetupVersion==1,"Density setup migration was not stamped")
         require(migration.games[LabBoardPuzzle.warmBlend.rawValue]?.state==LabBoardPuzzle.warmBlend.initial,"Density migration removed Mixing progress")
-        print("Keystone session validation passed for 19 experimental levels and four-lab persistence.")
+        print("Keystone session validation passed for \([LabDiscipline.density,.mixing,.recovery,.crossover].flatMap(\.levels).count) experimental levels and four-lab persistence.")
     }
 }

@@ -1,0 +1,18 @@
+Vials/FluidLab/LabBoardSession.swift:783:33: warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 781 |                         let began=ProcessInfo.processInfo.systemUptime
+ 782 |                         let command=surface.encodeFrame(target:target,deltaTime:0)
+ 783 |                         command.waitUntilCompleted()
+     |                                 `- warning: instance method 'waitUntilCompleted' is unavailable from asynchronous contexts; Use 'await completed()' instead.; this is an error in the Swift 6 language mode
+ 784 |                         guard command.status == .completed,command.gpuEndTime>command.gpuStartTime else {throw command.error ?? NSError(domain:"DensityProfile",code:3,userInfo:[NSLocalizedDescriptionKey:"No valid GPU timing"])}
+ 785 |                         if frame>=20 {gpu.append((command.gpuEndTime-command.gpuStartTime)*1000);host.append((ProcessInfo.processInfo.systemUptime-began)*1000)}
+
+/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandBuffer.h:354:1: note: 'waitUntilCompleted()' declared here
+352 |  @abstract Synchronously wait for this command buffer to complete.
+353 |  */
+354 | - (void)waitUntilCompleted NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Use 'await completed()' instead.");
+    | `- note: 'waitUntilCompleted()' declared here
+355 | 
+356 | /*!
+Keystone session validation passed for 19 experimental levels and four-lab persistence.
+
+Report note: the suite enumerated the current four lab catalogs (22 levels). The success message above was a stale hardcoded count; the script now prints the catalog count.

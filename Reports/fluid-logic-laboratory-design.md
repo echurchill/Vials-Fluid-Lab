@@ -631,3 +631,7 @@ Traditional test tubes now identify ordinary sources/storage and final targets a
 ## Implemented: open Journey learning map (September 21, Prototype41)
 
 Journey connects 19 existing teaching boards across Sorting, Density, Mixing, Recovery and Crossover, with Discovery as an optional branch. Every stop stays open, shares progress with its lab and states its learning goal. Completion follows the graph across labs or offers branch choices. This is a curated route over existing levels, not a new set of mechanics or puzzle layouts. Older saves retain direct lab navigation. See Prototype41 for graph/session validation, live Mac interaction checks and remaining iPad visual review.
+
+## Implemented: teaching bridges and first-use help (September 21, Prototype42)
+
+Journey expands from 19 to 24 stops, addressing the mixer/chamber knowledge gap before Crossover, blocked Recovery outputs, and the jump to three hidden colors. Four short new puzzles join the direct labs without changing existing puzzle identities or layouts. Contextual, replayable guides cover hidden fluids, density, mixing, recovery and both chamber directions; teaching history is shared with Journey and saved. See Prototype42 for rationale, tests, rendered layouts and live-check status.

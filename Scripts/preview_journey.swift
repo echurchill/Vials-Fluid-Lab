@@ -9,5 +9,12 @@ import AppKit
    guard let image=renderer.cgImage else {fatalError("Map failed to render")}
    try NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:CommandLine.arguments[1]).appendingPathComponent(name+".png"))
   }
+  for topic in LabLearningTopic.allCases {
+   let view=LabLearningGuideView(topic:topic,position:1,total:2,route:topic == .heavier || topic == .lighter ? "Chamber B":nil,advance:{},close:{})
+    .background(Color(red:0.08,green:0.10,blue:0.12)).foregroundStyle(.white).environment(\.colorScheme,.dark)
+   let renderer=ImageRenderer(content:view);renderer.scale=2
+   guard let image=renderer.cgImage else {fatalError("Guide failed to render")}
+   try NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:CommandLine.arguments[1]).appendingPathComponent("guide-"+topic.rawValue+".png"))
+  }
  }
 }
