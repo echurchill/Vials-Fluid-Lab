@@ -367,7 +367,8 @@ struct LabClassicPour {
     let move:LabBoardMove
     var approach:Float=0
     var time:Float=0
-    static let duration:Float=7.6
+    // Match the last lowering phase in LabClassicBoardView.pose (6.75 + 0.45).
+    static let duration:Float=7.2
     var progress:Float { min(1,max(0,(time-1.6)/3.6)) }
     var returning:Bool { time>5.4 }
     var finished:Bool { time>=Self.duration }

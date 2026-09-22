@@ -986,7 +986,11 @@ extension FluidBoardSession {
             concurrentReveals[id]=next>=0.5 ? nil:next
         }
         var queue=pourQueue
-        let starts=queue.startReady()
+        // Do not invalidate an in-progress receiver correction with a new
+        // stream. It lasts only the settle interpolation; the next pour starts
+        // while the earlier source returns, and each source releases on arrival.
+        let settlingReceivers=presentation == .fluid ? Set(metalGroups.filter {$0.value.groupFinalSettling}.keys):Set<Int>()
+        let starts=queue.startReady(excludingDestinations:settlingReceivers)
         if !starts.isEmpty { pourQueue=queue }
         let revision=clockRevision
         let updateStart=ProcessInfo.processInfo.systemUptime

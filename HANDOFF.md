@@ -1,5 +1,12 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 22: returned-source interaction fix (Prototype43)
+
+Eddie's Buried clue Quick B→D / A→C / B→C reproduction exposed a 3D receiver-group completion lock, plus late streams cancelling an older source's settle. Fixed independent ordered source release, preserved completed settles, deferred starts during an active short correction, and kept the five-percent per-move correction bound. Eddie also reported 2D; independently reproduced its post-touchdown cleanup delay and moved cleanup into the return. Classic completion now matches its existing rendered touchdown (7.2 rather than 7.6 simulation seconds). No geometry/camera/material/path changes.
+
+All 24 new timing/pace/presentation regressions and 18 existing lab/presentation concurrency cases plus density/Discovery/machine checks pass. Both Release builds pass. Live Mac UI with caffeinate verified A becomes enabled while B remains Pouring, then accepts A→D, in 2D and 3D. iPad diagnostic smoke tests committed 14/14 3D and 18/18 2D pours; final build installed and normally relaunched. Exact physical touch reproduction remains for Eddie; do not call these battery/FPS tests. See Reports/Prototype43. Eddie verified the behavior was much better and requested this checkpoint be committed and pushed. Baseline was 6683343; unrelated root PNG untouched and scheduled monitor paused. Testing-only caffeinate was stopped.
+
+
 September 22 push checkpoint: teaching bridges, learning guides and async GPU warning fix committed and pushed as `7217dd1` on `codex/fluid-lab`. Earlier local/unpushed notes below describe prior checkpoints. Remaining UI checks are unchanged.
 
 ## September 22 checkpoint: GPU warning fixed; Mac checks resumed

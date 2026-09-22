@@ -1,0 +1,347 @@
+{
+  "animationFrameIntervalMs" : {
+    "maximum" : 34.353375434875488,
+    "median" : 17.767082899808884,
+    "p95" : 17.899500206112862,
+    "samples" : 1776
+  },
+  "configuration" : {
+    "colorCount" : 2,
+    "concurrentPourLimit" : "dependency constrained",
+    "cpuCounter" : "2D worker solver only; excludes Canvas drawing",
+    "drainSeconds" : 1.7390567084075883,
+    "frameCounter" : "concurrent controller updates, not compositor presents",
+    "maximumConcurrentPours" : 2,
+    "maximumSharedReceiverPours" : 2,
+    "particleCount" : 576,
+    "physicsExecution" : "isolated actor, immutable value snapshots",
+    "puzzle" : "buriedClue",
+    "quality" : "canvas-native",
+    "requestedConcurrentPourLimit" : 2,
+    "requestedDurationSeconds" : 30,
+    "vialCount" : 4
+  },
+  "date" : "2026-09-22T14:28:09Z",
+  "elapsedSeconds" : 31.818322708364576,
+  "end" : {
+    "batteryLevel" : 0.94999998807907104,
+    "batteryState" : "charging",
+    "deviceModel" : "iPad",
+    "elapsedSeconds" : 31.818323416635394,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "environmentSamples" : [
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 1.5000114217400551e-06,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 3.1554101250367239,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 3.2077376666711643,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 6.8829200833570212,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 6.9694327500183135,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 10.802906333352439,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 10.889616125030443,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 14.188248041667975,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 14.277555541717447,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 17.616991583374329,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 17.759219708386809,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 21.181353874970227,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 21.338874166714959,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 24.612698458367959,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 24.70181141665671,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 27.973644958343357,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 28.132406749995425,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 31.535349041689187,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    },
+    {
+      "batteryLevel" : 0.94999998807907104,
+      "batteryState" : "charging",
+      "deviceModel" : "iPad",
+      "elapsedSeconds" : 31.801502041635104,
+      "lowPowerMode" : false,
+      "thermalState" : "nominal"
+    }
+  ],
+  "fluidGPUFrameMs" : {
+    "samples" : 0
+  },
+  "fluidLaneGPUFrameMs" : {
+    "samples" : 0
+  },
+  "fluidSurfaceGPUFrameMs" : {
+    "samples" : 0
+  },
+  "intervalsOver25ms" : 1,
+  "keptAwakeForTrial" : false,
+  "moves" : [
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.1545105000259355
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.1019291665870696
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3429959582863376
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3235279583605006
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.5474308750126511
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.5267100833589211
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.0837502917274833
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.0651327916420996
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3427462083054706
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3780467082979158
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.5139631666243076
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.5624397916253656
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.0791886249789968
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.0612724582897499
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3296089584473521
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.3818661249242723
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.5119287499692291
+    },
+    {
+      "cleanupPercent" : 0,
+      "committed" : true,
+      "pace" : "quick",
+      "presentation" : "fluid2D",
+      "seconds" : 3.5657403750810772
+    }
+  ],
+  "notes" : "Intervals are controller\/draw callbacks during active play, not compositor presents. Long active-frame stalls are retained. Concurrent play records controller updates in every presentation. Legacy Classic\/2D record animation updates; legacy 3D records MTKView draw intervals. The configuration identifies each counter. Host wall measurements include controller updates or Metal encoding and GPU waits; they are not CPU utilization or total SwiftUI rendering cost. GPU time is available only for Fluid. Battery observations while charging\/full cannot measure drain; short unplugged samples are coarse and do not establish battery life.",
+  "os" : "Version 27.0 (Build 24A435)",
+  "pace" : "quick",
+  "presentation" : "fluid2D",
+  "reason" : "completed",
+  "schema" : 2,
+  "start" : {
+    "batteryLevel" : 0.94999998807907104,
+    "batteryState" : "charging",
+    "deviceModel" : "iPad",
+    "elapsedSeconds" : 1.5000114217400551e-06,
+    "lowPowerMode" : false,
+    "thermalState" : "nominal"
+  },
+  "updateOrEncodeWallMs" : {
+    "maximum" : 6.0192917007952929,
+    "median" : 3.8327500224113464,
+    "p95" : 5.1893333438783884,
+    "samples" : 1776
+  }
+}

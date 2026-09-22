@@ -355,8 +355,14 @@ nonisolated struct LabFluid2D:Sendable {
                     particles[i].position=simd_mix(job.before[i].position,target.position,SIMD2(repeating:f))
                     if f>=1 { particles[i]=target }
                 }
-                if f>=1 { success=true }
-            } else if let cutoff=job.cutoff,job.time-cutoff>motion.returned+motion.settle {
+                if f>=1 {
+                    job.targets.removeAll()
+                    if let cutoff=job.cutoff,job.time-cutoff>=motion.returned { success=true }
+                }
+            } else if let cutoff=job.cutoff,job.time-cutoff>=motion.upright+motion.settle {
+                // Finish the bounded fluid correction during the return trip,
+                // so a landed source does not keep its Pouring/input lock.
+                // The commit still waits for the glass to reach home.
                 let missing=count-job.arrived;job.cleanup=100*Float(missing)/Float(count)
                 if missing<0 || missing>Int(Float(count)*0.05) { success=false }
                 else if let next=game.state.applyingReserved(move) {

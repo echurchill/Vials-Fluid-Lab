@@ -454,11 +454,11 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             p[i].velocity=SIMD4(0,0,0,p[i].velocity.w);p[i].visual.x=simulationTime
         }
     }
-    private func normalizeOrder(state:LabBoardState) {
+    private func normalizeOrder(state:LabBoardState,owners:Set<Int>?=nil) {
         // Same-colored parcels may mingle. Reassign their unit IDs by height,
         // without moving particles or changing any color, for future partial runs.
         let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
-        for (owner,stack) in state.stacks.enumerated() {
+        for (owner,stack) in state.stacks.enumerated() where owners?.contains(owner) ?? true {
             var start=0
             while start<stack.count {
                 var end=start+1
@@ -723,7 +723,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             // once and discard any prior interpolation target; unrelated groups
             // finishing must not reorder this buffer underneath an active settle.
             groupSettleStart=nil;settleFrom=nil;settleTargets=nil
-            for i in groupTransfers.indices {groupTransfers[i].visualSettled=false}
+            // Already-settled sources keep their completion status. A new
+            // incoming stream needs its own settle, not a new lock on a source
+            // whose liquid was corrected and whose glass is returning home.
             let moves=groupMoves+starts.map(\.move),owners=Set(moves.flatMap {[$0.source,$0.destination]})
             let owned=Set(owners.flatMap {game.state.stacks[$0]}+moves.flatMap(\.parcels))
             let current=particleSamples().filter {owned.contains(Int($0.visual.y))}
@@ -883,20 +885,45 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             compositeVessels=groupVessels()
             return
         }
-        if !groupTransfers.isEmpty,groupTransfers.allSatisfy(\.visualSettled) {
-            guard groupTransfers.allSatisfy({job in job.returned.map {job.time-$0>=LabBoardTiming.returned} ?? false}) else {
-                compositeVessels=groupVessels();return
+        // Release the completed prefix independently of newer incoming pours.
+        // Keep reservation order for equal-density layers and Undo, but do not
+        // hold a returned source until the entire receiver group has finished.
+        var releasedSources:Set<Int>=[]
+        while var job=groupTransfers.first,job.settleReady,
+              job.returned.map({job.time-$0>=LabBoardTiming.returned}) == true {
+            let move=job.item.move,target=move.amount*Self.particlesPerUnit
+            // A shared receiver may still be simulating another stream. Do
+            // not require its full-body settle to release this source. Apply
+            // the same bounded five-percent correction to this move alone.
+            if !job.visualSettled {
+                let values=particleSamples(),ids=Set(move.parcels)
+                let missing=values.indices.filter {ids.contains(Int(values[$0].visual.y)) && Int(values[$0].position.w) != move.destination}
+                guard missing.count<=Int(Float(target)*0.05),let next=self.game.state.applyingReserved(move) else {break}
+                if !missing.isEmpty {
+                    let canonical=Dictionary(grouping:seed(state:next)) {Int($0.visual.y)}
+                    var offsets:[Int:Int]=[:]
+                    let p=particles.contents().bindMemory(to:LabParticle.self,capacity:particleCount)
+                    for i in missing {
+                        let parcel=Int(p[i].visual.y),offset=offsets[parcel,default:0]
+                        p[i]=canonical[parcel]![offset];offsets[parcel]=offset+1
+                    }
+                }
+                job.correction=missing.count
             }
-            let jobs=groupTransfers
-            for job in jobs {
-                let move=job.item.move,target=move.amount*Self.particlesPerUnit
-                let committed=self.game.commitReserved(move)
-                groupResults.append(LabLaneResult(id:job.item.id,committed:committed,
-                    cleanup:100*Float(job.correction)/Float(target),vessels:[move.source,move.destination],
-                    diagnostic:"arrived=\(job.arrived)/\(target) departed=\(job.departed) time=\(job.time)"))
-            }
-            groupTransfers=[];normalizeOrder(state:self.game.state);compositeVessels=groupVessels()
-            return
+            let committed=self.game.commitReserved(move)
+            groupResults.append(LabLaneResult(id:job.item.id,committed:committed,
+                cleanup:100*Float(job.correction)/Float(target),vessels:[move.source,move.destination],
+                diagnostic:"arrived=\(job.arrived)/\(target) departed=\(job.departed) time=\(job.time)"))
+            releasedSources.insert(move.source);groupTransfers.removeFirst()
+        }
+        if !releasedSources.isEmpty {
+            // A source can be used by another group on the next tick. Only
+            // normalize that source now: active incoming parcel IDs in the
+            // shared receiver must stay stable until their own commits.
+            normalizeOrder(state:self.game.state,owners:groupTransfers.isEmpty ? nil:releasedSources)
+        }
+        if groupTransfers.isEmpty || groupTransfers.allSatisfy(\.visualSettled) {
+            compositeVessels=groupVessels();return
         }
         let values=particleSamples();var finished:[Int]=[];lastMetrics=LabBoardMetrics()
         let moves=groupMoves,owners=Set(moves.flatMap {[$0.source,$0.destination]})
@@ -921,9 +948,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             if !job.settleReady,job.returned != nil {
                 let missing=target-job.arrived
                 if missing>=0,missing<=Int(Float(target)*0.05),lastMetrics.wrongParcel==0,lastMetrics.nonFinite==0,moving.allSatisfy({$0.position.x.isFinite && $0.position.y.isFinite && $0.position.z.isFinite}) {
-                    // Freeze every source over the receiver while its complete
-                    // fluid body settles. Only after this interpolation will
-                    // the empty source begin its visible return.
+                    // This source is ready for bounded final correction.
+                    // If all streams are ready, settle their complete bodies
+                    // together; otherwise let this source finish its return.
                     job.correction=missing;job.settleReady=true
                 } else {failed=true}
             }

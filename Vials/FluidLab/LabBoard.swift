@@ -534,10 +534,11 @@ nonisolated struct LabPourQueue:Sendable {
         guard self.move(from:move.source,to:move.destination,state:state)==move else { return false }
         items.append(LabPourReservation(id:nextID,move:move));nextID+=1;return true
     }
-    mutating func startReady()->[LabPourReservation] {
+    mutating func startReady(excludingDestinations:Set<Int>=[])->[LabPourReservation] {
         var result:[LabPourReservation]=[]
         for i in items.indices where !items[i].started {
             let move=items[i].move
+            guard !excludingDestinations.contains(move.destination) else {continue}
             let running=active
             guard !running.contains(where: { $0.move.source==move.source || $0.move.destination==move.source || $0.move.source==move.destination }) else { continue }
             let preferred:Float=move.destination>move.source ? 1:-1
