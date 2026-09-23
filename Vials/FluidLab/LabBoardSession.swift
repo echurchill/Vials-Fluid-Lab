@@ -75,6 +75,7 @@ import Combine
     private var hintRevision=0
     private var hintPlan:[LabBoardOperation]=[]
     @Published private(set) var findingHint=false
+    @Published private(set) var hintUndoOffer=false
     // Used only by the disposable comparison session to align playback duration.
     var comparisonSpeed:Float? { didSet { updateSpeed() } }
     @Published var selected:Int?
@@ -183,6 +184,7 @@ import Combine
     private func clearSelectionFeedback() { rejectionTask?.cancel();rejectedVial=nil }
     private func cancelHint(clearPlan:Bool = true) {
         hintRevision &+= 1;hintTask?.cancel();hintTask=nil;findingHint=false
+        hintUndoOffer=false
         hintApparatusID=nil
         if clearPlan { hintPlan=[] }
     }
@@ -559,7 +561,7 @@ import Combine
             cancelHint()
             if let move=state.discoveryHint() {
                 showHint(.pour(move));notice="Try \(Self.letter(move.source)) → \(Self.letter(move.destination)). Use the known color to make room or uncover a layer."
-            } else {notice="No visible move is available. Undo to free some space; discoveries will stay known."}
+            } else {offerHintUndo(message:"No visible move is available.")}
             return
         }
         if let operation=hintPlan.first,state.applying(operation) != nil {
@@ -569,11 +571,8 @@ import Combine
         hintRevision &+= 1;let revision=hintRevision
         findingHint=true;notice="Finding a route through this larger board…";let puzzle=self.puzzle,isAuthored = !isSortingSubcourse
         hintTask=Task { @MainActor [weak self] in
-            let behavior=snapshot.behavior
             let route=await Task.detached(priority:.userInitiated) {
-                if behavior == .sorting || behavior == .discovery {return snapshot.solution().map {$0.map(LabBoardOperation.pour)}}
-                if isAuthored,snapshot==puzzle.initial,let authored=puzzle.authoredRoute(from:snapshot) {return authored}
-                return snapshot.operationSolution()
+                Self.hintRoute(for:snapshot,puzzle:puzzle,isAuthored:isAuthored)
             }.value
             guard let self,self.hintRevision==revision else {return}
             self.findingHint=false;self.hintTask=nil
@@ -581,7 +580,65 @@ import Combine
             if let route,let operation=route.first {
                 self.hintPlan=route
                 self.showHint(operation)
-            } else {self.notice="No solution from here. Undo a move to try another route."}
+            } else {self.offerHintUndo(message:"No solution is available from here.")}
+        }
+    }
+    nonisolated private static func hintRoute(for snapshot:LabBoardState,puzzle:LabBoardPuzzle,isAuthored:Bool)->[LabBoardOperation]? {
+        if snapshot.behavior == .sorting || snapshot.behavior == .discovery {
+            return snapshot.solution().map {$0.map(LabBoardOperation.pour)}
+        }
+        if isAuthored,snapshot==puzzle.initial,let authored=puzzle.authoredRoute(from:snapshot) {return authored}
+        return snapshot.operationSolution()
+    }
+    private func offerHintUndo(message:String) {
+        hintPlan=[];selected=nil;hintTarget=nil;hintApparatusID=nil
+        hintUndoOffer=moveCount>0
+        notice=message+(hintUndoOffer ? " Undo until a hint becomes available?":" There are no earlier moves to undo.")
+    }
+    func dismissHintUndoOffer() {hintUndoOffer=false}
+    func undoUntilHintAvailable() {
+        guard !busy,!state.solved,!findingHint,moveCount>0 else {hintUndoOffer=false;return}
+        hintUndoOffer=false;cancelHint()
+        let snapshot=game,puzzle=self.puzzle,isAuthored = !isSortingSubcourse
+        let revision=hintRevision
+        findingHint=true;notice="Finding the nearest earlier position with a hint…"
+        hintTask=Task { @MainActor [weak self] in
+            let recovery=await Task.detached(priority:.userInitiated) { () -> (Int,[LabBoardOperation])? in
+                var candidate=snapshot,undoCount=0
+                while candidate.undo() {
+                    undoCount+=1
+                    let route:[LabBoardOperation]?
+                    if candidate.state.hasUnknown {
+                        route=candidate.state.discoveryHint().map {[.pour($0)]}
+                    } else {
+                        route=Self.hintRoute(for:candidate.state,puzzle:puzzle,isAuthored:isAuthored)
+                    }
+                    if let route,!route.isEmpty {return (undoCount,route)}
+                }
+                return nil
+            }.value
+            guard let self,self.hintRevision==revision else {return}
+            self.findingHint=false;self.hintTask=nil
+            guard !Task.isCancelled,!self.busy,self.game.state==snapshot.state,self.game.moveCount==snapshot.moveCount else {return}
+            guard let recovery else {
+                self.notice="No hint is available, even at the beginning of this level."
+                return
+            }
+            var restoredParticles:[LabParticle]?
+            for _ in 0..<recovery.0 {
+                guard self.game.undo() else {return}
+                restoredParticles=self.undoParticles.isEmpty ? nil:self.undoParticles.removeLast()
+            }
+            self.lastPour=nil;self.pendingExample=nil;self.clearSelectionFeedback()
+            self.settledParticles=restoredParticles
+            self.selected=nil;self.hintTarget=nil;self.hintApparatusID=nil;self.paused=false
+            self.metrics=LabBoardMetrics();self.correction=0;self.captured=0
+            if self.presentation == .fluid {self.prepareFluid()}
+            if self.presentation == .fluid2D {
+                self.fluid2D.quickMotion=self.pace == .quick;self.fluid2D.install(self.game);self.planarDisplay.publish(self.fluid2D)
+            }
+            self.hintPlan=recovery.1;self.checkpoint();self.refresh()
+            self.showHint(recovery.1[0])
         }
     }
     private func showHint(_ operation:LabBoardOperation) {

@@ -471,6 +471,13 @@ struct FluidBoardView:View {
         } message: {
             Text("Start again at Level 1. This clears all saved Lab puzzles, completion marks, undo history, Endless Sorting progress, and Valve Course progress. This can’t be undone.")
         }
+        .confirmationDialog("No hint from here",isPresented:Binding(get:{session.hintUndoOffer},set:{if !$0 {session.dismissHintUndoOffer()}}),titleVisibility:.visible) {
+            Button("Undo until a hint is available") {session.undoUntilHintAvailable()}
+                .accessibilityIdentifier("hint.undoUntilAvailable")
+            Button("Cancel",role:.cancel) {session.dismissHintUndoOffer()}
+        } message: {
+            Text("Undo recent moves until the nearest earlier position with a hint is found? In Discovery levels, revealed colors stay known.")
+        }
         .sheet(item:$comparison) { example in LabPourComparisonView(example:example) }
         .sheet(item:$sheet) { item in
             if item == .journey {

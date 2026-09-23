@@ -32,7 +32,7 @@ import Metal
         check(!session.busy,"Classic valve-course test pour did not finish")
     }
 
-    static func main() throws {
+    static func main() async throws {
         for number in 1...LabValveBoard.levelCount {
             guard let source=VialAnchorCatalog.level(mode:.experiments,number:number),
                   let board=LabValveBoard.generated(number:number) else {
@@ -89,8 +89,24 @@ import Metal
         check(switched.valveBoard==nil && switched.endlessBoard==nil,"Authored Lab still restores a sorting sub-course")
         check(switched.games[board.saveKey]?.state==board.initial.applying(first),"Leaving the Valve Course discarded its progress")
 
+        let recoverable=LabBoardState(layers:[[0],[1],[]],capacities:[1,1,1],rules:[.normal,.normal,.receiveOnly],
+            targets:[.init(vial:2,layers:[.init(1)])])
+        let wrongMove=recoverable.move(from:0,to:2)!
+        check(recoverable.solution() != nil && recoverable.applying(wrongMove)!.solution() == nil,"Hint-recovery fixture is not a recoverable dead end")
+        let recovery=FluidBoardSession(defaults:nil,device:nil,restoredSave:.init(presentation:.classic,puzzle:.valveCircuit,
+            games:[LabBoardPuzzle.valveCircuit.rawValue:LabBoardGame(state:recoverable)]))
+        check(recovery.begin(wrongMove,automaticClock:false),"Could not enter the hint-recovery dead end")
+        finishClassicPour(recovery)
+        recovery.hint()
+        for _ in 0..<500 where recovery.findingHint {try? await Task.sleep(for:.milliseconds(5))}
+        check(!recovery.findingHint && recovery.hintUndoOffer,"A dead end did not offer Undo-to-hint recovery")
+        recovery.undoUntilHintAvailable()
+        for _ in 0..<500 where recovery.findingHint {try? await Task.sleep(for:.milliseconds(5))}
+        check(!recovery.findingHint && recovery.moveCount==0,"Hint recovery did not rewind to the nearest solvable state")
+        check(recovery.selected==1 && recovery.hintTarget==2 && !recovery.hintUndoOffer,"Hint recovery did not present the recovered hint")
+
         print("PASS Valve adapter: all 15 boards preserve capacities, rules, colors, layers and volume")
         print("PASS Valve solver: all 15 boards solve under Lab rules")
-        print("PASS Valve session: pour, teaching, checkpoint/restore and sub-course switching")
+        print("PASS Valve session: pour, teaching, checkpoint/restore, sub-course switching and opt-in Undo-to-hint recovery")
     }
 }
