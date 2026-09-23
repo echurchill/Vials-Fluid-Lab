@@ -47,7 +47,6 @@ struct LabJourneyMapView:View {
                                     Image(systemName:"arrow.down").foregroundStyle(.secondary).accessibilityHidden(true)
                                     branch(.recovery,title:"Recovery",subtitle:"From Mixing: separate and reuse.",color:.purple)
                                 }.frame(maxWidth:.infinity)
-                                branch(.discovery,title:"Discovery · Optional",subtitle:"From Sorting: uncover hidden colors.",color:.pink)
                             }
                             rail(merging:true).frame(height:32)
                         } else {
@@ -55,11 +54,10 @@ struct LabJourneyMapView:View {
                             branch(.mixing,title:"Branch: Mixing",subtitle:"From Sorting: create the color you need.",color:.orange)
                             Image(systemName:"arrow.down").foregroundStyle(.secondary).accessibilityHidden(true)
                             branch(.recovery,title:"Recovery",subtitle:"Continue from Mixing: separate and reuse.",color:.purple)
-                            branch(.discovery,title:"Optional branch: Discovery",subtitle:"From Sorting: uncover hidden colors.",color:.pink)
                         }
                         branch(.crossover,title:"Bring your skills together",subtitle:"Combine what Density and Recovery taught you.",color:mint)
                             .frame(maxWidth:wide ? 600:.infinity)
-                        Text("Looking for more practice? Every lab is still available from the game board.")
+                        Text("Looking for more practice? Every lab is available from the board, and every fifth Endless level hides its undiscovered units.")
                             .font(.callout).foregroundStyle(.secondary)
                     }.padding(24).frame(maxWidth:1100).frame(maxWidth:.infinity)
     }
@@ -101,7 +99,7 @@ struct LabJourneyMapView:View {
 
     private func rail(merging:Bool)->some View {
         Canvas { context,size in
-            let center=size.width/2,ports=merging ? [size.width/6,center]:[size.width/6,center,size.width*5/6]
+            let center=size.width/2,ports=[size.width/4,size.width*3/4]
             var path=Path()
             for x in ports {
                 path.move(to:CGPoint(x:merging ? x:center,y:0))

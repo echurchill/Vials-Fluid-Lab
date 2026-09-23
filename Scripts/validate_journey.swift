@@ -8,7 +8,8 @@ import Metal
     static func main() throws {
         let stops=LabJourney.stops,ids=Set(stops.map(\.puzzle))
         check(ids.count==stops.count,"Duplicate Journey stop")
-        check(Set(stops.map {$0.puzzle.discipline})==Set(LabDiscipline.allCases),"Missing lab branch")
+        check(Set(stops.map {$0.puzzle.discipline})==Set(LabDiscipline.availableLabs),"Missing visible lab branch")
+        check(!LabDiscipline.availableLabs.contains(.discovery),"Discovery is still a standalone lab")
         var visited:Set<LabBoardPuzzle>=[],active:Set<LabBoardPuzzle>=[]
         func walk(_ puzzle:LabBoardPuzzle) {
             check(!active.contains(puzzle),"Cycle in learning path")
@@ -19,8 +20,8 @@ import Metal
             active.remove(puzzle);visited.insert(puzzle)
         }
         walk(.firstSort);check(visited==ids,"Unreachable Journey stop")
-        check(LabJourney.stop(.crossCurrents)!.next==[.heavyLanding,.warmBlend,.firstReveal],"Sorting fork changed")
-        check(LabJourney.stop(.hiddenGarden)!.next.isEmpty,"Discovery must stay optional")
+        check(LabJourney.stop(.crossCurrents)!.next==[.heavyLanding,.warmBlend],"Sorting fork changed")
+        check(LabJourney.stop(.firstReveal)==nil && LabJourney.stop(.hiddenGarden)==nil,"Discovery is still a standalone Journey branch")
         for stop in stops {
             check(!stop.lesson.isEmpty,"Missing learning goal")
             let state=stop.puzzle.initial
@@ -31,7 +32,6 @@ import Metal
             check(final.solved,"Journey route does not solve")
         }
         check(LabJourney.stop(.splitPurple)!.next==[.roomForBoth],"Recovery skips blocked-output practice")
-        check(LabJourney.stop(.buriedClue)!.next==[.thirdColor],"Discovery skips shallow three-color practice")
         check(LabJourney.stop(.readyToBlend)!.next==[.oneStepHeavier] && LabJourney.stop(.oneStepHeavier)!.next==[.floatAgain] && LabJourney.stop(.floatAgain)!.next==[.equalPartners],"Combined path skips isolated tool practice")
         for puzzle in [LabBoardPuzzle.readyToBlend,.oneStepHeavier,.floatAgain] {
             let state=puzzle.initial
@@ -63,6 +63,15 @@ import Metal
         reloaded.changePuzzle(.valveCircuit);check(!reloaded.journeyMode,"Direct puzzle retained Journey context")
         let prior=reloaded.puzzle;reloaded.startJourney(at:.valveCircuit)
         check(reloaded.puzzle==prior && !reloaded.journeyMode,"Unknown Journey stop accepted")
+        reloaded.startJourney(at:.firstReveal)
+        check(reloaded.puzzle==prior && !reloaded.journeyMode,"Retired standalone Discovery stop accepted")
+        let migrationSuite="vials.validate.discovery-retirement",migrationDefaults=UserDefaults(suiteName:migrationSuite)!
+        migrationDefaults.removePersistentDomain(forName:migrationSuite)
+        let retiredSave=LabComparisonSave(presentation:.classic,puzzle:.buriedClue,lastPuzzles:[LabDiscipline.sorting.rawValue:LabBoardPuzzle.crossCurrents.rawValue],journeyMode:true)
+        migrationDefaults.set(try JSONEncoder().encode(retiredSave),forKey:"lab.comparison.v1")
+        let retired=FluidBoardSession(defaults:migrationDefaults,device:nil)
+        check(retired.puzzle == .crossCurrents && retired.discipline == .sorting && !retired.journeyMode,"Retired Discovery selection was not redirected to Sorting")
+        migrationDefaults.removePersistentDomain(forName:migrationSuite)
         let starting=LabBoardPuzzle.heavyLanding.initial
         let solution=LabBoardPuzzle.heavyLanding.authoredRoute()!
         let final=solution.reduce(starting) {$0.applying($1)!}
@@ -111,6 +120,6 @@ import Metal
         check(LabLearningTopic.topics(for:.secondChance)==[.recovery,.mixing],"Direct Recovery entry misses a tool")
         check(LabLearningTopic.topics(for:.firstSort).isEmpty,"Sorting unexpectedly shows tool guides")
         print("PASS Learning: context, first-use persistence, replay, lab sharing, legacy/unknown-topic migration, reset")
-        print("PASS Journey: \(stops.count) solvable/reachable stops, no cycles, optional branch, cross-lab navigation, direct lab escape, shared progress, save migration, busy guards and full reset")
+        print("PASS Journey: \(stops.count) solvable/reachable stops, no cycles, no standalone Discovery branch, cross-lab navigation, direct lab escape, shared progress, save migration, busy guards and full reset")
     }
 }

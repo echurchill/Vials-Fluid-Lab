@@ -34,7 +34,7 @@ import Metal
 
     static func main() throws {
         let samples:[(LabEndlessDifficulty,Int,Int)]=[
-            (.easy,1,0),(.easy,14,3),(.medium,8,2),(.hard,12,4)
+            (.easy,1,0),(.easy,5,3),(.medium,10,2),(.hard,15,4)
         ]
         for (difficulty,number,variant) in samples {
             let source=VialLevelGenerator.generate(
@@ -49,7 +49,14 @@ import Metal
             )
             check(board.number==source.number,"Level number changed during adaptation")
             check(board.generationVariant==source.generationVariant,"Generation variant changed during adaptation")
-            check(board.initial.behavior == .sorting,"Generated board did not enter Sorting rules")
+            let discovery=number.isMultiple(of:5)
+            check(board.isDiscoveryLevel==discovery,"Discovery cadence changed")
+            check(board.initial.behavior == (discovery ? .discovery:.sorting),"Generated board entered the wrong rules")
+            check((board.initial.knownParcels != nil)==discovery,"Generated board has the wrong visibility profile")
+            if discovery {
+                check(board.initial.knownParcels==Set(board.initial.stacks.compactMap(\.last)),"Discovery did not expose exactly the top units")
+                check(board.saveKey.hasSuffix(".discovery"),"Discovery save identity is not distinct")
+            }
             check(board.initial.capacities==source.vials.map(\.capacity),"Vial capacities changed during adaptation")
             check(board.initial.rules==source.vials.map {$0.rule == .receiveOnly ? .receiveOnly:.normal},"Vial rules changed during adaptation")
             check(layers(board.initial)==source.vials.map {$0.fluids.map(pigment)},"Fluid colors or layer order changed during adaptation")
@@ -100,7 +107,19 @@ import Metal
         check(switched.endlessBoard == nil,"Authored-lab selection still restores Endless")
         check(switched.games[board.saveKey]?.state==board.initial.applying(first),"Leaving Endless discarded its progress")
 
-        print("PASS Endless adapter: deterministic metadata, capacities, rules, colors, layers and volume")
+        for difficulty in LabEndlessDifficulty.allCases {
+            let discovery=LabEndlessBoard.generated(difficulty:difficulty,number:5)
+            check(discovery.title=="\(difficulty.title) 5 · Discovery","Discovery title is not visible")
+            check(discovery.detail.contains("hidden units"),"Discovery detail is not visible")
+            let route=discovery.initial.solution(limit:1_200_000)
+            check(route != nil,"\(difficulty.title) discovery checkpoint is not solvable with hidden-unit rules")
+            check(route!.reduce(discovery.initial) {$0.applying($1)!}.solved,"Discovery route did not solve")
+        }
+        let discovery=LabEndlessBoard.generated(difficulty:.easy,number:5)
+        restored.changeEndlessBoard(discovery)
+        check(restored.boardHeader=="ENDLESS DISCOVERY" && restored.learningTopics==[.discovery],"Discovery was not promoted into Endless presentation and teaching")
+
+        print("PASS Endless adapter: deterministic metadata, capacities, rules, colors, layers, volume and fifth-level Discovery cadence")
         print("PASS Endless session: Lab-engine solve/pour, checkpoint/restore and authored-lab escape")
     }
 }

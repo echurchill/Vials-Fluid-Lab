@@ -186,22 +186,17 @@ struct FluidBoardView:View {
                     .buttonStyle(.borderedProminent).tint(session.isEndlessSorting ? accent:Color.gray.opacity(0.35))
                     .foregroundStyle(session.isEndlessSorting ? Color.black:ink)
                     .accessibilityLabel("Endless Sorting")
-                    Button("Valves",systemImage:"arrow.down.circle") {openValves()}
-                        .buttonStyle(.borderedProminent).tint(session.isValveCourse ? accent:Color.gray.opacity(0.35))
+                    Menu(session.isValveCourse ? "Valve Lab":(session.journeyMode || session.isEndlessSorting ? "Explore labs":session.discipline.title+" Lab")) {
+                        ForEach(LabDiscipline.availableLabs,id:\.self) { discipline in
+                            Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
+                        }
+                        Divider()
+                        Button("Valve Lab",systemImage:"arrow.down.circle") {openValves()}
+                            .accessibilityIdentifier("lab.valveCourse")
+                    }.buttonStyle(.borderedProminent)
+                        .tint(session.isValveCourse ? accent:Color.gray.opacity(0.35))
                         .foregroundStyle(session.isValveCourse ? Color.black:ink)
-                        .accessibilityLabel("Valve Course")
-                        .accessibilityIdentifier("lab.valveCourse")
-                    if geometry.size.width<900 || session.journeyMode || session.isEndlessSorting || session.isValveCourse {
-                        Menu(session.journeyMode || session.isEndlessSorting || session.isValveCourse ? "Explore labs":session.discipline.title+" Lab") {
-                            ForEach(LabDiscipline.allCases,id:\.self) { discipline in
-                                Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
-                            }
-                        }.buttonStyle(.bordered).accessibilityLabel("Choose laboratory")
-                    } else {
-                        Picker("Laboratory",selection:Binding(get:{session.discipline},set:session.changeDiscipline)) {
-                            ForEach(LabDiscipline.allCases,id:\.self) {Text($0.title).tag($0)}
-                        }.pickerStyle(.segmented).frame(maxWidth:680)
-                    }
+                        .accessibilityLabel("Choose laboratory")
                     Spacer(minLength:0)
                 }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
                 HStack(spacing:12) {
@@ -382,7 +377,7 @@ struct FluidBoardView:View {
                                 } else {
                                     Menu("Choose path") {
                                         ForEach(session.journeyNext,id:\.self) { stop in
-                                            Button(stop.discipline.title+(stop.discipline == .discovery ? " (optional)":"")+": "+stop.title) {session.startJourney(at:stop)}
+                                            Button(stop.discipline.title+": "+stop.title) {session.startJourney(at:stop)}
                                         }
                                         Divider()
                                         Button("View Journey map") {sheet = .journey}

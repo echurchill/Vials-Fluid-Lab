@@ -23,6 +23,9 @@ enum LabRenderQuality:String,CaseIterable,Codable {
 
 nonisolated enum LabDiscipline:String,CaseIterable,Codable {
     case sorting,discovery,density,mixing,recovery,crossover
+    /// Discovery is now a recurring Sorting condition rather than a standalone lab.
+    /// Keep its authored boards available as reference fixtures and engine coverage.
+    static let availableLabs:[Self]=[.sorting,.density,.mixing,.recovery,.crossover]
     var title:String {
         switch self {case .sorting:"Sorting";case .discovery:"Discovery";case .density:"Density";case .mixing:"Mixing";case .recovery:"Recovery";case .crossover:"Crossover"}
     }
@@ -251,7 +254,7 @@ nonisolated struct LabJourneyStop:Identifiable {
 nonisolated enum LabJourney {
     static let stops:[LabJourneyStop]=[
         .init(puzzle:.firstSort,lesson:"Group matching colors and use an empty vial to make room.",next:[.crossCurrents]),
-        .init(puzzle:.crossCurrents,lesson:"Plan a few pours ahead before choosing your next branch.",next:[.heavyLanding,.warmBlend,.firstReveal]),
+        .init(puzzle:.crossCurrents,lesson:"Plan a few pours ahead before choosing your next branch.",next:[.heavyLanding,.warmBlend]),
         .init(puzzle:.heavyLanding,lesson:"Heavy liquid sinks through light liquid. Match the target’s layers.",next:[.threeDeep]),
         .init(puzzle:.threeDeep,lesson:"Arrange light, medium and heavy liquids in one target.",next:[.shadesOfBlue]),
         .init(puzzle:.shadesOfBlue,lesson:"The color is the same; use density symbols to tell the layers apart.",next:[.readyToBlend]),
@@ -268,12 +271,7 @@ nonisolated enum LabJourney {
         .init(puzzle:.weightedOrange,lesson:"Mix the requested color, make it heavier, then fill the target.",next:[.layerCake]),
         .init(puzzle:.layerCake,lesson:"Combine a recipe with a target that requires a particular layer order.",next:[.twinProducts]),
         .init(puzzle:.twinProducts,lesson:"Plan two recipes and send each through the right density chamber.",next:[.fullSpectrum]),
-        .init(puzzle:.fullSpectrum,lesson:"Combine color, quantity and density to complete both targets.",next:[]),
-        .init(puzzle:.firstReveal,lesson:"Pour a known color to discover what is underneath.",next:[.peekAhead]),
-        .init(puzzle:.peekAhead,lesson:"Choose which vial to investigate while keeping room to pour.",next:[.buriedClue]),
-        .init(puzzle:.buriedClue,lesson:"Use what you have uncovered to plan the next few moves.",next:[.thirdColor]),
-        .init(puzzle:.thirdColor,lesson:"Discover three colors in shallow vials before tackling deeper hidden layers.",next:[.hiddenGarden]),
-        .init(puzzle:.hiddenGarden,lesson:"Put your discoveries together to sort three hidden colors.",next:[])
+        .init(puzzle:.fullSpectrum,lesson:"Combine color, quantity and density to complete both targets.",next:[])
     ]
     static func stop(_ puzzle:LabBoardPuzzle)->LabJourneyStop? {stops.first {$0.puzzle==puzzle}}
     static func branch(_ discipline:LabDiscipline)->[LabJourneyStop] {stops.filter {$0.puzzle.discipline==discipline}}
@@ -352,11 +350,15 @@ nonisolated struct LabEndlessBoard:Codable,Equatable {
     let number:Int
     let generationVariant:Int
     let initial:LabBoardState
-    var saveKey:String {"endless.\(difficulty.rawValue).\(number).\(generationVariant)"}
-    var title:String {"\(difficulty.title) \(number)"}
+    var isDiscoveryLevel:Bool {number.isMultiple(of:5)}
+    var saveKey:String {
+        "endless.\(difficulty.rawValue).\(number).\(generationVariant)"+(isDiscoveryLevel ? ".discovery":"")
+    }
+    var title:String {"\(difficulty.title) \(number)"+(isDiscoveryLevel ? " · Discovery":"")}
     var detail:String {
         let range=(initial.capacities.min() ?? 0)...(initial.capacities.max() ?? 0)
         var parts=["Generated level \(number)","\(initial.stacks.count) vials","\(Set(initial.colors).count) colors"]
+        if isDiscoveryLevel {parts.append("hidden units")}
         if range.lowerBound != 4 || range.upperBound != 4 {
             parts.append(range.lowerBound==range.upperBound ? "\(range.lowerBound) units":"\(range.lowerBound)–\(range.upperBound) units")
         }

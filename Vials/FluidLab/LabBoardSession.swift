@@ -27,11 +27,11 @@ import Combine
     var boardID:String {valveBoard?.saveKey ?? endlessBoard?.saveKey ?? puzzle.rawValue}
     var boardTitle:String {valveBoard?.title ?? endlessBoard?.title ?? puzzle.title}
     var boardDetail:String {valveBoard?.detail ?? endlessBoard?.detail ?? puzzle.detail}
-    var boardHeader:String {isValveCourse ? "VALVE COURSE":(isEndlessSorting ? "ENDLESS SORTING":(journeyMode ? "JOURNEY · \(discipline.title.uppercased())":discipline.header))}
+    var boardHeader:String {isValveCourse ? "VALVE LAB":(isEndlessSorting ? (endlessBoard?.isDiscoveryLevel == true ? "ENDLESS DISCOVERY":"ENDLESS SORTING"):(journeyMode ? "JOURNEY · \(discipline.title.uppercased())":discipline.header))}
     var boardProgressSummary:String {isValveCourse ? "\(completedValveLevelCount) / \(LabValveBoard.levelCount) complete":(isEndlessSorting ? "Generated curriculum":"\(completedPuzzleCount) complete")}
     private var initialState:LabBoardState {valveBoard?.initial ?? endlessBoard?.initial ?? puzzle.initial}
     private var gameKey:String {valveBoard?.saveKey ?? endlessBoard?.saveKey ?? puzzle.rawValue}
-    private var boardInstruction:String {isValveCourse ? "Fill each cyan valve with one color. A valve can receive liquid but cannot pour it back out.":(isEndlessSorting ? "Tap a filled vial, then a matching color or an empty vial.":puzzle.instruction)}
+    private var boardInstruction:String {isValveCourse ? "Fill each cyan valve with one color. A valve can receive liquid but cannot pour it back out.":(endlessBoard?.isDiscoveryLevel == true ? "Pour known colors to reveal what is below. Discoveries stay known.":(isEndlessSorting ? "Tap a filled vial, then a matching color or an empty vial.":puzzle.instruction))}
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
     @Published private(set) var transformation:LabApparatusTransition?
@@ -101,7 +101,7 @@ import Combine
     var completedValveLevelCount:Int {(1...LabValveBoard.levelCount).filter(hasCompletedValveLevel).count}
     func hasCompletedValveLevel(_ number:Int)->Bool {saved.games["valves.\(number)"]?.state.solved ?? false}
     func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool { !isSortingSubcourse && puzzle == self.puzzle ? state.solved:(saved.games[puzzle.rawValue]?.state.solved ?? false) }
-    var learningTopics:[LabLearningTopic] {isValveCourse ? [.valves]:(isEndlessSorting ? []:LabLearningTopic.topics(for:puzzle))}
+    var learningTopics:[LabLearningTopic] {isValveCourse ? [.valves]:(endlessBoard?.isDiscoveryLevel == true ? [.discovery]:(isEndlessSorting ? []:LabLearningTopic.topics(for:puzzle)))}
     var unseenLearningTopics:[LabLearningTopic] {learningTopics.filter {!saved.seenLearningTopics.contains($0.rawValue)}}
     func markLearningTopicSeen(_ topic:LabLearningTopic) {
         guard learningTopics.contains(topic),saved.seenLearningTopics.insert(topic.rawValue).inserted else {return}
@@ -202,6 +202,12 @@ import Combine
         var save=self.defaults?.data(forKey:"lab.comparison.v1").flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) } ?? LabComparisonSave(journeyMode:true)
         if let restoredSave { save=restoredSave }
         if let trial { save=LabComparisonSave(presentation:trial.presentation,pace:trial.pace,puzzle:trial.puzzle,games:[:]) }
+        if restoredSave == nil,trial == nil,save.endlessBoard == nil,save.valveBoard == nil,save.puzzle.discipline == .discovery {
+            let remembered=save.lastPuzzles[LabDiscipline.sorting.rawValue].flatMap(LabBoardPuzzle.init(rawValue:))
+            if let remembered,remembered.discipline == .sorting {save.puzzle=remembered}
+            else {save.puzzle = .firstSort}
+            save.journeyMode=false
+        }
         if save.densitySetupVersion<1 {
             for level in LabDiscipline.density.levels {save.games.removeValue(forKey:level.rawValue)}
             save.densitySetupVersion=1
