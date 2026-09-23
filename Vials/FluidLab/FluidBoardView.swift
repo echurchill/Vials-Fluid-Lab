@@ -25,6 +25,10 @@ struct FluidBoardView:View {
         let number=max(1,level ?? remembered ?? 1)
         session.changeEndlessBoard(.generated(difficulty:difficulty,number:number))
     }
+    private func openValves(level:Int?=nil) {
+        let number=min(LabValveBoard.levelCount,max(1,level ?? session.valveBoard?.number ?? 1))
+        if let board=LabValveBoard.generated(number:number) {session.changeValveBoard(board)}
+    }
     private var focusedApparatus:LabApparatus? {
         if let transition=session.transformation,!transition.isRevealing {return transition.apparatus}
         guard !session.busy else {return nil}
@@ -71,6 +75,7 @@ struct FluidBoardView:View {
     }
     private var boardNotice:String {
         if session.isEndlessSorting,session.solved {return "Generated level complete. Continue when you are ready, or play again."}
+        if session.isValveCourse,session.solved {return session.valveBoard?.number == LabValveBoard.levelCount ? "Valve course complete. Choose a level, or play again.":"Circuit complete. Continue to the next valve level when you are ready."}
         if session.journeyMode {
             if session.solved {
                 return session.journeyNext.isEmpty ? "Path complete. Explore another branch in Journey.":(session.journeyNext.count>1 ? "Step complete. Choose what you would like to learn next.":"Step complete. Continue your Journey when you are ready.")
@@ -79,7 +84,7 @@ struct FluidBoardView:View {
                 return LabJourney.stop(session.puzzle)?.lesson ?? session.notice
             }
         }
-        return !session.isEndlessSorting && session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice
+        return !session.isEndlessSorting && !session.isValveCourse && session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice
     }
     private var apparatusControls:some View {
         HStack(spacing:10) {
@@ -181,8 +186,13 @@ struct FluidBoardView:View {
                     .buttonStyle(.borderedProminent).tint(session.isEndlessSorting ? accent:Color.gray.opacity(0.35))
                     .foregroundStyle(session.isEndlessSorting ? Color.black:ink)
                     .accessibilityLabel("Endless Sorting")
-                    if geometry.size.width<900 || session.journeyMode || session.isEndlessSorting {
-                        Menu(session.journeyMode || session.isEndlessSorting ? "Explore labs":session.discipline.title+" Lab") {
+                    Button("Valves",systemImage:"arrow.down.circle") {openValves()}
+                        .buttonStyle(.borderedProminent).tint(session.isValveCourse ? accent:Color.gray.opacity(0.35))
+                        .foregroundStyle(session.isValveCourse ? Color.black:ink)
+                        .accessibilityLabel("Valve Course")
+                        .accessibilityIdentifier("lab.valveCourse")
+                    if geometry.size.width<900 || session.journeyMode || session.isEndlessSorting || session.isValveCourse {
+                        Menu(session.journeyMode || session.isEndlessSorting || session.isValveCourse ? "Explore labs":session.discipline.title+" Lab") {
                             ForEach(LabDiscipline.allCases,id:\.self) { discipline in
                                 Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
                             }
@@ -357,6 +367,13 @@ struct FluidBoardView:View {
                                 .opacity(session.solved ? 1:0).disabled(!session.solved)
                                 .allowsHitTesting(session.solved).accessibilityHidden(!session.solved)
                                 .accessibilityIdentifier("endless.nextLevel")
+                        } else if let valve=session.valveBoard,valve.number<LabValveBoard.levelCount {
+                            Button("Next: \(valve.number+1)",systemImage:"arrow.right") {openValves(level:valve.number+1)}
+                                .lineLimit(1).minimumScaleFactor(0.75)
+                                .buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
+                                .opacity(session.solved ? 1:0).disabled(!session.solved)
+                                .allowsHitTesting(session.solved).accessibilityHidden(!session.solved)
+                                .accessibilityIdentifier("valves.nextLevel")
                         } else if session.journeyMode && session.journeyNext.count != 1 {
                             Group {
                                 if session.journeyNext.isEmpty {
@@ -387,7 +404,7 @@ struct FluidBoardView:View {
                         } else {
                             // Reserve the final-level action too, so solving it
                             // never changes the board or toolbar layout.
-                            Menu { puzzleChoices } label: {
+                            Menu { boardChoices } label: {
                                 Label("Choose level",systemImage:"square.grid.2x2")
                                     .lineLimit(1).minimumScaleFactor(0.75)
                             }
@@ -457,7 +474,7 @@ struct FluidBoardView:View {
             }
             Button("Cancel",role:.cancel) {}
         } message: {
-            Text("Start again at Level 1. This clears all saved Lab puzzles, completion marks, undo history, and Endless Sorting progress. This can’t be undone.")
+            Text("Start again at Level 1. This clears all saved Lab puzzles, completion marks, undo history, Endless Sorting progress, and Valve Course progress. This can’t be undone.")
         }
         .sheet(item:$comparison) { example in LabPourComparisonView(example:example) }
         .sheet(item:$sheet) { item in
@@ -480,7 +497,16 @@ struct FluidBoardView:View {
         }
     }
     @ViewBuilder private var boardChoices:some View {
-        if let endless=session.endlessBoard {
+        if let valve=session.valveBoard {
+            Button("Previous level") {openValves(level:valve.number-1)}.disabled(valve.number==1)
+            Button("Next level") {openValves(level:valve.number+1)}.disabled(valve.number==LabValveBoard.levelCount)
+            Divider()
+            ForEach(1...LabValveBoard.levelCount,id:\.self) {number in
+                Button("\(number). \(LabValveBoard.title(for:number))\(session.hasCompletedValveLevel(number) ? " ✓":"")") {openValves(level:number)}
+            }
+            Divider()
+            Button("Return to Sorting Lab") {session.changeDiscipline(.sorting)}
+        } else if let endless=session.endlessBoard {
             Button("Previous level") {openEndless(endless.difficulty,level:endless.number-1)}.disabled(endless.number==1)
             Button("Next level") {openEndless(endless.difficulty,level:endless.number+1)}
             Divider()

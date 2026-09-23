@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Valve Course consolidation](Reports/Prototype45/README.md) brings all fifteen Original receive-only experiments into the shared Lab engine with course navigation, progress, teaching, saves and full Lab-rule solver validation. It also records the recommended helper-cup and hybrid curriculum-expansion path.
+
 [Round vessels and consistent fill heights](Reports/Prototype31/README.md) replace the rejected flattened-vial workaround. Mac comparisons and checks are available for visual review.
 
 [Matched 3D board scale and a quieter floor](Reports/Prototype27/README.md) bring resting 3D vials into visual parity with Classic/2D across portrait, landscape and 4–10-vial boards, align the common floor baseline, and remove the unnecessary 3D floor ellipse while retaining contact shadows. Its latest follow-up also carries Classic streams down to the accumulating fluid and preserves visible 3D headspace beneath completed caps. Full complexity, concurrency and overlap regressions pass.

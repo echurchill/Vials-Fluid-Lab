@@ -282,11 +282,12 @@ nonisolated enum LabJourney {
 /// Stable identifiers keep first-use teaching shared between Journey and direct labs.
 /// The saved set uses strings so a future/unknown topic never invalidates a save.
 nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
-    case discovery,density,mixing,recovery,heavier,lighter
+    case discovery,valves,density,mixing,recovery,heavier,lighter
     var id:String {rawValue}
     var title:String {
         switch self {
         case .discovery:"Discover hidden liquids"
+        case .valves:"Use fill-only valves"
         case .density:"Read the layers"
         case .mixing:"Use a mixer"
         case .recovery:"Recover the ingredients"
@@ -297,6 +298,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
     var explanation:String {
         switch self {
         case .discovery:"Only exposed liquid is known. Pour a visible color to reveal the next layer. Once discovered, a layer stays known even after Undo or Play again."
+        case .valves:"A cyan down arrow marks a fill-only valve. Liquid can enter that vial, but it can never pour back out. Plan the route before committing a color to a valve."
         case .density:"Pale upward triangles mean light; no triangles mean medium; dark downward triangles mean heavy. Heavier liquid sinks below lighter liquid. Match each target’s color, amount and density."
         case .mixing:"Put one unit in each mixer input, at the same density. Activate Mix to make two units of a new color. The output must be empty, with room for both units."
         case .recovery:"Put exactly two units of one mixed color, at one density, in the separator input. Activate Separate to recover one unit of each ingredient. Both outputs need room."
@@ -307,6 +309,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
     var reminder:String {
         switch self {
         case .discovery:"Hidden colors are a clue to uncover, not a new kind of liquid. Use empty space to investigate."
+        case .valves:"A valve is complete only when it is full of one color. Use ordinary vials as workspace until you know which color belongs there."
         case .density:"Target strips read left to right, from the bottom of the vial to the top. Select a target vial to learn what is missing."
         case .mixing:"Red + yellow = orange; yellow + blue = green; blue + red = purple."
         case .recovery:"Orange separates into red and yellow; green into yellow and blue; purple into blue and red. No liquid is lost."
@@ -324,6 +327,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
         let state=puzzle.initial
         var result:[Self]=[]
         if state.behavior == .discovery {result.append(.discovery)}
+        if state.rules.contains(.receiveOnly) {result.append(.valves)}
         let densities=Set(state.densities+state.targets.flatMap {$0.layers.map(\.density)})
         if state.behavior.settlesByDensity && (densities.count>1 || state.apparatus.contains {$0.kind == .densityModifier}) {result.append(.density)}
         for tool in state.apparatus {
@@ -360,6 +364,33 @@ nonisolated struct LabEndlessBoard:Codable,Equatable {
     }
 }
 
+/// One of the Original game's fifteen deterministic receive-only experiments,
+/// hosted by the shared Lab engine as a focused Sorting sub-course.
+nonisolated struct LabValveBoard:Codable,Equatable {
+    static let levelCount=15
+    let number:Int
+    let initial:LabBoardState
+    var saveKey:String {"valves.\(number)"}
+    var title:String {Self.title(for:number)}
+    static func title(for number:Int)->String {
+        switch number {
+        case 1...5:"Valve Basics \(number)"
+        case 6...7:"Valve Routing \(number-5)"
+        case 8...10:"Twin Valves \(number-7)"
+        default:"Variable Valves \(number-10)"
+        }
+    }
+    var detail:String {
+        let range=(initial.capacities.min() ?? 0)...(initial.capacities.max() ?? 0)
+        let valves=initial.rules.filter {$0 == .receiveOnly}.count
+        var parts=["Course \(number) / \(Self.levelCount)","\(initial.stacks.count) vials","\(Set(initial.colors).count) colors","\(valves) fill-only"]
+        if range.lowerBound != 4 || range.upperBound != 4 {
+            parts.append(range.lowerBound==range.upperBound ? "\(range.lowerBound) units":"\(range.lowerBound)–\(range.upperBound) units")
+        }
+        return parts.joined(separator:" · ")
+    }
+}
+
 struct LabComparisonSave:Codable {
     var seenLearningTopics:Set<String> = []
     var journeyMode:Bool = false
@@ -367,14 +398,15 @@ struct LabComparisonSave:Codable {
     var pace:LabBoardPace = .relaxed
     var puzzle:LabBoardPuzzle = .firstSort
     var endlessBoard:LabEndlessBoard?
+    var valveBoard:LabValveBoard?
     var games:[String:LabBoardGame] = [:]
     var lastPuzzles:[String:String] = [:]
     /// Revised density starts must replace saved pre-settlement setups, without
     /// disturbing progress in the other three laboratories.
     var densitySetupVersion:Int = 1
-    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,endlessBoard,games,lastPuzzles,densitySetupVersion,journeyMode,seenLearningTopics}
-    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,endlessBoard:LabEndlessBoard?=nil,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1,journeyMode:Bool=false,seenLearningTopics:Set<String>=[]) {
-        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.endlessBoard=endlessBoard;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion;self.journeyMode=journeyMode;self.seenLearningTopics=seenLearningTopics
+    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,endlessBoard,valveBoard,games,lastPuzzles,densitySetupVersion,journeyMode,seenLearningTopics}
+    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,endlessBoard:LabEndlessBoard?=nil,valveBoard:LabValveBoard?=nil,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1,journeyMode:Bool=false,seenLearningTopics:Set<String>=[]) {
+        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.endlessBoard=endlessBoard;self.valveBoard=valveBoard;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion;self.journeyMode=journeyMode;self.seenLearningTopics=seenLearningTopics
     }
     init(from decoder:Decoder)throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
@@ -382,6 +414,7 @@ struct LabComparisonSave:Codable {
         pace=try values.decodeIfPresent(LabBoardPace.self,forKey:.pace) ?? .relaxed
         puzzle=try values.decodeIfPresent(LabBoardPuzzle.self,forKey:.puzzle) ?? .firstSort
         endlessBoard=try values.decodeIfPresent(LabEndlessBoard.self,forKey:.endlessBoard)
+        valveBoard=try values.decodeIfPresent(LabValveBoard.self,forKey:.valveBoard)
         games=try values.decodeIfPresent([String:LabBoardGame].self,forKey:.games) ?? [:]
         lastPuzzles=try values.decodeIfPresent([String:String].self,forKey:.lastPuzzles) ?? [:]
         densitySetupVersion=try values.decodeIfPresent(Int.self,forKey:.densitySetupVersion) ?? 0

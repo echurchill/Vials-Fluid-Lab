@@ -1,5 +1,32 @@
 import Foundation
 
+extension LabBoardState {
+    /// Convert Original curriculum data without carrying any Original gameplay,
+    /// animation or asynchronous session behavior into the Lab.
+    nonisolated static func adapting(_ source:VialLevel)->Self {
+        let layers=source.vials.map { vial in vial.fluids.map(Self.labPigment) }
+        let rules=source.vials.map { $0.rule == .receiveOnly ? LabVialRule.receiveOnly:.normal }
+        return Self(layers:layers,capacities:source.vials.map(\.capacity),rules:rules)
+    }
+
+    private nonisolated static func labPigment(_ fluid:Fluid)->Int {
+        switch fluid {
+        case .tide:0
+        case .ember:1
+        case .fern:2
+        case .petal:3
+        case .sun:4
+        case .cream:5
+        case .violet:6
+        case .mint:7
+        case .ruby:8
+        case .cobalt:9
+        case .lime:10
+        case .pearl:11
+        }
+    }
+}
+
 extension LabEndlessDifficulty {
     nonisolated var originalMode:LevelMode {
         switch self {
@@ -25,26 +52,6 @@ extension LabEndlessBoard {
     nonisolated static func generated(difficulty:LabEndlessDifficulty,number:Int,generationVariant:Int=0)->Self {
         let number=max(1,number),mode=difficulty.originalMode
         let source=VialLevelGenerator.generate(mode:mode,number:number,generationVariant:generationVariant)
-        let layers=source.vials.map { vial in vial.fluids.map(Self.labPigment) }
-        let rules=source.vials.map { $0.rule == .receiveOnly ? LabVialRule.receiveOnly:.normal }
-        let initial=LabBoardState(layers:layers,capacities:source.vials.map(\.capacity),rules:rules)
-        return Self(difficulty:difficulty,number:number,generationVariant:source.generationVariant,initial:initial)
-    }
-
-    private nonisolated static func labPigment(_ fluid:Fluid)->Int {
-        switch fluid {
-        case .tide:0
-        case .ember:1
-        case .fern:2
-        case .petal:3
-        case .sun:4
-        case .cream:5
-        case .violet:6
-        case .mint:7
-        case .ruby:8
-        case .cobalt:9
-        case .lime:10
-        case .pearl:11
-        }
+        return Self(difficulty:difficulty,number:number,generationVariant:source.generationVariant,initial:.adapting(source))
     }
 }
