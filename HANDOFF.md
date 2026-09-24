@@ -1,5 +1,9 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## Future Valve Lab revision: color-keyed lids
+
+Eddie wants the provisional cyan rim line/down-arrow treatment replaced by a physical lid whose color identifies the only pigment a receive-only valve accepts. The lid should remain closed for the wrong pigment, open for a valid incoming pour, and make the rule understandable before any liquid enters. This permits valve vials to start empty instead of relying on preloaded liquid as their color indicator. Use an accompanying pattern/symbol for accessibility. Completion requires a full valve of its keyed pigment; pouring out remains illegal. This is a future work item, not current behavior. It needs explicit accepted-pigment metadata shared by model, solver/hints, saves, concurrent reservations, generation, and Classic/2D/3D rendering. Remove the old marker only after lid readability is validated. The detailed note is in `Reports/progression-curriculum-and-valve-plan.md`.
+
 ## September 22: returned-source interaction fix (Prototype43)
 
 Eddie's Buried clue Quick B→D / A→C / B→C reproduction exposed a 3D receiver-group completion lock, plus late streams cancelling an older source's settle. Fixed independent ordered source release, preserved completed settles, deferred starts during an active short correction, and kept the five-percent per-move correction bound. Eddie also reported 2D; independently reproduced its post-touchdown cleanup delay and moved cleanup into the return. Classic completion now matches its existing rendered touchdown (7.2 rather than 7.6 simulation seconds). No geometry/camera/material/path changes.

@@ -157,10 +157,15 @@ This is preferred over a reactive-fluid rule because it is legible, deterministi
 
 ### Visual language
 
-- A subtle downward arrow is etched into the rim.
-- Its receiving state uses the normal liquid rendering.
-- An attempted outgoing pour gives the existing invalid feedback plus a brief arrow pulse.
+- The current subtle rim line and downward arrow are provisional and should be replaced by a physical, color-keyed lid.
+- The lid color identifies the only pigment that valve accepts. Pair color with a matching pattern or symbol so the rule remains readable without color perception.
+- The lid stays visibly closed for an invalid pigment, opens during a valid incoming pour, and closes again afterward.
+- The valve may begin completely empty because the lid, rather than preloaded liquid, declares its target pigment.
+- Its receiving state uses the normal liquid rendering. Completion requires the valve to be filled to capacity with its keyed pigment.
+- An attempted outgoing pour retains the existing invalid feedback; the valve remains receive-only.
 - The helper beaker never receives the valve rule.
+
+This is a future Valve Lab revision, not the current behavior. It requires explicit accepted-pigment metadata rather than inferring the commitment from the valve's existing top liquid. The hint solver, generator, save format, concurrent reservation rules, and all three renderers must use that same metadata. Once the lid is legible in testing, remove the redundant arrow/rim marker.
 
 ### Model and solver changes
 
@@ -169,6 +174,7 @@ This is preferred over a reactive-fluid rule because it is legible, deterministi
 3. Update the hint solver, minimum-move solver, and dead-end recovery solver to apply the rule.
 4. Add rule-aware generated-level validation.
 5. Keep the ordinary generated catalog valve-free until authored teaching levels pass testing.
+6. Add accepted-pigment metadata and validate empty-start valves, wrong-color rejection, lid animation, saves, hints, Undo and concurrent incoming reservations.
 
 ### Prototype level sequence
 
