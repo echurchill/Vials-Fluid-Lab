@@ -25,6 +25,12 @@ import AppKit
   precondition(LabBoardLayout.shapes(for:helpers).last == .coffeeMug)
   helpers=helpers.upgradingHelper(helper)!
   precondition(LabBoardLayout.shapes(for:helpers).last == .waterJug)
+  let classicLayout=LabClassicLayout(size:CGSize(width:1024,height:640),vesselCount:5)
+  let classicProfile=LabBoardLayout.profiles(state:LabBoardPuzzle.firstSort.initial)[0]
+  let ordinaryHit=classicLayout.hitRect(0,profile:classicProfile)
+  let helperHit=classicLayout.hitRect(0,profile:classicProfile,includesHandle:true)
+  precondition(abs(ordinaryHit.midX-classicLayout.base(0).x)<0.001,"Ordinary Classic highlight shifted off center")
+  precondition(helperHit.minX==ordinaryHit.minX && helperHit.maxX>ordinaryHit.maxX,"Helper Classic hit area missed its handle")
   let reusable=try LabBoardRenderer(device:device,library:library)
   let reference=LabVesselProfile(name:"Reference",height:2.35,knots:LabVesselShape.testTube.knots).usableVolume
   for shape in LabVesselShape.allCases {

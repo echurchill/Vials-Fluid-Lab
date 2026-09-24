@@ -144,9 +144,11 @@ struct FluidBoardView:View {
         GeometryReader { geometry in
             let compact=geometry.size.width<680
             let vialCount=session.state.stacks.count
+            let showsAddHelperCard=session.supportsHelpers && session.state.canAddHelper
+            let debugItemCount=vialCount+(showsAddHelperCard ? 1:0)
             let debugInset:CGFloat=compact ? 40:64
-            let debugGap:CGFloat=vialCount>8 ? 5:8
-            let debugCardWidth=(geometry.size.width-debugInset-debugGap*CGFloat(max(0,vialCount-1)))/CGFloat(max(1,vialCount))
+            let debugGap:CGFloat=debugItemCount>8 ? 5:8
+            let debugCardWidth=(geometry.size.width-debugInset-debugGap*CGFloat(max(0,debugItemCount-1)))/CGFloat(max(1,debugItemCount))
             let denseDebug=debugCardWidth<82
             VStack(spacing:0) {
                 HStack {
@@ -302,7 +304,8 @@ struct FluidBoardView:View {
                 VStack(spacing:14) {
                     HStack(spacing:debugGap) {
                         ForEach(session.state.stacks.indices,id:\.self) { index in
-                            Button { session.select(index) } label: {
+                            ZStack(alignment:.topTrailing) {
+                                Button { session.select(index) } label: {
                                 VStack(spacing:denseDebug ? 3:5) {
                                     HStack(spacing:denseDebug ? 2:5) {
                                         Text(FluidBoardSession.letter(index)).font(.system(size:denseDebug ? 10:13,weight:.semibold,design:.monospaced))
@@ -349,8 +352,47 @@ struct FluidBoardView:View {
                                     .offset(x:!reduceMotion && session.rejectedVial==index ? 3:0)
                                     .animation(reduceMotion ? nil:.easeInOut(duration:0.18),value:session.selected)
                                     .animation(reduceMotion ? nil:.easeInOut(duration:0.12),value:session.rejectedVial)
-                            }.buttonStyle(LabVialPressStyle()).disabled(!session.canTap(index))
-                            .accessibilityLabel("Select "+session.accessibility(index)).accessibilityHint(machineMembership(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
+                                }.buttonStyle(LabVialPressStyle()).disabled(!session.canTap(index))
+                                    .accessibilityLabel("Select "+session.accessibility(index)).accessibilityHint(machineMembership(index)).accessibilityValue(session.vialComplete(index) && cueLabel(index).isEmpty ? "Complete":cueLabel(index))
+                                if session.state.isHelper(index) && session.state.canUpgradeHelper(index) {
+                                    Button {session.upgradeHelper(index)} label: {
+                                        Image(systemName:"arrow.up.circle.fill")
+                                            .font(.system(size:denseDebug ? 15:18,weight:.semibold))
+                                            .foregroundStyle(Color.mint)
+                                            .background(Circle().fill(Color.black.opacity(0.72)).padding(1))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(denseDebug ? 4:6)
+                                    .disabled(!session.canUpgradeHelper(index))
+                                    .accessibilityLabel("Upgrade \(FluidBoardSession.letter(index)) \(session.state.helperName(index) ?? "helper")")
+                                    .accessibilityHint("Increases this helper's capacity by one unit.")
+                                    .accessibilityIdentifier("sorting.helper.\(index).upgrade")
+                                }
+                            }
+                        }
+                        if showsAddHelperCard {
+                            Button {session.addHelper()} label: {
+                                VStack(spacing:denseDebug ? 3:5) {
+                                    HStack(spacing:denseDebug ? 2:5) {
+                                        Image(systemName:"cup.and.saucer.fill").foregroundStyle(Color.mint)
+                                        Text("HELPERS").font(.system(size:denseDebug ? 8:11,weight:.semibold,design:.monospaced))
+                                        Text("\(session.state.helpers.count) / 2").font(.system(size:denseDebug ? 8:10,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
+                                    }.lineLimit(1).minimumScaleFactor(0.65)
+                                    HStack(spacing:denseDebug ? 3:6) {
+                                        ForEach(0..<2,id:\.self) {slot in
+                                            Image(systemName:slot<session.state.helpers.count ? "cup.and.saucer.fill":"plus.circle")
+                                                .foregroundStyle(slot<session.state.helpers.count ? Color.mint:ink.opacity(0.38))
+                                        }
+                                        Text("ADD TEA CUP")
+                                            .font(.system(size:denseDebug ? 7:9,weight:.bold,design:.monospaced)).foregroundStyle(ink.opacity(0.65))
+                                    }.frame(height:14)
+                                }.frame(maxWidth:.infinity).padding(.vertical,denseDebug ? 8:12).padding(.horizontal,denseDebug ? 3:9)
+                                    .background(ink.opacity(0.04),in:RoundedRectangle(cornerRadius:10))
+                                    .overlay(RoundedRectangle(cornerRadius:10).stroke(Color.mint.opacity(0.45),lineWidth:1))
+                            }.buttonStyle(LabVialPressStyle()).frame(maxWidth:.infinity).disabled(!session.canAddHelper)
+                                .accessibilityLabel("Add helper tea cup, \(session.state.helpers.count) of 2 helpers added")
+                                .accessibilityHint("Adds one empty one-unit helper vessel.")
+                                .accessibilityIdentifier("sorting.helpers.add")
                         }
                     }
                     if session.state.behavior.settlesByDensity || !session.state.apparatus.isEmpty {
@@ -369,26 +411,6 @@ struct FluidBoardView:View {
                     HStack(spacing:12) {
                         Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || !session.canUndo)
                         Button(session.findingHint ? "Finding…":"Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved || session.findingHint)
-                        if session.supportsHelpers {
-                            Menu {
-                                Button("Add tea cup",systemImage:"plus") {session.addHelper()}
-                                    .disabled(!session.canAddHelper)
-                                ForEach(session.state.helpers,id:\.self) {index in
-                                    let name=session.state.helperName(index) ?? "Helper"
-                                    if session.state.canUpgradeHelper(index) {
-                                        Button("Upgrade \(FluidBoardSession.letter(index)) · \(name)",systemImage:"arrow.up.circle") {session.upgradeHelper(index)}
-                                            .disabled(!session.canUpgradeHelper(index))
-                                    } else {
-                                        Text("\(FluidBoardSession.letter(index)) · Water jug · maximum size")
-                                    }
-                                }
-                                Divider()
-                                Text("Up to two helpers. Empty both to finish.")
-                            } label: {
-                                Label("Helpers \(session.state.helpers.count)/2",systemImage:"cup.and.saucer")
-                            }.disabled(session.busy || session.solved)
-                                .accessibilityIdentifier("sorting.helpers")
-                        }
                         Spacer(minLength:8)
                         if let course=session.sortingCourseBoard,course.number<LabSortingCourseBoard.levelCount {
                             Button("Next: \(course.number+1)",systemImage:"arrow.right") {openSortingCourse(level:course.number+1)}
@@ -629,7 +651,10 @@ struct FluidBoardView:View {
             let handle=session.state.isHelper(index) ? layout.scale*0.48:0
             return CGRect(x:base.x-radius-8,y:base.y-CGFloat(profile.height)*layout.scale-8,width:radius*2+16+handle,height:CGFloat(profile.height)*layout.scale+16)
         }
-        if session.presentation == .classic { return LabClassicLayout(size:size,vesselCount:session.state.stacks.count).hitRect(index,profile:profiles[index]) }
+        if session.presentation == .classic {
+            return LabClassicLayout(size:size,vesselCount:session.state.stacks.count)
+                .hitRect(index,profile:profiles[index],includesHandle:session.state.isHelper(index))
+        }
         let matrix=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:Float(session.orbit),vesselCount:session.state.stacks.count).0
         let home=LabBoardLayout.homes(count:session.state.stacks.count)[index],r=(profiles[index].radii.max() ?? 0.6)+0.05+(session.state.isHelper(index) ? 0.42:0)
         var xs:[CGFloat]=[],ys:[CGFloat]=[]

@@ -2,8 +2,9 @@
 
 ## Player experience
 
-- Sorting Lab, Sorting Course and Endless Sorting can add up to two optional helpers from the board toolbar.
+- Sorting Lab, Sorting Course and Endless Sorting can add up to two optional helpers from an add card at the right of the vial-summary row. It disappears once both helper slots are in use, keeping Undo and Hint adjacent in the footer.
 - Each helper begins as a one-unit **tea cup**, upgrades to a two-unit **coffee mug**, and then to a three-unit **water jug**. Three units is the hard maximum.
+- A tea cup or coffee mug has its own upgrade control on its summary card. The control disappears when that helper reaches water-jug size.
 - Helpers accept and pour matching material through the ordinary Lab rules. A pour involving a helper counts as a move; adding or upgrading one does not.
 - Adding and upgrading are still Undoable and saved. Reset removes the helpers with the rest of the current attempt.
 - A helper never counts as a completed target. Every helper must be completely empty before the board can be won, and the board explains that requirement if it is the remaining blocker.
@@ -24,7 +25,7 @@
 - The focused Sorting Course suite covers add, both upgrades, maximum capacity, ordered Undo, zero move-cost configuration, save/restore, required-empty completion, hint recovery, concurrent capacity reservations and Discovery identity.
 - All 25 frozen Sorting Course levels remain source-matched and solvable, including the five Discovery checkpoints.
 - All 18 established cross-lab/presentation concurrency cases plus density, Discovery and machine exclusivity remain green.
-- Vessel presentation validation covers the three helper silhouettes, renderer cache changes and successful Classic/2D/3D offscreen renders. The tea cup, mug and jug captures were visually inspected.
+- Vessel presentation validation covers the three helper silhouettes, renderer cache changes, centered ordinary Classic hit/highlight geometry, handle-aware helper geometry and successful Classic/2D/3D offscreen renders. The tea cup, mug and jug captures were visually inspected.
 - macOS Debug and the final signed macOS/iOS Release builds pass.
 
 ## Deliberate scope
@@ -34,3 +35,7 @@ Helpers are not offered in Valve Lab or the experimental target/apparatus labs y
 ## September 24 3D topology correction
 
 The first Mac build exposed a 3D-only regression: adding a helper correctly rebuilt the vessel layout but then restored the previous board's world-space particle snapshot. The liquid remained owned and saved, yet it was visually left at the old four-vial coordinates until a pour reactivated the simulation. Helper add/upgrade now retain the old particle snapshot only for Undo and canonically seed the new topology from the exact board state. A focused regression verifies particle inventory, ownership and physical containment immediately after add, upgrade and both topology-changing Undo paths; fresh Classic/2D/3D captures confirm the liquid is visible before any pour.
+
+## September 24 helper-control and Classic-highlight refinement
+
+The helper control moved out of the footer into a card at the right of the vial summaries, leaving Hint immediately beside Undo. That card only adds tea cups and disappears after the second helper is added. Each helper summary owns its upgrade control while it is a tea cup or coffee mug; reaching water-jug capacity removes the control. The Classic selection outline is centered on ordinary vials again, while helper hit areas alone retain the extra right-side width needed for their handles.

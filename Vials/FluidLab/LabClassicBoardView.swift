@@ -8,9 +8,10 @@ struct LabClassicLayout {
     // changes scale when a source lifts or returns.
     var scale:CGFloat { min(size.width/(CGFloat(vesselCount)*2.2+4.4),size.height/6.4) }
     func base(_ index:Int) -> CGPoint { CGPoint(x:size.width/2+CGFloat(LabBoardLayout.homes(count:vesselCount)[index].x)*scale,y:size.height*0.82) }
-    func hitRect(_ index:Int,profile:LabVesselProfile) -> CGRect {
+    func hitRect(_ index:Int,profile:LabVesselProfile,includesHandle:Bool=false) -> CGRect {
         let point=base(index),radius=CGFloat(profile.radii.max() ?? 0.6)*scale
-        return CGRect(x:point.x-radius-8,y:point.y-CGFloat(profile.height)*scale-8,width:radius*2+max(16,scale*0.48),height:CGFloat(profile.height)*scale+16)
+        let handle=includesHandle ? scale*0.48:0
+        return CGRect(x:point.x-radius-8,y:point.y-CGFloat(profile.height)*scale-8,width:radius*2+16+handle,height:CGFloat(profile.height)*scale+16)
     }
 }
 
