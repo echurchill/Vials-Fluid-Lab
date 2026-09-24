@@ -1,5 +1,12 @@
 # Sorting Course 50-level batch — September 24
 
+## Course 45 Metal upload follow-up
+
+- Course 45 contains 47 parcels across 10 vessels. Its vessel-by-parcel constraint table is 7,520 bytes, exceeding Metal's 4 KB `setBytes` limit when a 3D pour starts.
+- The renderer now supplies variable-size vessel and layer tables through command-retained Metal buffers. Small fixed uniforms remain inline.
+- The regression uses the actual Course 45 state and encodes both legal F→I and F→J pours, preserving an explicit greater-than-4-KB assertion.
+- The focused GPU presentation validation and macOS Debug build pass.
+
 ## Portrait layout and valve-lid follow-up
 
 - Classic, 2D and 3D now use two balanced rows when a portrait board contains eight or more vessels. Smaller portrait boards and all landscape boards stay in one row.

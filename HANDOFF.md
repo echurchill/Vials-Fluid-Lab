@@ -1,5 +1,9 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 24: Course 45 Metal inline-upload crash fixed
+
+An interactive 3D F→I/J pour on Sorting Course 45 tripped Metal's 4 KB `setBytes` assertion in `LabBoardRenderer.constrainLayers`. The vessel-by-parcel constraint table is 7,520 bytes on that 10-vial/47-parcel board; the earlier 25-level curriculum never crossed the inline-upload ceiling. Variable-size simulation tables now use command-retained Metal buffers, while small fixed uniforms remain inline. A GPU regression constructs the real Course 45 board and encodes both F→I and F→J, explicitly confirming that its table remains above 4 KB so the original failure cannot silently fall out of coverage. The focused presentation regression and macOS Debug build pass.
+
 ## September 24: substantial valve lids and adaptive portrait rows
 
 Valve lids now use the full completion-stopper thickness in Classic and 2D instead of a flattened ellipse; 3D continues to use the same full cap mesh as completed vials. The keyed pigment, redundant motif, empty-valve visibility and whole-lid hinge motion are preserved.

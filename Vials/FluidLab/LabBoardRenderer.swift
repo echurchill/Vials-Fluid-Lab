@@ -583,14 +583,24 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         return result
     }
 
-    private func constrainLayers(command:MTLCommandBuffer,uniforms:LabUniforms,vessels:[LabVesselUniform]) {
+    private func transientBuffer<T>(copying values:[T]) -> MTLBuffer {
+        values.withUnsafeBytes { bytes in
+            precondition(!bytes.isEmpty)
+            guard let buffer=device.makeBuffer(bytes:bytes.baseAddress!,length:bytes.count,options:.storageModeShared) else {
+                preconditionFailure("Metal could not allocate a transient simulation buffer.")
+            }
+            return buffer
+        }
+    }
+
+    private func constrainLayers(command:MTLCommandBuffer,uniforms:LabUniforms,vessels:MTLBuffer,bands:MTLBuffer) {
         let e=command.makeComputeCommandEncoder()!
         e.setComputePipelineState(kernels["labBoardConstrain"]!)
         e.setBuffer(particles,offset:0,index:0)
         var u=uniforms;e.setBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:1)
-        vessels.withUnsafeBytes { e.setBytes($0.baseAddress!,length:$0.count,index:2) }
+        e.setBuffer(vessels,offset:0,index:2)
         e.setBuffer(profilesBuffer,offset:0,index:3)
-        layerBands.withUnsafeBytes { e.setBytes($0.baseAddress!,length:$0.count,index:4) }
+        e.setBuffer(bands,offset:0,index:4)
         e.dispatchThreads(MTLSize(width:particleCount,height:1,depth:1),threadsPerThreadgroup:MTLSize(width:128,height:1,depth:1))
         e.endEncoding()
     }
@@ -625,14 +635,14 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
 
     private func dispatch(_ name: String, count: Int, command: MTLCommandBuffer,
                           buffers: [(Int,MTLBuffer)], uniforms: LabUniforms? = nil,
-                          vessels: [LabVesselUniform]? = nil) {
+                          vessels: MTLBuffer? = nil) {
         let encoder = command.makeComputeCommandEncoder()!
         encoder.label = name
         let pipeline = kernels[name]!
         encoder.setComputePipelineState(pipeline)
         for (index,buffer) in buffers { encoder.setBuffer(buffer,offset:0,index:index) }
         if var u = uniforms { encoder.setBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:1) }
-        if let vessels { vessels.withUnsafeBytes { encoder.setBytes($0.baseAddress!,length:$0.count,index:2) } }
+        if let vessels { encoder.setBuffer(vessels,offset:0,index:2) }
         encoder.dispatchThreads(MTLSize(width:count,height:1,depth:1),
             threadsPerThreadgroup:MTLSize(width:min(128,pipeline.maxTotalThreadsPerThreadgroup),height:1,depth:1))
         encoder.endEncoding()
@@ -640,20 +650,25 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
 
     private func simulate(command: MTLCommandBuffer, uniforms: LabUniforms, vessels: [LabVesselUniform]) {
         let n = particleCount
-        dispatch("labPredict",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
-        constrainLayers(command:command,uniforms:uniforms,vessels:vessels)
+        // setBytes is limited to 4 KB. Large course boards can exceed that
+        // with their vessel-by-parcel layer table (Course 45 is 7,520 bytes),
+        // so use command-retained Metal buffers for both variable-size arrays.
+        let vesselBuffer=transientBuffer(copying:vessels)
+        let bandBuffer=transientBuffer(copying:layerBands)
+        dispatch("labPredict",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer)],uniforms:uniforms,vessels:vesselBuffer)
+        constrainLayers(command:command,uniforms:uniforms,vessels:vesselBuffer,bands:bandBuffer)
         for _ in 0..<max(1,pressureIterationsPerStep) {
             dispatch("labClearHeads",count:128*48*40,command:command,buffers:[(0,heads)])
             dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
             dispatch("labLambda",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas)],uniforms:uniforms)
             dispatch("labDelta",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,lambdas),(5,deltas)],uniforms:uniforms)
-            dispatch("labApply",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer),(4,deltas)],uniforms:uniforms,vessels:vessels)
-            constrainLayers(command:command,uniforms:uniforms,vessels:vessels)
+            dispatch("labApply",count:n,command:command,buffers:[(0,particles),(3,profilesBuffer),(4,deltas)],uniforms:uniforms,vessels:vesselBuffer)
+            constrainLayers(command:command,uniforms:uniforms,vessels:vesselBuffer,bands:bandBuffer)
         }
         // Rebuild after the final corrections, before velocity smoothing.
         dispatch("labClearHeads",count:128*48*40,command:command,buffers:[(0,heads)])
         dispatch("labBuildGrid",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next)],uniforms:uniforms)
-        dispatch("labVelocity",count:n,command:command,buffers:[(0,particles),(4,velocities),(3,profilesBuffer)],uniforms:uniforms,vessels:vessels)
+        dispatch("labVelocity",count:n,command:command,buffers:[(0,particles),(4,velocities),(3,profilesBuffer)],uniforms:uniforms,vessels:vesselBuffer)
         dispatch("labFinish",count:n,command:command,buffers:[(0,particles),(2,heads),(3,next),(4,velocities)],uniforms:uniforms)
     }
 

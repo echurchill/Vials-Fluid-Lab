@@ -84,6 +84,18 @@ import AppKit
   for _ in 0..<1800 where planarCrossRow.busy {planarCrossRow.advance(deltaTime:1/60,speed:1)}
   precondition(!planarCrossRow.busy && planarCrossRow.game.moveCount==1 && planarCrossRow.game.state.stacks[0].count==1,"Cross-row 2D pour did not commit")
   print("PASS adaptive portrait layout: balanced rows and bidirectional safe travel; 2D cross-row pour committed");fflush(stdout)
+  let course45=LabSortingCourseBoard.level(45)!
+  let course45BandBytes=course45.initial.stacks.count*course45.initial.colors.count*MemoryLayout<LabBoardBand>.stride
+  precondition(course45BandBytes>4096 && course45BandBytes==7520,"Course 45 no longer exercises the large layer table")
+  let largeTargetDescriptor=MTLTextureDescriptor.texture2DDescriptor(pixelFormat:.bgra8Unorm_srgb,width:900,height:600,mipmapped:false)
+  largeTargetDescriptor.usage=[.renderTarget,.shaderRead];largeTargetDescriptor.storageMode = .shared
+  let largeTarget=device.makeTexture(descriptor:largeTargetDescriptor)!
+  for destination in [8,9] {
+   reusable.reset(state:course45.initial)
+   precondition(reusable.begin(from:5,to:destination),"Course 45 F→\(destination == 8 ? "I":"J") is no longer legal")
+   finish(reusable.encodeFrame(target:largeTarget,deltaTime:1/60))
+  }
+  print("PASS Course 45 large-band Metal upload: F→I and F→J encoded without the 4 KB setBytes assertion");fflush(stdout)
   let staticOnly=CommandLine.arguments.contains("--static-only")
   func capture(_ session:FluidBoardSession,_ mode:LabBoardPresentation,_ name:String,_ width:Int,_ height:Int,_ orbit:Float=0.12) throws {
    session.updateAdaptiveLayout(portrait:height>width)
