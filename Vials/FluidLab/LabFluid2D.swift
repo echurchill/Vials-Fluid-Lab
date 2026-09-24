@@ -154,7 +154,19 @@ nonisolated struct LabFluid2D:Sendable {
         return "Pouring"
     }
     init(game:LabBoardGame=LabBoardGame()) { install(game) }
-    func home(_ i:Int)->SIMD2<Float> { SIMD2((Float(i)-Float(profiles.count-1)/2)*2.2,0) }
+    var twoRowLayout=false
+    mutating func setTwoRowLayout(_ enabled:Bool) {
+        guard twoRowLayout != enabled else {return}
+        twoRowLayout=enabled
+        // Layout is part of the particle coordinate system. Force a canonical
+        // idle reseed instead of taking install's same-state preservation path.
+        particles=[]
+        install(game)
+    }
+    func home(_ i:Int)->SIMD2<Float> {
+        let point=LabBoardLayout.homes(count:profiles.count,twoRows:twoRowLayout)[i]
+        return SIMD2(point.x,point.y-0.18)
+    }
     func pose(_ i:Int)->Lab2DPose {
         if let displayed=displayPoses[i] { return displayed }
         let home=home(i)
@@ -171,7 +183,7 @@ nonisolated struct LabFluid2D:Sendable {
         let direction:Float=approach==0 ? (destination.x>home.x ? 1:-1):approach
         let extraCapacity=Float(max(0,max(profiles[move.source].capacity,profiles[move.destination].capacity)-4))
         let standardSeparation:Float=0.10+0.18*extraCapacity
-        let travelClearance=(profiles.map(\.height).max() ?? 2.35)+0.35
+        let travelClearance=(profiles.indices.map {self.home($0).y}.max() ?? 0)+(profiles.map(\.height).max() ?? 2.35)+0.35
         let tilt:Float
         if let cutoff { tilt=stopAngle*(1-labSmooth((time-cutoff)/motion.upright)) }
         else { tilt=min(2.25,max(0,time-motion.tiltStart)*motion.tiltRate)*direction }
@@ -182,7 +194,7 @@ nonisolated struct LabFluid2D:Sendable {
             let stoppedLip=simd_mix(highLip,lowLip,SIMD2(repeating:labSmooth((abs(stopAngle)-0.55)/0.95)))
             lip=simd_mix(stoppedLip,highLip,SIMD2(repeating:labSmooth((time-cutoff)/motion.upright)))
         } else { lip=simd_mix(highLip,lowLip,SIMD2(repeating:labSmooth((abs(tilt)-0.55)/0.95))) }
-        let raised=home+SIMD2(0,travelClearance)
+        let raised=SIMD2(home.x,travelClearance)
         let rotation=Lab2DPose(base:.zero,angle:tilt)
         let positioned=lip-rotation.rotate(SIMD2(0,h))
         var base=simd_mix(home,raised,SIMD2(repeating:labLiftProgress(time/motion.lift)))
@@ -247,12 +259,13 @@ nonisolated struct LabFluid2D:Sendable {
     }
     mutating func showTransformation(_ transition:LabApparatusTransition) {
         transformation=transition
-        let output=transition.output,origin=SIMD3(home(output).x,Float(0),Float(0)),profile=profiles[output].source,parcels=transition.parcels
+        let output=transition.output,outputHome=home(output),origin=SIMD3(outputHome.x,outputHome.y,0),profile=profiles[output].source,parcels=transition.parcels
         for i in particles.indices where parcels.contains(particles[i].parcel) {
             let from=transformationFrom[i],target=transformationTargets[i]
             let phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
             let destination=(transition.isSeparating || transition.isRevealing) ? target.owner:output
-            let sample=transition.position(from:SIMD3(from.position.x,from.position.y,0),to:SIMD3(target.position.x,target.position.y,0),origin:transition.isSeparating ? SIMD3(home(destination).x,0,0):origin,profile:transition.isSeparating ? profiles[destination].source:profile,phase:phase)
+            let destinationHome=home(destination)
+            let sample=transition.position(from:SIMD3(from.position.x,from.position.y,0),to:SIMD3(target.position.x,target.position.y,0),origin:transition.isSeparating ? SIMD3(destinationHome.x,destinationHome.y,0):origin,profile:transition.isSeparating ? profiles[destination].source:profile,phase:phase)
             if transition.isSeparating {particles[i]=target}
             particles[i].position=SIMD2(sample.point.x,sample.point.y)
             particles[i].owner=sample.arrived ? destination:(sample.started ? -1:from.owner)

@@ -1,5 +1,13 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 24: substantial valve lids and adaptive portrait rows
+
+Valve lids now use the full completion-stopper thickness in Classic and 2D instead of a flattened ellipse; 3D continues to use the same full cap mesh as completed vials. The keyed pigment, redundant motif, empty-valve visibility and whole-lid hinge motion are preserved.
+
+Crowded portrait boards now switch to two balanced vessel rows at eight or more vessels in Classic, 2D and 3D. Landscape and portrait boards with seven or fewer vessels remain one row. The shared layout model drives rendering, hit targets, camera framing, footer summary cards and pour paths; cross-row pours clear the upper row in both directions. Helpers remain the trailing vessels/cards and therefore occupy the lower-right end of the second row. Rotation reflows only while idle (or immediately after the current animation) and does not alter game/save state.
+
+Focused presentation checks cover 7/8-vial switching, row balance, hit-area separation, two-way travel clearance and a real cross-row 2D pour. All 15 Valve boards, all 50 Sorting Course boards, helper/save/Undo checks, 2D rendering checks, Debug macOS and signed Release iOS builds pass. The final build was installed and launched on Eddie's physical M4 iPad. Xcode reported stale credential warnings for two inactive account records, but active signing succeeded with Eddie Churchill's development certificate and the current team provisioning profile.
+
 ## September 24: 50-level stable Sorting Course (Prototype51)
 
 Sorting Course now has 50 frozen, Lab-solvable boards while Endless remains dynamically generated. The first 25 are unchanged; levels 26–50 extend the hard progression, and every fifth board remains Discovery. The draft tail that reached 11–12 vials was rejected in favor of distinct boards capped at ten vials because its hint search and iPad readability were worse. The offline authoring utility now gates candidates through the shipping Lab solver and supports targeted generation; targeted and full-course validation support targeted level arguments. See `Reports/Prototype51/README.md`.

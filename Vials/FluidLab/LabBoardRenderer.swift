@@ -32,7 +32,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private(set) var profiles=LabBoardLayout.profiles()
     private(set) var profileCapacities=[4,4,4,4]
     private var profileShapes=[LabVesselShape](repeating:.testTube,count:4)
-    var homes:[SIMD3<Float>] { LabBoardLayout.homes(count:profiles.count) }
+    var twoRowLayout=false {didSet {if oldValue != twoRowLayout {pausedSignature=nil}}}
+    var homes:[SIMD3<Float>] { LabBoardLayout.homes(count:profiles.count,twoRows:twoRowLayout) }
     let queue:MTLCommandQueue
     let library:MTLLibrary
     static let particlesPerUnit=640
@@ -96,7 +97,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         if let compositeVessels { return compositeVessels }
         return LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,move:game.pending,time:pourTime ?? 0,tilt:tilt,
             cutoffTilt:cutoffTime == nil ? nil:cutoffTilt,cutoffElapsed:(pourTime ?? 0)-(cutoffTime ?? 0),
-            returnElapsed:returnStart.map { (pourTime ?? 0)-$0 })
+            returnElapsed:returnStart.map { (pourTime ?? 0)-$0 },twoRows:twoRowLayout)
     }
     private var particles: MTLBuffer!
     private var profilesBuffer: MTLBuffer!
@@ -485,7 +486,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let parcels=Set(owners.flatMap {state.stacks[$0]})
         var canonicalSamples=seed(state:state)
         if let vessels {
-            let homeVessels=LabBoardLayout.vessels(profiles:profiles,capacities:state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+            let homeVessels=LabBoardLayout.vessels(profiles:profiles,capacities:state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil,twoRows:twoRowLayout)
             let transforms=Dictionary(uniqueKeysWithValues:owners.map {($0,vessels[$0].world*homeVessels[$0].inverseWorld)})
             for i in canonicalSamples.indices {
                 let owner=Int(canonicalSamples[i].position.w)
@@ -703,6 +704,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         // Warm both receiver slots before play. Profile data and canonical
         // positions are immutable; each lane still owns its particle buffers.
         profiles=source.profiles;profilesBuffer=source.profilesBuffer;meshes=source.meshes;handleMeshes=source.handleMeshes
+        twoRowLayout=source.twoRowLayout
         seedPositions=source.seedPositions
         reset(state:source.game.state)
     }
@@ -715,7 +717,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         if game.pending != nil && !paused { updateTransfer() }
         guard !paused,!resting else { return }
         let command=queue.makeCommandBuffer()!
-        let (vp,view,eye)=LabBoardLayout.camera(aspect:1,azimuth:orbit,vesselCount:profiles.count)
+        let (vp,view,eye)=LabBoardLayout.camera(aspect:1,azimuth:orbit,vesselCount:profiles.count,twoRows:twoRowLayout)
         let u=LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
             viewport:SIMD4(1,1,spacing*1.16,simulationTime),physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),
             options:SIMD4(UInt32(particleCount),0,UInt32(profiles.count),1 | (funnelEnabled ? 65536:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))
@@ -787,7 +789,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         accumulator=min(accumulator+min(max(deltaTime,0),1.0/20)*playbackSpeed,timeStep*Float(stepBudget))
         let active=Set(groupMoves.flatMap {[$0.source,$0.destination]})
         let flags=active.reduce(UInt32(1 | (funnelEnabled ? 65536:0))) { $0 | (1 << ($1+1)) }
-        let (vp,view,eye)=LabBoardLayout.camera(aspect:1,azimuth:orbit,vesselCount:profiles.count)
+        let (vp,view,eye)=LabBoardLayout.camera(aspect:1,azimuth:orbit,vesselCount:profiles.count,twoRows:twoRowLayout)
         var u=LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
             viewport:SIMD4(1,1,spacing*1.16,simulationTime),physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),0,UInt32(profiles.count),flags))
         let densityBands=groupDensityBands()
@@ -821,10 +823,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
     }
     private func groupVessels()->[LabVesselUniform] {
-        var result=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+        var result=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil,twoRows:twoRowLayout)
         for job in groupTransfers {
             let move=job.item.move
-            let poses=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,move:move,time:job.time,tilt:job.tilt,cutoffTilt:job.cutoff==nil ? nil:job.cutoffTilt,cutoffElapsed:job.time-(job.cutoff ?? 0),returnElapsed:job.returned.map {job.time-$0},approach:job.item.approach,depthSide:job.item.depthSide)
+            let poses=LabBoardLayout.vessels(profiles:profiles,capacities:game.state.capacities,move:move,time:job.time,tilt:job.tilt,cutoffTilt:job.cutoff==nil ? nil:job.cutoffTilt,cutoffElapsed:job.time-(job.cutoff ?? 0),returnElapsed:job.returned.map {job.time-$0},approach:job.item.approach,depthSide:job.item.depthSide,twoRows:twoRowLayout)
             result[move.source]=poses[move.source];result[move.destination]=poses[move.destination]
         }
         return result
@@ -1040,7 +1042,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         resize(width:target.width,height:target.height)
         let command = queue.makeCommandBuffer()!
         command.label = "Fluid Lab frame"
-        let (vp,view,eye) = LabBoardLayout.camera(aspect:Float(target.width)/Float(target.height), azimuth:orbit,vesselCount:profiles.count)
+        let (vp,view,eye) = LabBoardLayout.camera(aspect:Float(target.width)/Float(target.height), azimuth:orbit,vesselCount:profiles.count,twoRows:twoRowLayout)
         var u = LabUniforms(viewProjection:vp,inverseViewProjection:vp.inverse,view:view,camera:SIMD4(eye,Float(game.state.colors.count)),
             viewport:SIMD4(Float(target.width),Float(target.height),pointMode ? spacing*0.30 : spacing*1.16,simulationTime),
             physics:SIMD4(timeStep,spacing*2.3,particleVolume,viscosity),options:SIMD4(UInt32(particleCount),pointMode ? 1:0,UInt32(profiles.count),1 | (funnelEnabled ? 65536:0) | (game.pending.map { (1 << ($0.source+1)) | (1 << ($0.destination+1)) } ?? 0)))

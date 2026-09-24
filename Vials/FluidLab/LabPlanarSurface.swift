@@ -10,11 +10,12 @@ struct LabPlanarSurface:View {
     var destinations:Set<Int>=[]
     var rejected:Int?
     var capExclusions:Set<Int>=[]
+    var twoRows=false
     var body:some View {
         ZStack {
-            LabFluid2DView(engine:display.snapshot,points:points,frame:display.frame,selected:selected,destinations:destinations,rejected:rejected,capExclusions:capExclusions)
+            LabFluid2DView(engine:display.snapshot,points:points,frame:display.frame,selected:selected,destinations:destinations,rejected:rejected,capExclusions:capExclusions,twoRows:twoRows)
             if !points {
-                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,occluding:display.snapshot,excluded:Set((display.snapshot.displayMoves+[display.snapshot.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] }).union(display.snapshot.transformation?.vessels ?? []))
+                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,occluding:display.snapshot,excluded:Set((display.snapshot.displayMoves+[display.snapshot.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] }).union(display.snapshot.transformation?.vessels ?? []),twoRows:twoRows)
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
         }
@@ -37,6 +38,7 @@ private struct LabIdleFluidDetail:View {
     let enabled:Bool
     let occluding:LabFluid2D
     let excluded:Set<Int>
+    var twoRows=false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var economical=ProcessInfo.processInfo.isLowPowerModeEnabled || ProcessInfo.processInfo.thermalState != .nominal
     @State private var clock=LabAnimationClock()
@@ -46,14 +48,15 @@ private struct LabIdleFluidDetail:View {
             // Capture a new phase in the Canvas value on every timeline tick.
             let t=Float(clock.elapsed(at:ProcessInfo.processInfo.systemUptime).truncatingRemainder(dividingBy:120))*Float.pi/60
             Canvas { context,size in
-                let layout=LabClassicLayout(size:size,vesselCount:profiles.count),scale=layout.scale
+                let layout=LabClassicLayout(size:size,vesselCount:profiles.count,twoRows:twoRows),scale=layout.scale
                 var visible=context
                 for source in Set((occluding.displayMoves+[occluding.game.pending].compactMap {$0}).map(\.source)) {
                     let pose=occluding.pose(source),profile=profiles[source]
                     var mask=Path(CGRect(origin:.zero,size:size)),silhouette=Path()
                     for side:Float in [1,-1] {for k in 0...32 {
                         let y=Float(side>0 ? k:32-k)/32*profile.height,p=pose.world(SIMD2(side*profile.radius(y),y))
-                        let point=CGPoint(x:size.width/2+CGFloat(p.x)*scale,y:layout.base(0).y-CGFloat(p.y)*scale)
+                        let baseline=size.height*(twoRows ? 0.88:0.82)
+                        let point=CGPoint(x:size.width/2+CGFloat(p.x)*scale,y:baseline-CGFloat(p.y)*scale)
                         if side==1 && k==0 {silhouette.move(to:point)} else {silhouette.addLine(to:point)}
                     }}
                     silhouette.closeSubpath();mask.addPath(silhouette);visible.clip(to:mask,style:FillStyle(eoFill:true))

@@ -4,10 +4,17 @@ import simd
 struct LabClassicLayout {
     let size:CGSize
     var vesselCount:Int = 4
+    var twoRows=false
     // Reserve fixed side room for an outward shared pour. The board never
     // changes scale when a source lifts or returns.
-    var scale:CGFloat { min(size.width/(CGFloat(vesselCount)*2.2+4.4),size.height/6.4) }
-    func base(_ index:Int) -> CGPoint { CGPoint(x:size.width/2+CGFloat(LabBoardLayout.homes(count:vesselCount)[index].x)*scale,y:size.height*0.82) }
+    var columnCount:Int {twoRows ? (vesselCount+1)/2:vesselCount}
+    var scale:CGFloat { min(size.width/(CGFloat(columnCount)*2.2+4.4),size.height/(twoRows ? 10.2:6.4)) }
+    func base(_ index:Int) -> CGPoint {
+        let home=LabBoardLayout.homes(count:vesselCount,twoRows:twoRows)[index]
+        let baseline=size.height*(twoRows ? 0.88:0.82)
+        return CGPoint(x:size.width/2+CGFloat(home.x)*scale,y:baseline-CGFloat(home.y-0.18)*scale)
+    }
+    var rows:[Range<Int>] {LabBoardLayout.rowRanges(count:vesselCount,twoRows:twoRows)}
     func hitRect(_ index:Int,profile:LabVesselProfile,includesHandle:Bool=false) -> CGRect {
         let point=base(index),radius=CGFloat(profile.radii.max() ?? 0.6)*scale
         let handle=includesHandle ? scale*0.48:0
@@ -23,13 +30,18 @@ struct LabClassicBoardView:View {
     var capExclusions:Set<Int>=[]
     var transformation:LabApparatusTransition?
     var reveals:[Int:Float]=[:]
+    var twoRows=false
     private var pours:[LabClassicPour] { [pour].compactMap { $0 }+additionalPours }
     private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(state:state) }
     var body:some View {
         Canvas { context,size in
-            let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count),scale=layout.scale
-            let tray=CGRect(x:size.width*0.06,y:layout.base(0).y-10,width:size.width*0.88,height:40)
-            context.stroke(Path(ellipseIn:tray),with:.color(.white.opacity(0.08)),lineWidth:1)
+            let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count,twoRows:twoRows),scale=layout.scale
+            for row in layout.rows where !row.isEmpty {
+                let left=layout.base(row.lowerBound).x-scale*1.25
+                let right=layout.base(row.index(before:row.upperBound)).x+scale*1.25
+                let tray=CGRect(x:left,y:layout.base(row.lowerBound).y-10,width:right-left,height:40)
+                context.stroke(Path(ellipseIn:tray),with:.color(.white.opacity(0.08)),lineWidth:1)
+            }
             for index in state.stacks.indices {
                 let home=layout.base(index)
                 let base=pours.first(where:{$0.move.source==index}).map {pose($0,layout:layout).base} ?? home
@@ -264,7 +276,8 @@ struct LabClassicBoardView:View {
         let mouth=CGPoint(x:dest.x-direction*separation*scale,y:dest.y-receiverH-0.35*scale)
         let positioned=CGPoint(x:mouth.x-sin(tilt)*h,y:mouth.y+cos(tilt)*h)
         let travelClearance=CGFloat((profiles.map(\.height).max() ?? 2.35)+0.35)
-        let lift=CGPoint(x:source.x,y:source.y-travelClearance*scale)
+        let topBaseline=layout.rows.compactMap { $0.first.map(layout.base) }.map(\.y).min() ?? source.y
+        let lift=CGPoint(x:source.x,y:topBaseline-travelClearance*scale)
         func mix(_ a:CGPoint,_ b:CGPoint,_ value:Float) -> CGPoint {
             let f=CGFloat(labSmooth(value));return CGPoint(x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f)
         }
@@ -321,34 +334,64 @@ func drawLabPlanarCap(context:inout GraphicsContext,height:Float,radius:Float,sc
 /// its high-contrast motif makes the key distinguishable without hue alone.
 func drawLabPlanarValveLid(context:inout GraphicsContext,height:Float,radius:Float,scale:CGFloat,
                            color:Color,pigment:Int,openness:Float) {
-    let open=CGFloat(labSmooth(openness)),r=CGFloat(radius)*scale
-    let closedThickness=max(5,scale*0.11)
-    let width=r*2*(1-open*0.64)
-    let lidHeight=closedThickness+(r*1.55-closedThickness)*open
-    let center=CGPoint(x:r*0.58*open,y:-CGFloat(height)*scale-closedThickness*0.32-r*0.64*open)
-    let hinge=CGPoint(x:r*0.88,y:-CGFloat(height)*scale)
-    var arm=Path();arm.move(to:hinge);arm.addLine(to:CGPoint(x:center.x+width*0.42,y:center.y+lidHeight*0.34))
-    context.stroke(arm,with:.color(.black.opacity(0.75)),style:StrokeStyle(lineWidth:max(3,scale*0.06),lineCap:.round))
-    context.stroke(arm,with:.color(color.opacity(0.82)),style:StrokeStyle(lineWidth:max(1.5,scale*0.025),lineCap:.round))
-    let rect=CGRect(x:center.x-width/2,y:center.y-lidHeight/2,width:width,height:lidHeight)
-    let lid=Path(ellipseIn:rect)
-    let shadow=Path(ellipseIn:rect.offsetBy(dx:1.5,dy:2.5))
-    context.fill(shadow,with:.color(.black.opacity(0.48)))
+    let open=labSmooth(openness),angle = -open*1.42
+    let bottom=height+0.015,top=height+0.20,hinge=SIMD3<Float>(radius,bottom,0)
+    func rotate(_ point:SIMD3<Float>)->SIMD3<Float> {
+        let p=point-hinge,c=cos(angle),s=sin(angle)
+        return hinge+SIMD3(c*p.x-s*p.y,s*p.x+c*p.y,p.z)
+    }
+    func project(_ point:SIMD3<Float>)->CGPoint {
+        let p=rotate(point)
+        return CGPoint(x:CGFloat(p.x)*scale,y:-CGFloat(p.y-p.z*0.23)*scale)
+    }
+    func ring(_ y:Float,_ r:Float)->[SIMD3<Float>] {
+        (0..<48).map { n in let a=Float(n)*2*Float.pi/48;return SIMD3(cos(a)*r,y,sin(a)*r) }
+    }
+    func path(_ points:[SIMD3<Float>],closed:Bool=true)->Path {
+        Path { p in
+            for (n,point) in points.enumerated() {
+                if n==0 {p.move(to:project(point))} else {p.addLine(to:project(point))}
+            }
+            if closed {p.closeSubpath()}
+        }
+    }
+    // The hinge is a permanent physical joint. The complete solid stopper,
+    // including its sidewall and lower face, rotates around it.
+    let pivot=project(hinge),mount=project(SIMD3(radius-0.10,height,0))
+    var arm=Path();arm.move(to:mount);arm.addLine(to:pivot)
+    context.stroke(arm,with:.color(.black.opacity(0.78)),style:StrokeStyle(lineWidth:max(4,scale*0.075),lineCap:.round))
+    context.stroke(arm,with:.color(color.opacity(0.86)),style:StrokeStyle(lineWidth:max(2,scale*0.035),lineCap:.round))
+    let lower=ring(bottom,radius),upper=ring(top,radius),eye=SIMD3<Float>(0,5,20)
+    let sides=(0..<48).sorted {simd_dot(rotate(lower[$0]),eye)<simd_dot(rotate(lower[$1]),eye)}
+    for n in sides {
+        let next=(n+1)%48,face=path([lower[n],lower[next],upper[next],upper[n]])
+        let a=(Float(n)+0.5)*2*Float.pi/48,light=max(0,-cos(a)*0.55+sin(a)*0.45)
+        context.fill(face,with:.color(color))
+        context.fill(face,with:.color(.black.opacity(Double(0.48-light*0.40))))
+        if n%2==0 {
+            var groove=Path();groove.move(to:project(lower[n]));groove.addLine(to:project(upper[n]))
+            context.stroke(groove,with:.color(.white.opacity(0.14)),lineWidth:0.6)
+        }
+    }
+    let lid=path(upper),left=project(SIMD3(-radius,top,0)),right=project(SIMD3(radius,top,0))
     context.fill(lid,with:.color(color))
-    context.fill(lid,with:.linearGradient(Gradient(colors:[.white.opacity(0.42),.clear,.black.opacity(0.24)]),startPoint:CGPoint(x:rect.minX,y:rect.minY),endPoint:CGPoint(x:rect.maxX,y:rect.maxY)))
+    context.fill(lid,with:.linearGradient(Gradient(colors:[.white.opacity(0.50),.white.opacity(0.12),.black.opacity(0.18)]),startPoint:left,endPoint:right))
     var marked=context;marked.clip(to:lid)
-    let mark=Color.white.opacity(0.72),line=max(1.2,scale*0.022)
+    let mark=Color.white.opacity(0.76),line=max(1.2,scale*0.022),motif=radius*0.48
     switch (pigment%4+4)%4 {
     case 0:
-        marked.stroke(Path(ellipseIn:rect.insetBy(dx:width*0.27,dy:lidHeight*0.27)),with:.color(mark),lineWidth:line)
+        marked.stroke(path((0..<40).map {n in let a=Float(n)*2*Float.pi/40;return SIMD3(cos(a)*motif,top,sin(a)*motif)}),with:.color(mark),lineWidth:line)
     case 1:
-        var p=Path();p.move(to:CGPoint(x:rect.midX,y:rect.minY));p.addLine(to:CGPoint(x:rect.midX,y:rect.maxY));marked.stroke(p,with:.color(mark),lineWidth:line)
+        marked.stroke(path([SIMD3(-motif,top,0),SIMD3(motif,top,0)],closed:false),with:.color(mark),lineWidth:line)
     case 2:
-        var p=Path();p.move(to:CGPoint(x:rect.minX,y:rect.midY));p.addLine(to:CGPoint(x:rect.maxX,y:rect.midY));marked.stroke(p,with:.color(mark),lineWidth:line)
+        marked.stroke(path([SIMD3(0,top,-motif),SIMD3(0,top,motif)],closed:false),with:.color(mark),lineWidth:line)
     default:
-        var p=Path();p.move(to:CGPoint(x:rect.minX,y:rect.minY));p.addLine(to:CGPoint(x:rect.maxX,y:rect.maxY));p.move(to:CGPoint(x:rect.maxX,y:rect.minY));p.addLine(to:CGPoint(x:rect.minX,y:rect.maxY));marked.stroke(p,with:.color(mark),lineWidth:line)
+        marked.stroke(path([SIMD3(-motif,top,-motif),SIMD3(motif,top,motif)],closed:false),with:.color(mark),lineWidth:line)
+        marked.stroke(path([SIMD3(motif,top,-motif),SIMD3(-motif,top,motif)],closed:false),with:.color(mark),lineWidth:line)
     }
-    context.stroke(lid,with:.color(.white.opacity(0.58)),lineWidth:max(1,scale*0.018))
+    context.stroke(lid,with:.color(.white.opacity(0.62)),lineWidth:max(1,scale*0.018))
+    context.stroke(path(ring(top+0.002,radius*0.79)),with:.color(.black.opacity(0.20)),lineWidth:0.7)
+    context.fill(Path(ellipseIn:CGRect(x:pivot.x-max(2,scale*0.035),y:pivot.y-max(2,scale*0.035),width:max(4,scale*0.07),height:max(4,scale*0.07))),with:.color(.white.opacity(0.55)))
 }
 
 /// Flatten a soft radial footprint into a floor ellipse; no offscreen blur pass.

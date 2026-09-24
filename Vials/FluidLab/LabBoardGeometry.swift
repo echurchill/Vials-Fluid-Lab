@@ -50,9 +50,25 @@ nonisolated enum LabVesselShape:CaseIterable,Sendable {
 }
 
 struct LabBoardLayout {
-    static let homes:[SIMD3<Float>]=[-3.3,-1.1,1.1,3.3].map { SIMD3($0,0.18,0) }
-    static func homes(count:Int) -> [SIMD3<Float>] {
-        (0..<count).map { SIMD3((Float($0)-Float(count-1)/2)*2.2,0.18,0) }
+    nonisolated static let homes:[SIMD3<Float>]=[-3.3,-1.1,1.1,3.3].map { SIMD3($0,0.18,0) }
+    nonisolated static let rowSeparation:Float=4.10
+    nonisolated static func usesTwoRows(portrait:Bool,count:Int)->Bool { portrait && count>=8 }
+    nonisolated static func rowRanges(count:Int,twoRows:Bool)->[Range<Int>] {
+        guard twoRows,count>1 else {return [0..<count]}
+        let first=(count+1)/2
+        return [0..<first,first..<count]
+    }
+    nonisolated static func homes(count:Int,twoRows:Bool=false) -> [SIMD3<Float>] {
+        let ranges=rowRanges(count:count,twoRows:twoRows)
+        return ranges.enumerated().flatMap { row,range in
+            range.enumerated().map { column,_ in
+                let x=(Float(column)-Float(range.count-1)/2)*2.2
+                // A slight depth stagger keeps the 3D tiers legible while Y
+                // supplies the actual portrait row separation used by every mode.
+                let upper=twoRows && row==0
+                return SIMD3(x,0.18+(upper ? rowSeparation:0),upper ? 0.16:-0.10)
+            }
+        }
     }
     nonisolated static func profiles(count:Int = 4) -> [LabVesselProfile] {
         profiles(capacities:Array(repeating:4,count:count))
@@ -90,8 +106,8 @@ struct LabBoardLayout {
                 radialScale:sqrt(reference/raw.usableVolume*volumeScale))
         }
     }
-    static func vessels(profiles:[LabVesselProfile],capacities:[Int]?=nil,move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?,approach:Float=0,depthSide:Float=0) -> [LabVesselUniform] {
-        let homes=homes(count:profiles.count)
+    static func vessels(profiles:[LabVesselProfile],capacities:[Int]?=nil,move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?,approach:Float=0,depthSide:Float=0,twoRows:Bool=false) -> [LabVesselUniform] {
+        let homes=homes(count:profiles.count,twoRows:twoRows)
         var positions=homes,rotations=[simd_float4x4](repeating:matrix_identity_float4x4,count:profiles.count)
         if let move {
             let home=homes[move.source], receiver=homes[move.destination]
@@ -104,8 +120,8 @@ struct LabBoardLayout {
             let orient=simd_float4x4(SIMD4(cy,0,-sy,0),SIMD4(0,1,0,0),SIMD4(sy,0,cy,0),SIMD4(0,0,0,1))
             func rotation(_ tilt:Float) -> simd_float4x4 { orient*labRotation(-tilt) }
             let h=profiles[move.source].height
-            let travelClearance=(profiles.map(\.height).max() ?? 2.35)+0.35
-            let highHome=home+SIMD3<Float>(0,travelClearance,depthSide==0 ? 0:side*1.5)
+            let travelHeight=(homes.map(\.y).max() ?? 0.18)+(profiles.map(\.height).max() ?? 2.35)+0.35
+            let highHome=SIMD3<Float>(home.x,travelHeight,home.z+(depthSide==0 ? 0:side*1.5))
             let extraCapacity=Float(max(0,max(capacities?[move.source] ?? 4,capacities?[move.destination] ?? 4)-4))
             let standardSeparation:Float=0.22+0.27*extraCapacity
             let separation:Float=approach==0 ? standardSeparation:1.2
@@ -150,7 +166,7 @@ struct LabBoardLayout {
                 shape:SIMD4(p.depthScale,mark(5),mark(6),Float(capacity)))
         }
     }
-    static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
+    static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4,twoRows:Bool=false) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
         // Fixed framing includes outward edge pours in either depth lane.
         // Resting and active boards share a camera, avoiding a zoom at pickup.
         // Match the normalized scale used by Classic and 2D. Their layout is
@@ -159,7 +175,8 @@ struct LabBoardLayout {
         // 3D vials look conspicuously smaller. A modest perspective margin
         // accounts for depth and avoids framing resting glass at the edge.
         let verticalScale:Float=1/tan(aspect<1.4 ? 0.235*1.4/max(aspect,0.55):0.235)
-        let planarScale=min(aspect/(Float(vesselCount)*2.2+4.4),1/6.4)
+        let columns=twoRows ? (vesselCount+1)/2:vesselCount
+        let planarScale=min(aspect/(Float(columns)*2.2+4.4),1/(twoRows ? 10.2:6.4))
         let distance=verticalScale/max(0.001,2*planarScale)*1.07
         let target=SIMD3<Float>(0,3.1,0)
         let eye=SIMD3<Float>(sin(azimuth)*distance,target.y+2.9,cos(azimuth)*distance)

@@ -1,5 +1,13 @@
 # Sorting Course 50-level batch — September 24
 
+## Portrait layout and valve-lid follow-up
+
+- Classic, 2D and 3D now use two balanced rows when a portrait board contains eight or more vessels. Smaller portrait boards and all landscape boards stay in one row.
+- Rendering, input hit areas, camera framing, footer cards and animation homes share the same row calculation. Cross-row pours use a clearance above the tallest upper-row vessel.
+- Valve lids in Classic and 2D now have the same substantial projected stopper depth as completed-vial lids; 3D already uses the full cap mesh.
+- Static captures were inspected for 12-vessel helper boards and empty keyed valves in all three presentations. Automated checks also exercised the 7/8-vial breakpoint, bidirectional travel clearance and an actual cross-row 2D pour.
+- The final signed Release build was installed and launched on Eddie's physical iPad. Active code signing succeeds despite warnings from stale inactive Xcode account records.
+
 ## Player experience
 
 - Sorting Course now contains 50 fixed levels; the accepted first 25 boards are unchanged.

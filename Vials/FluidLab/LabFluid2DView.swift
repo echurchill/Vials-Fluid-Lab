@@ -9,20 +9,22 @@ struct LabFluid2DView:View {
     var destinations:Set<Int>=[]
     var rejected:Int?
     var capExclusions:Set<Int>=[]
+    var twoRows=false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private var economy:Bool { ProcessInfo.processInfo.isLowPowerModeEnabled || ProcessInfo.processInfo.thermalState != .nominal }
     var body:some View { GeometryReader { proxy in scene(size:proxy.size) }.accessibilityHidden(true) }
     private func layer(_ owners:Set<Int>,floor:Bool=false)->some View {
-        LabFluid2DLayer(engine:engine,points:points,frame:frame,selected:selected,destinations:destinations,rejected:rejected,capExclusions:capExclusions,owners:owners,drawFloor:floor,opaqueGlass:reduceTransparency)
+        LabFluid2DLayer(engine:engine,points:points,frame:frame,selected:selected,destinations:destinations,rejected:rejected,capExclusions:capExclusions,twoRows:twoRows,owners:owners,drawFloor:floor,opaqueGlass:reduceTransparency)
     }
     private func scene(size:CGSize)->AnyView {
         let moves=engine.displayMoves+[engine.game.pending].compactMap {$0}
         let moving=Array(Set(moves.map(\.source))).sorted()
-        let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count),scale=Float(layout.scale)
+        let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count,twoRows:twoRows),scale=Float(layout.scale)
         var result=AnyView(layer(Set(engine.profiles.indices).subtracting(moving),floor:true))
         for source in moving {
             let rear=result,pose=engine.pose(source),profile=engine.profiles[source]
-            let base=SIMD2<Float>(Float(size.width/2)+pose.base.x*scale,Float(layout.base(0).y)-pose.base.y*scale)
+            let baseline=Float(size.height*(twoRows ? 0.88:0.82))
+            let base=SIMD2<Float>(Float(size.width/2)+pose.base.x*scale,baseline-pose.base.y*scale)
             let shader=ShaderLibrary.labVialLens(.float2(base.x,base.y),.float(scale),.float(profile.height),.float(pose.angle),.floatArray(profile.source.radii.map {$0*profile.scale}))
             result=AnyView(ZStack {
                 rear.layerEffect(shader,maxSampleOffset:CGSize(width:6,height:6),isEnabled:!points && !reduceTransparency && !economy)
@@ -43,13 +45,14 @@ private struct LabFluid2DLayer:View {
     var destinations:Set<Int>=[]
     var rejected:Int?
     var capExclusions:Set<Int>=[]
+    var twoRows=false
     var owners:Set<Int>
     var drawFloor=false
     var opaqueGlass=false
     var body:some View {
         Canvas(rendersAsynchronously:false) { context,size in
-            let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count)
-            let scale=layout.scale,origin=CGPoint(x:size.width/2,y:layout.base(0).y)
+            let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count,twoRows:twoRows)
+            let scale=layout.scale,origin=CGPoint(x:size.width/2,y:size.height*(twoRows ? 0.88:0.82))
             func screen(_ p:SIMD2<Float>)->CGPoint { CGPoint(x:origin.x+CGFloat(p.x)*scale,y:origin.y-CGFloat(p.y)*scale) }
             func cavity(_ index:Int)->Path {
                 let profile=engine.profiles[index],pose=engine.pose(index)
@@ -71,8 +74,12 @@ private struct LabFluid2DLayer:View {
                 bulkTops[p.owner]=max(bulkTops[p.owner],poses[p.owner].local(p.position).y+engine.radius)
             }
             if drawFloor {
-                var baseline=Path();baseline.move(to:CGPoint(x:size.width*0.06,y:origin.y+7));baseline.addLine(to:CGPoint(x:size.width*0.94,y:origin.y+7))
-                context.stroke(baseline,with:.color(.white.opacity(0.08)),lineWidth:1)
+                for row in layout.rows where !row.isEmpty {
+                    let left=layout.base(row.lowerBound).x-scale*1.25
+                    let right=layout.base(row.index(before:row.upperBound)).x+scale*1.25
+                    var baseline=Path();baseline.move(to:CGPoint(x:left,y:layout.base(row.lowerBound).y+7));baseline.addLine(to:CGPoint(x:right,y:layout.base(row.lowerBound).y+7))
+                    context.stroke(baseline,with:.color(.white.opacity(0.08)),lineWidth:1)
+                }
                 for index in engine.profiles.indices {
                     let home=engine.home(index),pose=poses[index]
                     let floor=screen(SIMD2(pose.base.x,home.y))

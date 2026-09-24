@@ -31,6 +31,12 @@ import AppKit
   let helperHit=classicLayout.hitRect(0,profile:classicProfile,includesHandle:true)
   precondition(abs(ordinaryHit.midX-classicLayout.base(0).x)<0.001,"Ordinary Classic highlight shifted off center")
   precondition(helperHit.minX==ordinaryHit.minX && helperHit.maxX>ordinaryHit.maxX,"Helper Classic hit area missed its handle")
+  precondition(!LabBoardLayout.usesTwoRows(portrait:true,count:7) && LabBoardLayout.usesTwoRows(portrait:true,count:8))
+  precondition(!LabBoardLayout.usesTwoRows(portrait:false,count:12))
+  let portraitLayout=LabClassicLayout(size:CGSize(width:650,height:1000),vesselCount:12,twoRows:true)
+  precondition(portraitLayout.rows.map(\.count)==[6,6])
+  precondition(portraitLayout.base(0).y<portraitLayout.base(6).y,"Portrait A–F row must sit above G–L")
+  precondition(!portraitLayout.hitRect(0,profile:classicProfile).intersects(portraitLayout.hitRect(6,profile:classicProfile)),"Portrait rows overlap")
   let reusable=try LabBoardRenderer(device:device,library:library)
   let reference=LabVesselProfile(name:"Reference",height:2.35,knots:LabVesselShape.testTube.knots).usableVolume
   for shape in LabVesselShape.allCases {
@@ -62,8 +68,25 @@ import AppKit
    precondition(reusable.profiles.map(\.radii)==expected.map(\.radii),"Stale same-capacity role meshes")
   }
   print("PASS role mapping: 39 boards, shared-role precedence, fixed shapes through routes, seven silhouettes/capacities, renderer parity and same-capacity cache changes");fflush(stdout)
+  let crossRowState=LabBoardState(layers:[[],[1,2],[2,3],[3,4],[4,5],[5,0],[0,1],[]],capacities:Array(repeating:2,count:8))
+  let crossRowProfiles=LabBoardLayout.profiles(state:crossRowState)
+  let crossRowHomes=LabBoardLayout.homes(count:8,twoRows:true)
+  let safeTravelY=(crossRowHomes.map(\.y).max() ?? 0)+(crossRowProfiles.map(\.height).max() ?? 0)+0.34
+  for move in [LabBoardMove(source:6,destination:0,parcels:[0],color:0),LabBoardMove(source:0,destination:7,parcels:[0],color:0)] {
+   let vessels=LabBoardLayout.vessels(profiles:crossRowProfiles,capacities:crossRowState.capacities,move:move,time:0.70,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil,twoRows:true)
+   precondition(vessels[move.source].world.columns.3.y>=safeTravelY,"Cross-row 3D travel dropped into a resting row")
+  }
+  print("PASS cross-row travel clearance");fflush(stdout)
+  var planarCrossRow=LabFluid2D(game:LabBoardGame(state:crossRowState))
+  planarCrossRow.quickMotion=true;planarCrossRow.setTwoRowLayout(true)
+  let crossRowMove=planarCrossRow.game.state.move(from:6,to:0)!
+  precondition(planarCrossRow.begin(crossRowMove))
+  for _ in 0..<1800 where planarCrossRow.busy {planarCrossRow.advance(deltaTime:1/60,speed:1)}
+  precondition(!planarCrossRow.busy && planarCrossRow.game.moveCount==1 && planarCrossRow.game.state.stacks[0].count==1,"Cross-row 2D pour did not commit")
+  print("PASS adaptive portrait layout: balanced rows and bidirectional safe travel; 2D cross-row pour committed");fflush(stdout)
   let staticOnly=CommandLine.arguments.contains("--static-only")
   func capture(_ session:FluidBoardSession,_ mode:LabBoardPresentation,_ name:String,_ width:Int,_ height:Int,_ orbit:Float=0.12) throws {
+   session.updateAdaptiveLayout(portrait:height>width)
    let cg:CGImage
    if mode == .fluid {
     let descriptor=MTLTextureDescriptor.texture2DDescriptor(pixelFormat:.bgra8Unorm_srgb,width:width,height:height,mipmapped:false)
@@ -74,7 +97,7 @@ import AppKit
     texture.getBytes(bitmap.bitmapData!,bytesPerRow:width*4,from:MTLRegionMake2D(0,0,width,height),mipmapLevel:0)
     for i in stride(from:0,to:width*height*4,by:4) {let b=bitmap.bitmapData![i];bitmap.bitmapData![i]=bitmap.bitmapData![i+2];bitmap.bitmapData![i+2]=b};cg=bitmap.cgImage!
    } else {
-    let content:AnyView=mode == .classic ? AnyView(LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours)):AnyView(LabPlanarSurface(display:session.planarDisplay))
+    let content:AnyView=mode == .classic ? AnyView(LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,twoRows:session.twoRowLayout)):AnyView(LabPlanarSurface(display:session.planarDisplay,twoRows:session.twoRowLayout))
     cg=ImageRenderer(content:content.frame(width:CGFloat(width),height:CGFloat(height)).background(Color(red:0.026,green:0.043,blue:0.06))).cgImage!
    }
    try NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(name+".png"))
@@ -124,6 +147,7 @@ import AppKit
    if mode == .fluid {requireVisible3DLiquid(session,"opening the final course board with two helpers")}
    try capture(session,mode,"course-50-helpers-\(mode.rawValue)-landscape",1200,650)
    try capture(session,mode,"course-50-helpers-\(mode.rawValue)-portrait",650,1000)
+   precondition(session.twoRowLayout,"Crowded portrait board did not enter two-row layout")
   }
   let emptyValve=LabBoardState(layers:[[0],[1],[]],capacities:[1,1,1],
     rules:[.normal,.normal,.receiveOnly],valvePigments:[nil,nil,1])

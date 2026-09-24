@@ -21,6 +21,8 @@ import Combine
     @Published private(set) var endlessBoard:LabEndlessBoard?
     @Published private(set) var valveBoard:LabValveBoard?
     @Published private(set) var journeyMode:Bool
+    @Published private(set) var twoRowLayout=false
+    private var requestedTwoRowLayout=false
     var isSortingCourse:Bool {sortingCourseBoard != nil}
     var isEndlessSorting:Bool {endlessBoard != nil}
     var isValveCourse:Bool {valveBoard != nil}
@@ -259,6 +261,24 @@ import Combine
         refresh()
     }
     deinit { classicTask?.cancel();rejectionTask?.cancel() }
+    func updateAdaptiveLayout(portrait:Bool) {
+        requestedTwoRowLayout=LabBoardLayout.usesTwoRows(portrait:portrait,count:state.stacks.count)
+        applyRequestedLayoutIfPossible()
+    }
+    private func applyRequestedLayoutIfPossible() {
+        guard !busy,requestedTwoRowLayout != twoRowLayout else {return}
+        twoRowLayout=requestedTwoRowLayout
+        settledParticles=nil
+        fluid2D.setTwoRowLayout(twoRowLayout)
+        if presentation == .fluid2D {
+            fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)
+        }
+        renderer?.twoRowLayout=twoRowLayout
+        for engine in metalPool {engine.twoRowLayout=twoRowLayout}
+        if presentation == .fluid,let renderer {
+            renderer.install(game:game);compositeSamples=renderer.particleSamples()
+        }
+    }
     private func prepareFluid() {
         guard !busy else { return }
         do {
@@ -273,6 +293,7 @@ import Combine
                 engine.onUpdate={ [weak self] _,_,_ in self?.fluidUpdate() }
                 renderer=engine
             }
+            renderer?.twoRowLayout=twoRowLayout
             renderer?.install(game:game,samples:settledParticles)
             if concurrentPoursEnabled,let renderer {
                 compositeSamples=renderer.particleSamples()
@@ -368,6 +389,7 @@ import Combine
         notice=boardInstruction;checkpoint();refresh()
     }
     func refresh() {
+        applyRequestedLayoutIfPossible()
         if !busy,!pendingReveal.isEmpty {
             let ids=pendingReveal;pendingReveal=[]
             var before=state;before.knownParcels?.subtract(ids)

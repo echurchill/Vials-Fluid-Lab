@@ -230,8 +230,8 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     let capExclusions=Set([session.selected].compactMap { $0 }+session.activeMoves.flatMap { [$0.source,$0.destination] })
                     ZStack {
-                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions,transformation:session.transformation,reveals:session.concurrentReveals) }
-                        else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial,capExclusions:capExclusions) }
+                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions,transformation:session.transformation,reveals:session.concurrentReveals,twoRows:session.twoRowLayout) }
+                        else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial,capExclusions:capExclusions,twoRows:session.twoRowLayout) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer,capExclusions:capExclusions).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
                         if let tool=focusedApparatus {
@@ -297,7 +297,7 @@ struct FluidBoardView:View {
                     }.animation(reduceMotion ? nil:.easeOut(duration:0.18),value:focusedApparatus?.id)
                 }.frame(minHeight:220)
                 VStack(spacing:14) {
-                    HStack(spacing:debugGap) {
+                    LazyVGrid(columns:Array(repeating:GridItem(.flexible(minimum:0),spacing:debugGap),count:max(1,session.twoRowLayout ? (debugItemCount+1)/2:debugItemCount)),spacing:debugGap) {
                         ForEach(session.state.stacks.indices,id:\.self) { index in
                             ZStack(alignment:.topTrailing) {
                                 Button { session.select(index) } label: {
@@ -476,6 +476,9 @@ struct FluidBoardView:View {
                     }.buttonStyle(.bordered).controlSize(.regular).frame(minHeight:44)
                 }.padding(.horizontal,compact ? 20:32).padding(.vertical,18).background(Color(red:0.065,green:0.060,blue:0.075))
             }.background(Color(red:0.026,green:0.043,blue:0.060)).foregroundStyle(ink)
+                .onAppear {session.updateAdaptiveLayout(portrait:geometry.size.height>geometry.size.width)}
+                .onChange(of:geometry.size) { _,size in session.updateAdaptiveLayout(portrait:size.height>size.width) }
+                .onChange(of:vialCount) { _,_ in session.updateAdaptiveLayout(portrait:geometry.size.height>geometry.size.width) }
         }
     }
 
@@ -643,17 +646,17 @@ struct FluidBoardView:View {
     private func hitRect(_ index:Int,size:CGSize) -> CGRect {
         let profiles=LabBoardLayout.profiles(state:session.state)
         if session.presentation == .fluid2D {
-            let layout=LabClassicLayout(size:size,vesselCount:profiles.count),profile=session.fluid2D.profiles[index]
+            let layout=LabClassicLayout(size:size,vesselCount:profiles.count,twoRows:session.twoRowLayout),profile=session.fluid2D.profiles[index]
             let base=layout.base(index),radius=CGFloat((profile.source.radii.max() ?? 0.6)*profile.scale)*layout.scale
             let handle=session.state.isHelper(index) ? layout.scale*0.48:0
             return CGRect(x:base.x-radius-8,y:base.y-CGFloat(profile.height)*layout.scale-8,width:radius*2+16+handle,height:CGFloat(profile.height)*layout.scale+16)
         }
         if session.presentation == .classic {
-            return LabClassicLayout(size:size,vesselCount:session.state.stacks.count)
+            return LabClassicLayout(size:size,vesselCount:session.state.stacks.count,twoRows:session.twoRowLayout)
                 .hitRect(index,profile:profiles[index],includesHandle:session.state.isHelper(index))
         }
-        let matrix=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:Float(session.orbit),vesselCount:session.state.stacks.count).0
-        let home=LabBoardLayout.homes(count:session.state.stacks.count)[index],r=(profiles[index].radii.max() ?? 0.6)+0.05+(session.state.isHelper(index) ? 0.42:0)
+        let matrix=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:Float(session.orbit),vesselCount:session.state.stacks.count,twoRows:session.twoRowLayout).0
+        let home=LabBoardLayout.homes(count:session.state.stacks.count,twoRows:session.twoRowLayout)[index],r=(profiles[index].radii.max() ?? 0.6)+0.05+(session.state.isHelper(index) ? 0.42:0)
         var xs:[CGFloat]=[],ys:[CGFloat]=[]
         for x in [-r,r] { for z in [-r,r] { for y:Float in [0,profiles[index].height] {
             let p=matrix*SIMD4(home+SIMD3(x,y,z),1)
