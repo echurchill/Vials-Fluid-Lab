@@ -10,7 +10,7 @@ struct LabClassicLayout {
     func base(_ index:Int) -> CGPoint { CGPoint(x:size.width/2+CGFloat(LabBoardLayout.homes(count:vesselCount)[index].x)*scale,y:size.height*0.82) }
     func hitRect(_ index:Int,profile:LabVesselProfile) -> CGRect {
         let point=base(index),radius=CGFloat(profile.radii.max() ?? 0.6)*scale
-        return CGRect(x:point.x-radius-8,y:point.y-CGFloat(profile.height)*scale-8,width:radius*2+16,height:CGFloat(profile.height)*scale+16)
+        return CGRect(x:point.x-radius-8,y:point.y-CGFloat(profile.height)*scale-8,width:radius*2+max(16,scale*0.48),height:CGFloat(profile.height)*scale+16)
     }
 }
 
@@ -125,6 +125,13 @@ struct LabClassicBoardView:View {
         if let pour=pours.first(where:{$0.move.source==index}) { let transform=pose(pour,layout:layout);base=transform.base;angle=transform.angle }
         ctx.translateBy(x:base.x,y:base.y);ctx.rotate(by:.radians(angle))
         let cavity=shape(profile,scale:scale),radius=CGFloat(profile.radii.max() ?? 0.6)*scale
+        if state.isHelper(index) {
+            let h=CGFloat(profile.height)*scale,outer=radius+(state.capacity(index)==3 ? scale*0.48:scale*0.40)
+            var handle=Path();handle.move(to:CGPoint(x:radius*0.78,y:-h*0.78))
+            handle.addCurve(to:CGPoint(x:radius*0.78,y:-h*0.24),control1:CGPoint(x:outer,y:-h*0.82),control2:CGPoint(x:outer,y:-h*0.19))
+            ctx.stroke(handle,with:.color(.black.opacity(0.28)),style:StrokeStyle(lineWidth:max(7,scale*0.12),lineCap:.round))
+            ctx.stroke(handle,with:.linearGradient(Gradient(colors:[.white.opacity(0.55),.cyan.opacity(0.18),.white.opacity(0.38)]),startPoint:CGPoint(x:radius,y:-h),endPoint:CGPoint(x:outer,y:0)),style:StrokeStyle(lineWidth:max(3,scale*0.055),lineCap:.round))
+        }
         ctx.fill(cavity,with:.color(Color(red:0.025,green:0.045,blue:0.06).opacity(0.82)))
         ctx.stroke(cavity,with:.color(.black.opacity(0.28)),lineWidth:5)
         var liquid=ctx;liquid.clip(to:cavity)

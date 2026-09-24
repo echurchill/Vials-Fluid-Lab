@@ -298,6 +298,13 @@ private struct LabFluid2DLayer:View {
             }
         }
         let inner=contour(0),outer=contour(thickness)
+        if engine.game.state.isHelper(index) {
+            let capacity=engine.game.state.capacity(index),handleX=width+(capacity==3 ? scale*0.48:scale*0.40)
+            var handle=Path();handle.move(to:CGPoint(x:width*0.78,y:-height*0.78))
+            handle.addCurve(to:CGPoint(x:width*0.78,y:-height*0.24),control1:CGPoint(x:handleX,y:-height*0.82),control2:CGPoint(x:handleX,y:-height*0.19))
+            glass.stroke(handle,with:.color(.black.opacity(0.25)),style:StrokeStyle(lineWidth:max(7,scale*0.12),lineCap:.round))
+            glass.stroke(handle,with:.linearGradient(Gradient(colors:[.white.opacity(0.58),.cyan.opacity(0.17),.white.opacity(0.34)]),startPoint:CGPoint(x:width,y:-height),endPoint:CGPoint(x:handleX,y:0)),style:StrokeStyle(lineWidth:max(3,scale*0.055),lineCap:.round))
+        }
         var wall=outer;wall.closeSubpath();var hollow=inner;hollow.closeSubpath();wall.addPath(hollow)
         glass.fill(wall,with:.linearGradient(Gradient(colors:[.white.opacity(0.44),Color.cyan.opacity(0.10),.white.opacity(0.12),Color.cyan.opacity(0.36)]),startPoint:CGPoint(x:-width,y:-height),endPoint:CGPoint(x:width,y:0)),style:FillStyle(eoFill:true))
         glass.stroke(outer,with:.linearGradient(Gradient(colors:[.white.opacity(0.62),Color.cyan.opacity(0.28),.white.opacity(0.45)]),startPoint:CGPoint(x:-width,y:-height),endPoint:CGPoint(x:width,y:0)),style:StrokeStyle(lineWidth:0.9,lineJoin:.round))

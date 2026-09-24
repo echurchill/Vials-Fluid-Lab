@@ -120,12 +120,13 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     var colors: [Int]
     var densities:[LabDensity]
     var stacks: [[Int]] // bottom to top, containing stable unit IDs
-    let capacities: [Int]
-    let rules: [LabVialRule]
+    var capacities: [Int]
+    var rules: [LabVialRule]
     let behavior:LabBehavior
     let targets:[LabVialTarget]
     let apparatus:[LabApparatus]
     var knownParcels:Set<Int>? // nil for fully visible labs; stable IDs retain discoveries
+    var helperIndices:Set<Int>
 
     init(layers: [[Int]], capacity: Int = 4) {
         self.init(layers:layers,capacities:Array(repeating:capacity,count:layers.count))
@@ -143,14 +144,14 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         }
         self.colors=colors;self.densities=densities;self.stacks=stacks;self.capacities=capacities
         self.rules=rules ?? Array(repeating:.normal,count:layers.count)
-        self.behavior=behavior;self.targets=targets;self.apparatus=apparatus
+        self.behavior=behavior;self.targets=targets;self.apparatus=apparatus;helperIndices=[]
         knownParcels=obscured ? Set(stacks.compactMap(\.last)):nil
         precondition(self.rules.count==layers.count)
         precondition(targets.allSatisfy { stacks.indices.contains($0.vial) && $0.layers.count<=capacities[$0.vial] })
         precondition(apparatus.flatMap(\.inputs).allSatisfy(stacks.indices.contains))
         precondition(apparatus.flatMap(\.outputs).allSatisfy(stacks.indices.contains))
     }
-    private enum CodingKeys:String,CodingKey { case colors,densities,stacks,capacity,capacities,rules,behavior,targets,apparatus,knownParcels }
+    private enum CodingKeys:String,CodingKey { case colors,densities,stacks,capacity,capacities,rules,behavior,targets,apparatus,knownParcels,helperIndices }
     init(from decoder:Decoder) throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
         colors=try values.decode([Int].self,forKey:.colors)
@@ -166,7 +167,9 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         behavior=try values.decodeIfPresent(LabBehavior.self,forKey:.behavior) ?? .sorting
         targets=try values.decodeIfPresent([LabVialTarget].self,forKey:.targets) ?? []
         apparatus=try values.decodeIfPresent([LabApparatus].self,forKey:.apparatus) ?? []
+        helperIndices=try values.decodeIfPresent(Set<Int>.self,forKey:.helperIndices) ?? []
         guard capacities.count==stacks.count,rules.count==stacks.count,densities.count==colors.count,
+              helperIndices.allSatisfy(stacks.indices.contains),
               zip(stacks,capacities).allSatisfy({$0.count <= $1 && $1 > 0}) else {
             throw DecodingError.dataCorrupted(.init(codingPath:decoder.codingPath,debugDescription:"Invalid Fluid Lab vial metadata"))
         }
@@ -176,11 +179,31 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         try values.encode(colors,forKey:.colors);try values.encode(densities,forKey:.densities);try values.encode(stacks,forKey:.stacks)
         try values.encode(capacities,forKey:.capacities);try values.encode(rules,forKey:.rules)
         try values.encodeIfPresent(knownParcels,forKey:.knownParcels)
+        if !helperIndices.isEmpty {try values.encode(helperIndices,forKey:.helperIndices)}
         try values.encode(behavior,forKey:.behavior);try values.encode(targets,forKey:.targets);try values.encode(apparatus,forKey:.apparatus)
     }
     nonisolated static let firstSort = LabBoardState(layers:[[0,1,1],[1,0,0],[0,1],[]])
     var maximumCapacity:Int { capacities.max() ?? 0 }
     func capacity(_ index:Int)->Int { capacities[index] }
+    func isHelper(_ index:Int)->Bool {helperIndices.contains(index)}
+    var helpers:[Int] {helperIndices.sorted()}
+    var hasHelpers:Bool {!helperIndices.isEmpty}
+    var canAddHelper:Bool {helperIndices.count<2}
+    func canUpgradeHelper(_ index:Int)->Bool {isHelper(index) && capacities[index]<3}
+    func helperName(_ index:Int)->String? {
+        guard isHelper(index) else {return nil}
+        switch capacities[index] {case 1:return "Tea cup";case 2:return "Coffee mug";default:return "Water jug"}
+    }
+    func addingHelper()->Self? {
+        guard canAddHelper else {return nil}
+        var next=self;let index=stacks.count
+        next.stacks.append([]);next.capacities.append(1);next.rules.append(.normal);next.helperIndices.insert(index)
+        return next
+    }
+    func upgradingHelper(_ index:Int)->Self? {
+        guard canUpgradeHelper(index) else {return nil}
+        var next=self;next.capacities[index]+=1;return next
+    }
     func canPourOut(_ index:Int)->Bool { rules[index] != .receiveOnly }
     func canPourIn(_ index:Int)->Bool { rules[index] != .sourceOnly }
     func material(_ parcel:Int)->LabMaterialSpec { LabMaterialSpec(colors[parcel],densities[parcel]) }
@@ -228,14 +251,18 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         return .mixedDensity
     }
     func isComplete(_ index:Int) -> Bool {
-        guard stacks.indices.contains(index) else { return false }
+        guard stacks.indices.contains(index),!isHelper(index) else { return false }
         if !targets.isEmpty {return target(index).map(matchesTarget) ?? false}
         let stack=stacks[index]
         return stack.allSatisfy(isKnown) && stack.count==capacities[index] && Set(stack.map { colors[$0] }).count==1
     }
     var solved: Bool {
+        guard helpers.allSatisfy({stacks[$0].isEmpty}) else {return false}
         if !targets.isEmpty { return targets.allSatisfy(matchesTarget) }
-        return stacks.indices.allSatisfy { stacks[$0].isEmpty || isComplete($0) }
+        return stacks.indices.allSatisfy { isHelper($0) || stacks[$0].isEmpty || isComplete($0) }
+    }
+    var helpersPreventCompletion:Bool {
+        hasHelpers && helpers.contains {!stacks[$0].isEmpty} && stacks.indices.allSatisfy {isHelper($0) || stacks[$0].isEmpty || isComplete($0)}
     }
     private var apparatusInputs:Set<Int> { Set(apparatus.flatMap(\.inputs)) }
     func move(from source:Int,to destination:Int) -> LabBoardMove? {
@@ -317,7 +344,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     // Only vials with the same capacity and rule are interchangeable.
     private var searchKey:String {
         let components=stacks.indices.map { index in
-            "\(capacities[index]):\(rules[index].rawValue):"+stacks[index].map { "\(colors[$0]).\(densities[$0].rawValue)"+(knownParcels == nil ? "":(isKnown($0) ? ":seen":":hidden")) }.joined(separator:",")
+            "\(isHelper(index) ? "helper":"vial"):\(capacities[index]):\(rules[index].rawValue):"+stacks[index].map { "\(colors[$0]).\(densities[$0].rawValue)"+(knownParcels == nil ? "":(isKnown($0) ? ":seen":":hidden")) }.joined(separator:",")
         }
         // Targets and apparatus attach meaning to concrete vial positions.
         // Only the legacy free-standing sorting vials are interchangeable.
@@ -330,7 +357,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         for source in stacks.indices where canPourOut(source) {
             guard let top=stacks[source].last else {continue}
             let color=colors[top]
-            let finished=targets.isEmpty && stacks[source].count==capacities[source] && Set(stacks[source].map {colors[$0]}).count==1
+            let finished = !isHelper(source) && targets.isEmpty && stacks[source].count==capacities[source] && Set(stacks[source].map {colors[$0]}).count==1
             let ownsColor=targets.isEmpty && totals[color,default:0]==stacks[source].count
             for destination in stacks.indices where destination != source {
                 if stacks[destination].isEmpty && finished && ownsColor {continue}
@@ -476,33 +503,60 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     }
 }
 
-nonisolated struct LabBoardGame: Sendable, Codable {
+nonisolated struct LabBoardHistoryEntry:Sendable,Codable,Equatable {
+    let state:LabBoardState
+    let countsMove:Bool
+}
+
+nonisolated struct LabBoardGame: Sendable, Codable, Equatable {
     private(set) var state:LabBoardState
     private(set) var pending:LabBoardMove?
-    private(set) var history:[LabBoardState]=[]
-    var moveCount:Int { history.count }
+    private(set) var history:[LabBoardHistoryEntry]=[]
+    var moveCount:Int { history.filter(\.countsMove).count }
+    var actionCount:Int {history.count}
+    var canUndo:Bool {!history.isEmpty && pending == nil}
     init(state:LabBoardState = .firstSort) { self.state=state }
+    private enum CodingKeys:String,CodingKey {case state,pending,history}
+    init(from decoder:Decoder) throws {
+        let values=try decoder.container(keyedBy:CodingKeys.self)
+        state=try values.decode(LabBoardState.self,forKey:.state)
+        pending=try values.decodeIfPresent(LabBoardMove.self,forKey:.pending)
+        if let entries=try? values.decode([LabBoardHistoryEntry].self,forKey:.history) {history=entries}
+        else {history=(try values.decodeIfPresent([LabBoardState].self,forKey:.history) ?? []).map {LabBoardHistoryEntry(state:$0,countsMove:true)}}
+    }
+    func encode(to encoder:Encoder) throws {
+        var values=encoder.container(keyedBy:CodingKeys.self)
+        try values.encode(state,forKey:.state);try values.encodeIfPresent(pending,forKey:.pending);try values.encode(history,forKey:.history)
+    }
     mutating func begin(from:Int,to:Int,reserved:Bool=false) -> LabBoardMove? {
         guard pending == nil, (reserved || !state.solved), let move=state.move(from:from,to:to) else { return nil }
         pending=move;return move
     }
     mutating func commit(_ move:LabBoardMove) -> Bool {
         guard pending == move,let next=state.applying(move) else { return false }
-        history.append(state);state=next;pending=nil;return true
+        history.append(.init(state:state,countsMove:true));state=next;pending=nil;return true
     }
     /// A previously reserved independent move may finish while another is active.
     mutating func commitReserved(_ move:LabBoardMove)->Bool {
         guard pending == nil,let next=state.applyingReserved(move) else { return false }
-        history.append(state);state=next;return true
+        history.append(.init(state:state,countsMove:true));state=next;return true
     }
     mutating func activate(_ activation:LabApparatusActivation)->Bool {
         guard pending==nil,let next=state.applying(activation) else {return false}
-        history.append(state);state=next;return true
+        history.append(.init(state:state,countsMove:true));state=next;return true
+    }
+    mutating func addHelper()->Bool {
+        guard pending==nil,let next=state.addingHelper() else {return false}
+        history.append(.init(state:state,countsMove:false));state=next;return true
+    }
+    mutating func upgradeHelper(_ index:Int)->Bool {
+        guard pending==nil,let next=state.upgradingHelper(index) else {return false}
+        history.append(.init(state:state,countsMove:false));state=next;return true
     }
     mutating func cancel() { pending=nil }
     mutating func undo() -> Bool {
         guard pending == nil,let previous=history.popLast() else { return false }
-        state=previous.retainingDiscoveries(from:state);return true
+        state=previous.state.retainingDiscoveries(from:state);return true
     }
 }
 

@@ -18,6 +18,13 @@ import AppKit
   let shared=LabBoardState(layers:[[0],[],[]],capacities:[2,2,2],behavior:.crossover,
       targets:[.init(vial:2,layers:[.init(0)])],apparatus:[.mixer(inputs:[0,1],output:2),.modifier(id:1,chamber:0,direction:.heavier),.modifier(id:2,chamber:2,direction:.lighter)])
   precondition(LabBoardLayout.shapes(for:shared)==[.taperedFlask,.bulbFlask,.testTube],"Role precedence changed")
+  var helpers=LabBoardPuzzle.firstSort.initial.addingHelper()!
+  let helper=helpers.helpers[0]
+  precondition(LabBoardLayout.shapes(for:helpers).last == .teaCup)
+  helpers=helpers.upgradingHelper(helper)!
+  precondition(LabBoardLayout.shapes(for:helpers).last == .coffeeMug)
+  helpers=helpers.upgradingHelper(helper)!
+  precondition(LabBoardLayout.shapes(for:helpers).last == .waterJug)
   let reusable=try LabBoardRenderer(device:device,library:library)
   let reference=LabVesselProfile(name:"Reference",height:2.35,knots:LabVesselShape.testTube.knots).usableVolume
   for shape in LabVesselShape.allCases {
@@ -48,7 +55,7 @@ import AppKit
    let expected=LabBoardLayout.profiles(state:state)
    precondition(reusable.profiles.map(\.radii)==expected.map(\.radii),"Stale same-capacity role meshes")
   }
-  print("PASS role mapping: 39 boards, shared-role precedence, fixed shapes through routes, all four silhouettes/capacities, renderer parity and same-capacity cache changes");fflush(stdout)
+  print("PASS role mapping: 39 boards, shared-role precedence, fixed shapes through routes, seven silhouettes/capacities, renderer parity and same-capacity cache changes");fflush(stdout)
   let staticOnly=CommandLine.arguments.contains("--static-only")
   func capture(_ session:FluidBoardSession,_ mode:LabBoardPresentation,_ name:String,_ width:Int,_ height:Int,_ orbit:Float=0.12) throws {
    let cg:CGImage
@@ -65,6 +72,14 @@ import AppKit
     cg=ImageRenderer(content:content.frame(width:CGFloat(width),height:CGFloat(height)).background(Color(red:0.026,green:0.043,blue:0.06))).cgImage!
    }
    try NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(name+".png"))
+  }
+  for mode in LabBoardPresentation.allCases {
+   let session=FluidBoardSession(defaults:nil,device:device,library:library,
+     restoredSave:LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort))
+   session.addHelper();try capture(session,mode,"helper-\(mode.rawValue)-tea",1000,650)
+   let index=session.state.helpers[0]
+   session.upgradeHelper(index);try capture(session,mode,"helper-\(mode.rawValue)-mug",1000,650)
+   session.upgradeHelper(index);session.addHelper();try capture(session,mode,"helper-\(mode.rawValue)-jug-tea",1000,650)
   }
   for mode in LabBoardPresentation.allCases {
    for puzzle in [LabBoardPuzzle.measuredBatch,.heavyLanding,.fiveStreams,.secondChance,.twinProducts] {

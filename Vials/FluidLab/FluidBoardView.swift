@@ -273,6 +273,12 @@ struct FluidBoardView:View {
                                                 .fixedSize(horizontal:true,vertical:false)
                                                 .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
                                                 .foregroundStyle(session.vialComplete(index) ? Color.green:Color.purple).offset(y:-13)
+                                        } else if let helper=session.state.helperName(index) {
+                                            Label(helper.uppercased(),systemImage:"cup.and.saucer.fill")
+                                                .font(.system(size:8,weight:.bold,design:.monospaced))
+                                                .fixedSize(horizontal:true,vertical:false)
+                                                .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
+                                                .foregroundStyle(Color.mint).offset(y:-13)
                                         }
                                     }
                                     .overlay {
@@ -304,6 +310,7 @@ struct FluidBoardView:View {
                                             .font(.system(size:denseDebug ? 9:11,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
                                         if session.state.rules[index] == .receiveOnly { Image(systemName:"arrow.down").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(Color.cyan) }
                                         if session.state.rules[index] == .sourceOnly { Image(systemName:"arrow.up").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(Color.purple) }
+                                        if session.state.isHelper(index) {Image(systemName:"cup.and.saucer.fill").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(Color.mint)}
                                     }
                                     .lineLimit(1).minimumScaleFactor(0.72)
                                     HStack(spacing:denseDebug ? 1.5:3) {
@@ -360,8 +367,28 @@ struct FluidBoardView:View {
                     }
                     Text(boardNotice).font(.system(size:12)).foregroundStyle(ink.opacity(0.65)).frame(maxWidth:.infinity).lineLimit(2).frame(height:34).multilineTextAlignment(.center)
                     HStack(spacing:12) {
-                        Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || session.moveCount == 0)
+                        Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || !session.canUndo)
                         Button(session.findingHint ? "Finding…":"Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved || session.findingHint)
+                        if session.supportsHelpers {
+                            Menu {
+                                Button("Add tea cup",systemImage:"plus") {session.addHelper()}
+                                    .disabled(!session.canAddHelper)
+                                ForEach(session.state.helpers,id:\.self) {index in
+                                    let name=session.state.helperName(index) ?? "Helper"
+                                    if session.state.canUpgradeHelper(index) {
+                                        Button("Upgrade \(FluidBoardSession.letter(index)) · \(name)",systemImage:"arrow.up.circle") {session.upgradeHelper(index)}
+                                            .disabled(!session.canUpgradeHelper(index))
+                                    } else {
+                                        Text("\(FluidBoardSession.letter(index)) · Water jug · maximum size")
+                                    }
+                                }
+                                Divider()
+                                Text("Up to two helpers. Empty both to finish.")
+                            } label: {
+                                Label("Helpers \(session.state.helpers.count)/2",systemImage:"cup.and.saucer")
+                            }.disabled(session.busy || session.solved)
+                                .accessibilityIdentifier("sorting.helpers")
+                        }
                         Spacer(minLength:8)
                         if let course=session.sortingCourseBoard,course.number<LabSortingCourseBoard.levelCount {
                             Button("Next: \(course.number+1)",systemImage:"arrow.right") {openSortingCourse(level:course.number+1)}
@@ -599,11 +626,12 @@ struct FluidBoardView:View {
         if session.presentation == .fluid2D {
             let layout=LabClassicLayout(size:size,vesselCount:profiles.count),profile=session.fluid2D.profiles[index]
             let base=layout.base(index),radius=CGFloat((profile.source.radii.max() ?? 0.6)*profile.scale)*layout.scale
-            return CGRect(x:base.x-radius-8,y:base.y-CGFloat(profile.height)*layout.scale-8,width:radius*2+16,height:CGFloat(profile.height)*layout.scale+16)
+            let handle=session.state.isHelper(index) ? layout.scale*0.48:0
+            return CGRect(x:base.x-radius-8,y:base.y-CGFloat(profile.height)*layout.scale-8,width:radius*2+16+handle,height:CGFloat(profile.height)*layout.scale+16)
         }
         if session.presentation == .classic { return LabClassicLayout(size:size,vesselCount:session.state.stacks.count).hitRect(index,profile:profiles[index]) }
         let matrix=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:Float(session.orbit),vesselCount:session.state.stacks.count).0
-        let home=LabBoardLayout.homes(count:session.state.stacks.count)[index],r=(profiles[index].radii.max() ?? 0.6)+0.05
+        let home=LabBoardLayout.homes(count:session.state.stacks.count)[index],r=(profiles[index].radii.max() ?? 0.6)+0.05+(session.state.isHelper(index) ? 0.42:0)
         var xs:[CGFloat]=[],ys:[CGFloat]=[]
         for x in [-r,r] { for z in [-r,r] { for y:Float in [0,profiles[index].height] {
             let p=matrix*SIMD4(home+SIMD3(x,y,z),1)

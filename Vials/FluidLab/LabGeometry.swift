@@ -282,6 +282,30 @@ func labGlassMesh(_ profile: LabVesselProfile, rings:Int = 96, segments:Int = 96
     return vertices
 }
 
+/// A hollow glass loop attached to the side of a helper vessel. The loop is
+/// presentation geometry only; liquid remains inside the rotational body.
+func labHelperHandleMesh(_ profile:LabVesselProfile,capacity:Int,segments:Int=48,sides:Int=10)->[LabVertex] {
+    guard (1...3).contains(capacity) else {return []}
+    let body=profile.radii.max() ?? 0.55
+    let loopWidth:Float=capacity == 1 ? 0.34:(capacity == 2 ? 0.38:0.43)
+    let loopHeight=profile.height*(capacity == 1 ? 0.23:(capacity == 2 ? 0.29:0.34))
+    let center=SIMD3<Float>(body+loopWidth*0.48,profile.height*(capacity == 1 ? 0.54:0.52),0)
+    let tube:Float=capacity == 1 ? 0.045:0.055
+    func sample(_ segment:Int,_ side:Int)->LabVertex {
+        let t=Float(segment)/Float(segments)*2*Float.pi,p=Float(side)/Float(sides)*2*Float.pi
+        let radial=simd_normalize(SIMD3<Float>(cos(t)/loopWidth,sin(t)/loopHeight,0))
+        let normal=radial*cos(p)+SIMD3<Float>(0,0,sin(p))
+        let line=center+SIMD3<Float>(loopWidth*cos(t),loopHeight*sin(t),0)
+        return LabVertex(position:SIMD4(line+normal*tube,1),normal:SIMD4(normal,0))
+    }
+    var vertices:[LabVertex]=[]
+    for segment in 0..<segments {for side in 0..<sides {
+        let a=sample(segment,side),b=sample(segment+1,side),c=sample(segment+1,side+1),d=sample(segment,side+1)
+        vertices += [a,b,c,a,c,d]
+    }}
+    return vertices
+}
+
 /// Opaque completion stopper. It shares the vial transform and depth buffer so
 /// foreground moving glass can correctly pass in front of a completed vial.
 func labCapMesh(_ profile:LabVesselProfile,segments:Int=64) -> [LabVertex] {

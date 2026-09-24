@@ -24,13 +24,16 @@ enum LabBoardTiming {
 
 /// Silhouettes convey a permanent level role, never a changing liquid state.
 nonisolated enum LabVesselShape:CaseIterable,Sendable {
-    case testTube,bulbFlask,taperedFlask,pearFlask
+    case testTube,bulbFlask,taperedFlask,pearFlask,teaCup,coffeeMug,waterJug
     var name:String {
         switch self {
         case .testTube:"Rounded vial"
         case .bulbFlask:"Bulb flask"
         case .taperedFlask:"Tapered flask"
         case .pearFlask:"Pear flask"
+        case .teaCup:"Tea cup"
+        case .coffeeMug:"Coffee mug"
+        case .waterJug:"Water jug"
         }
     }
     var knots:[(Float,Float)] {
@@ -39,6 +42,9 @@ nonisolated enum LabVesselShape:CaseIterable,Sendable {
         case .bulbFlask:[(0,0.28),(0.04,0.47),(0.16,0.70),(0.34,0.74),(0.49,0.61),(0.66,0.30),(0.74,0.32),(0.87,0.32),(0.94,0.40),(1,0.54)]
         case .taperedFlask:[(0,0.58),(0.07,0.64),(0.52,0.50),(0.80,0.31),(0.91,0.34),(1,0.54)]
         case .pearFlask:[(0,0.25),(0.06,0.48),(0.27,0.69),(0.49,0.59),(0.73,0.32),(0.91,0.32),(1,0.54)]
+        case .teaCup:[(0,0.38),(0.08,0.56),(0.30,0.68),(0.72,0.70),(1,0.76)]
+        case .coffeeMug:[(0,0.47),(0.06,0.53),(0.86,0.55),(1,0.61)]
+        case .waterJug:[(0,0.44),(0.05,0.55),(0.53,0.63),(0.76,0.50),(0.86,0.36),(0.96,0.38),(1,0.57)]
         }
     }
 }
@@ -53,6 +59,9 @@ struct LabBoardLayout {
     }
     nonisolated static func shapes(for state:LabBoardState)->[LabVesselShape] {
         state.stacks.indices.map { index in
+            if state.isHelper(index) {
+                switch state.capacity(index) {case 1:return .teaCup;case 2:return .coffeeMug;default:return .waterJug}
+            }
             // Final targets retain their familiar tube silhouette even when a
             // machine deposits into them. Shared ports retain all role badges.
             if state.target(index) != nil {return .testTube}

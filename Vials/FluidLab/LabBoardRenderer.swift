@@ -106,6 +106,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var deltas: MTLBuffer!
     private var velocities: MTLBuffer!
     private var meshes: [(MTLBuffer,Int)] = []
+    private var handleMeshes:[(MTLBuffer,Int)?]=[]
     private var capMeshes:[(MTLBuffer,Int)]=[]
     private var kernels: [String: MTLComputePipelineState] = [:]
     private var depthPipeline: MTLRenderPipelineState!
@@ -190,6 +191,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             let vertices = labGlassMesh(profile,rings:48,segments:64)
             return (makeBuffer(vertices), vertices.count)
         }
+        handleMeshes=profiles.map {_ in nil}
         capMeshes=profiles.map { let vertices=labCapMesh($0);return (makeBuffer(vertices),vertices.count) }
         reset()
     }
@@ -249,6 +251,11 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             profileCapacities=state.capacities;profileShapes=shapes;profiles=LabBoardLayout.profiles(state:state);seedPositions=[]
             profilesBuffer=makeBuffer(profiles.flatMap(\.radii))
             meshes=profiles.map { let vertices=labGlassMesh($0,rings:48,segments:64);return (makeBuffer(vertices),vertices.count) }
+            handleMeshes=profiles.indices.map {index in
+                guard state.isHelper(index) else {return nil}
+                let vertices=labHelperHandleMesh(profiles[index],capacity:state.capacity(index))
+                return (makeBuffer(vertices),vertices.count)
+            }
             capMeshes=profiles.map { let vertices=labCapMesh($0);return (makeBuffer(vertices),vertices.count) }
         }
         let values=seed(state:state)
@@ -695,7 +702,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         try self.init(device:source.device,library:source.library)
         // Warm both receiver slots before play. Profile data and canonical
         // positions are immutable; each lane still owns its particle buffers.
-        profiles=source.profiles;profilesBuffer=source.profilesBuffer;meshes=source.meshes
+        profiles=source.profiles;profilesBuffer=source.profilesBuffer;meshes=source.meshes;handleMeshes=source.handleMeshes
         seedPositions=source.seedPositions
         reset(state:source.game.state)
     }
@@ -1121,7 +1128,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         func bounds(_ i:Int)->CGRect {
             let capRadius=capColor(i)==nil ? Float(0):(profiles[i].radii.last!+0.065)
-            let radius=max(profiles[i].radii.max() ?? 0.6,capRadius),height=profiles[i].height+(capRadius>0 ? 0.18:0)
+            let handleRadius=game.state.isHelper(i) ? (profiles[i].radii.max() ?? 0.6)+0.45:Float(0)
+            let radius=max(max(profiles[i].radii.max() ?? 0.6,capRadius),handleRadius),height=profiles[i].height+(capRadius>0 ? 0.18:0)
             var x:[CGFloat]=[],y:[CGFloat]=[]
             for a:Float in [-radius,radius] {for b:Float in [0,height] {for c:Float in [-radius,radius] {
                 let clip=vp*vessels[i].world*SIMD4(a,b,c,1)
@@ -1165,6 +1173,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 glass.setVertexBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
                 glass.setFragmentBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
                 glass.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:meshes[i].1)
+                if let handle=handleMeshes[i] {
+                    glass.setVertexBuffer(handle.0,offset:0,index:0)
+                    glass.drawPrimitives(type:.triangle,vertexStart:0,vertexCount:handle.1)
+                }
             }
             glass.setRenderPipelineState(capPipeline)
             for i in batch {

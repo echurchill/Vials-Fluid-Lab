@@ -1,5 +1,11 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 23: Lab-native helper vessels (Prototype49)
+
+Sorting Lab, Sorting Course and Endless now offer up to two helper vessels. Each starts as a one-unit tea cup and can be upgraded to a two-unit coffee mug and three-unit water jug. Adding/upgrading is saved and Undoable but does not increase the move count; pours do. Helpers use ordinary bidirectional matching-material rules, retain Discovery parcel knowledge, participate in concurrent capacity reservations, and are understood by the solver/hints. Every helper must be empty to win, so a full uniform helper is never a target. Its continued presence in a solved state is the future assistance/mastery signal.
+
+The implementation is entirely in the current Lab model/session/renderers. Original controller/animation/async code was not adopted. Classic, 2D and 3D draw distinct capacity-scaled bodies and handles. Scope is intentionally pure Sorting, Sorting Course and Endless; Valve and target/apparatus labs do not expose the control yet. Focused helper/Sorting validation, all 25 course solutions, the 18-case cross-lab concurrency suite, presentation rendering and final signed macOS/iOS Release builds pass. See `Reports/Prototype49/README.md`.
+
 ## Future Valve Lab revision: color-keyed lids
 
 Eddie wants the provisional cyan rim line/down-arrow treatment replaced by a physical lid whose color identifies the only pigment a receive-only valve accepts. The lid should remain closed for the wrong pigment, open for a valid incoming pour, and make the rule understandable before any liquid enters. This permits valve vials to start empty instead of relying on preloaded liquid as their color indicator. Use an accompanying pattern/symbol for accessibility. Completion requires a full valve of its keyed pigment; pouring out remains illegal. This is a future work item, not current behavior. It needs explicit accepted-pigment metadata shared by model, solver/hints, saves, concurrent reservations, generation, and Classic/2D/3D rendering. Remove the old marker only after lid readability is validated. The detailed note is in `Reports/progression-curriculum-and-valve-plan.md`.

@@ -153,6 +153,10 @@ import Combine
     private var clockRevision=0
     var state:LabBoardState { game.state }
     var moveCount:Int { game.moveCount }
+    var canUndo:Bool {game.canUndo}
+    var supportsHelpers:Bool {discipline == .sorting && !isValveCourse}
+    var canAddHelper:Bool {supportsHelpers && !busy && !solved && state.canAddHelper}
+    func canUpgradeHelper(_ index:Int)->Bool {supportsHelpers && !busy && !solved && state.canUpgradeHelper(index)}
     var busy:Bool { transformation != nil || game.pending != nil || pourQueue.busy || !concurrentReveals.isEmpty }
     var active3DSimulationParticleCount:Int {metalGroups.values.reduce(0) {$0+$1.particleCount}}
     /// Endless has a shorter play cadence than the instructional labs, while
@@ -247,7 +251,7 @@ import Combine
         let restoredInitial=save.valveBoard?.initial ?? save.sortingCourseBoard?.initial ?? save.endlessBoard?.initial ?? save.puzzle.initial
         var restored=save.games[restoredKey] ?? LabBoardGame(state:restoredInitial)
         restored.cancel() // A launch restores the last committed move.
-        game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
+        game=restored;undoParticles=Array(repeating:nil,count:restored.actionCount)
         feedback.soundEnabled=soundEnabled;feedback.hapticsEnabled=hapticsEnabled
         notice=boardInstruction
         if presentation == .fluid { prepareFluid() }
@@ -318,7 +322,7 @@ import Combine
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         finishMeasurement(reason:"puzzle changed");checkpoint();sortingCourseBoard=nil;endlessBoard=nil;valveBoard=nil;journeyMode=enteringJourney
         puzzle=value;game=saved.games[value.rawValue] ?? LabBoardGame(state:value.initial);game.cancel()
-        undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
+        undoParticles=Array(repeating:nil,count:game.actionCount);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
@@ -331,7 +335,7 @@ import Combine
         finishMeasurement(reason:"sorting course level changed");checkpoint()
         sortingCourseBoard=value;endlessBoard=nil;valveBoard=nil;journeyMode=false
         game=saved.games[value.saveKey] ?? LabBoardGame(state:value.initial);game.cancel()
-        undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
+        undoParticles=Array(repeating:nil,count:game.actionCount);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid {prepareFluid()}
         if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
@@ -344,7 +348,7 @@ import Combine
         finishMeasurement(reason:"endless level changed");checkpoint()
         endlessBoard=value;sortingCourseBoard=nil;valveBoard=nil;journeyMode=false
         game=saved.games[value.saveKey] ?? LabBoardGame(state:value.initial);game.cancel()
-        undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
+        undoParticles=Array(repeating:nil,count:game.actionCount);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid {prepareFluid()}
         if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
@@ -357,7 +361,7 @@ import Combine
         finishMeasurement(reason:"valve course level changed");checkpoint()
         valveBoard=value;sortingCourseBoard=nil;endlessBoard=nil;journeyMode=false
         game=saved.games[value.saveKey] ?? LabBoardGame(state:value.initial);game.cancel()
-        undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
+        undoParticles=Array(repeating:nil,count:game.actionCount);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
         if presentation == .fluid {prepareFluid()}
         if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
@@ -382,6 +386,9 @@ import Combine
             nextPhase=state.targets.isEmpty ? "Sorted beautifully":"Targets complete"
             let solvedNotice=state.targets.isEmpty ? "Every color has a home. Undo to explore, or play again.":"Every requested material is in place. Undo to explore, or play again."
             if notice != solvedNotice { notice=solvedNotice }
+        } else if state.helpersPreventCompletion {
+            nextPhase="Empty the helpers"
+            if notice != "Helper cups must be empty to finish." {notice="Helper cups must be empty to finish."}
         } else if let transformation { nextPhase=transformation.status
         } else if concurrentPoursEnabled,busy {
             let active=pourQueue.active.count,waiting=pourQueue.items.count-active
@@ -588,7 +595,31 @@ import Combine
         if presentation == .fluid { prepareFluid() }
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
-        notice="Move undone. Try a different route.";updatePause();checkpoint();refresh()
+        notice="Last action undone. Try a different route.";updatePause();checkpoint();refresh()
+    }
+    func addHelper() {
+        guard canAddHelper else {return}
+        cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
+        let particles=presentation == .fluid ? renderer?.particleSamples():settledParticles
+        guard game.addHelper() else {return}
+        undoParticles.append(particles);settledParticles=particles
+        selected=nil;hintTarget=nil;hintApparatusID=nil
+        if presentation == .fluid {prepareFluid()}
+        if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
+        notice="Tea cup added. It must be empty to finish the level."
+        checkpoint();refresh()
+    }
+    func upgradeHelper(_ index:Int) {
+        guard canUpgradeHelper(index) else {return}
+        cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
+        let particles=presentation == .fluid ? renderer?.particleSamples():settledParticles
+        guard game.upgradeHelper(index) else {return}
+        undoParticles.append(particles);settledParticles=particles
+        selected=nil;hintTarget=nil;hintApparatusID=nil
+        if presentation == .fluid {prepareFluid()}
+        if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
+        notice="Helper upgraded to \(state.helperName(index) ?? "the next size"). It still must be empty to finish."
+        checkpoint();refresh()
     }
     func hint() {
         guard !busy,!state.solved,!findingHint else { return }
@@ -628,12 +659,12 @@ import Combine
     }
     private func offerHintUndo(message:String) {
         hintPlan=[];selected=nil;hintTarget=nil;hintApparatusID=nil
-        hintUndoOffer=moveCount>0
+        hintUndoOffer=canUndo
         notice=message+(hintUndoOffer ? " Undo until a hint becomes available?":" There are no earlier moves to undo.")
     }
     func dismissHintUndoOffer() {hintUndoOffer=false}
     func undoUntilHintAvailable() {
-        guard !busy,!state.solved,!findingHint,moveCount>0 else {hintUndoOffer=false;return}
+        guard !busy,!state.solved,!findingHint,canUndo else {hintUndoOffer=false;return}
         hintUndoOffer=false;cancelHint()
         let snapshot=game,puzzle=self.puzzle,isAuthored = !isSortingSubcourse
         let revision=hintRevision
@@ -655,7 +686,7 @@ import Combine
             }.value
             guard let self,self.hintRevision==revision else {return}
             self.findingHint=false;self.hintTask=nil
-            guard !Task.isCancelled,!self.busy,self.game.state==snapshot.state,self.game.moveCount==snapshot.moveCount else {return}
+            guard !Task.isCancelled,!self.busy,self.game==snapshot else {return}
             guard let recovery else {
                 self.notice="No hint is available, even at the beginning of this level."
                 return
@@ -1092,7 +1123,9 @@ import Combine
         let target=state.target(index).map { target in
             " Target bottom to top: "+target.layers.map { "\($0.density.title) \(Self.name($0.pigment))" }.joined(separator:", ")+"."
         } ?? ""
-        return "Vial \(Self.letter(index)), \(state.stacks[index].count) of \(state.capacity(index)) units.\(rule) \(roles) \(layers.isEmpty ? "Empty":"Top to bottom: "+layers).\(target)"+(targetExplanation(index).map {" "+$0} ?? "")
+        let vessel=state.helperName(index).map {"\($0) helper \(Self.letter(index))"} ?? "Vial \(Self.letter(index))"
+        let helper=state.isHelper(index) ? " Helper vessels must be empty to finish.":""
+        return "\(vessel), \(state.stacks[index].count) of \(state.capacity(index)) units.\(rule)\(helper) \(roles) \(layers.isEmpty ? "Empty":"Top to bottom: "+layers).\(target)"+(targetExplanation(index).map {" "+$0} ?? "")
     }
 }
 
