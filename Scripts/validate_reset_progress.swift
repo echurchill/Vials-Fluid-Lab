@@ -11,7 +11,7 @@ import MetalKit
   precondition(solved.state.solved)
   let originalKeys=["progress.mode","progress.levelNumber","progress.zenSalt","player.levelResults","player.flowState","vials.levelGenerationVariants","tester.levelFeedback"]
   for mode in LabBoardPresentation.allCases {
-   let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.greenArrival,games:["firstSort":solved,"confluence":LabBoardGame(state:LabBoardPuzzle.confluence.initial)])
+   let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.greenArrival,games:["firstSort":solved,"confluence":LabBoardGame(state:LabBoardPuzzle.confluence.initial),"sortingCourse.1":solved])
    defaults.set(try JSONEncoder().encode(save),forKey:"lab.comparison.v1")
    defaults.set(true,forKey:"lab.sound");defaults.set(false,forKey:"lab.haptics");defaults.set("lowEnergy",forKey:"lab.quality")
    defaults.set("keep me",forKey:"unrelated.preference")
@@ -31,7 +31,7 @@ import MetalKit
    try? await Task.sleep(for:.milliseconds(80))
    precondition(!session.busy && session.activeMoves.isEmpty && !session.paused)
    precondition(session.state == LabBoardPuzzle.firstSort.initial && session.puzzle == .firstSort && session.moveCount==0)
-   precondition(session.completedPuzzleCount==0 && LabBoardPuzzle.allCases.allSatisfy {!session.hasCompleted($0)})
+   precondition(session.completedPuzzleCount==0 && session.completedSortingCourseLevelCount==0 && LabBoardPuzzle.allCases.allSatisfy {!session.hasCompleted($0)})
    precondition(session.presentation == .fluid && session.pace == .relaxed && session.lastPour == nil)
    precondition(session.soundEnabled && !session.hapticsEnabled && session.quality == .lowEnergy)
    session.undo();precondition(session.state == LabBoardPuzzle.firstSort.initial && session.moveCount==0)
@@ -42,7 +42,7 @@ import MetalKit
    let original=GameProgressStore.load(defaults:defaults)
    precondition(original.mode == .easy && original.levelNumber==1)
    let reloaded=FluidBoardSession(defaults:defaults,device:device,library:library,allowsConcurrentPours:true)
-   precondition(reloaded.puzzle == .firstSort && reloaded.completedPuzzleCount==0 && reloaded.moveCount==0)
+   precondition(reloaded.puzzle == .firstSort && !reloaded.isSortingCourse && reloaded.completedPuzzleCount==0 && reloaded.completedSortingCourseLevelCount==0 && reloaded.moveCount==0)
    for puzzle in LabBoardPuzzle.allCases {reloaded.changePuzzle(puzzle);precondition(reloaded.state == puzzle.initial && reloaded.moveCount==0 && !reloaded.hasCompleted(puzzle))}
    reloaded.resetAllProgress();precondition(reloaded.puzzle == .firstSort && reloaded.completedPuzzleCount==0)
    print("\(mode.rawValue): active-pour reset, all levels, undo isolation, relaunch, Original game stores and preserved preferences passed")

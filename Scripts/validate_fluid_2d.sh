@@ -10,7 +10,7 @@ xcodebuild -project 'Vials Fluid Lab.xcodeproj' -scheme 'Vials Fluid Lab' \
   -derivedDataPath "$lab_output/DerivedData" CODE_SIGNING_ALLOWED=NO build \
   > "$lab_output/build.log" 2>&1 || { tail -n 60 "$lab_output/build.log"; exit 1; }
 lab_geometry=(Vials/FluidLab/LabGeometry.swift Vials/FluidLab/LabBoard.swift \
-  Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabFluid2D.swift)
+  Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabSortingCourse.swift Vials/FluidLab/LabFluid2D.swift)
 xcrun swiftc -O -parse-as-library "${lab_geometry[@]}" Scripts/validate_fluid_2d.swift -o "$lab_output/validate-fluid-2d"
 for lab_puzzle in firstSort crossCurrents lastDrops greenArrival tidalPool glassGarden switchback estuary crossingPaths deepCurrent orchard confluence; do
   "$lab_output/validate-fluid-2d" "$lab_puzzle" "$lab_output/$lab_puzzle.json" > "$lab_output/$lab_puzzle.log"

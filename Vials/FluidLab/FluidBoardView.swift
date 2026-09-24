@@ -20,6 +20,10 @@ struct FluidBoardView:View {
     private let ink=Color(red:0.80,green:0.88,blue:0.90)
     private let accent=Color(red:0.28,green:0.85,blue:0.79)
     private let machineAccent=Color(red:0.78,green:0.62,blue:1)
+    private func openSortingCourse(level:Int?=nil) {
+        let number=min(LabSortingCourseBoard.levelCount,max(1,level ?? session.sortingCourseBoard?.number ?? 1))
+        if let board=LabSortingCourseBoard.level(number) {session.changeSortingCourseBoard(board)}
+    }
     private func openEndless(_ difficulty:LabEndlessDifficulty,level:Int?=nil) {
         let remembered=session.endlessBoard?.difficulty==difficulty ? session.endlessBoard?.number:nil
         let number=max(1,level ?? remembered ?? 1)
@@ -74,6 +78,7 @@ struct FluidBoardView:View {
         }.presentationCompactAdaptation(.popover)
     }
     private var boardNotice:String {
+        if session.isSortingCourse,session.solved {return session.sortingCourseBoard?.number == LabSortingCourseBoard.levelCount ? "Sorting course complete. Choose a level, or play again.":"Level complete. Continue when you are ready, or play again."}
         if session.isEndlessSorting,session.solved {return "Generated level complete. Continue when you are ready, or play again."}
         if session.isValveCourse,session.solved {return session.valveBoard?.number == LabValveBoard.levelCount ? "Valve course complete. Choose a level, or play again.":"Circuit complete. Continue to the next valve level when you are ready."}
         if session.journeyMode {
@@ -186,7 +191,10 @@ struct FluidBoardView:View {
                     .buttonStyle(.borderedProminent).tint(session.isEndlessSorting ? accent:Color.gray.opacity(0.35))
                     .foregroundStyle(session.isEndlessSorting ? Color.black:ink)
                     .accessibilityLabel("Endless Sorting")
-                    Menu(session.isValveCourse ? "Valve Lab":(session.journeyMode || session.isEndlessSorting ? "Explore labs":session.discipline.title+" Lab")) {
+                    Menu(session.isValveCourse ? "Valve Lab":(session.isSortingCourse ? "Sorting Course":(session.journeyMode || session.isEndlessSorting ? "Explore labs":session.discipline.title+" Lab"))) {
+                        Button("Sorting Course",systemImage:"list.number") {openSortingCourse()}
+                            .accessibilityIdentifier("lab.sortingCourse")
+                        Divider()
                         ForEach(LabDiscipline.availableLabs,id:\.self) { discipline in
                             Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
                         }
@@ -194,8 +202,8 @@ struct FluidBoardView:View {
                         Button("Valve Lab",systemImage:"arrow.down.circle") {openValves()}
                             .accessibilityIdentifier("lab.valveCourse")
                     }.buttonStyle(.borderedProminent)
-                        .tint(session.isValveCourse ? accent:Color.gray.opacity(0.35))
-                        .foregroundStyle(session.isValveCourse ? Color.black:ink)
+                        .tint(session.isValveCourse || session.isSortingCourse ? accent:Color.gray.opacity(0.35))
+                        .foregroundStyle(session.isValveCourse || session.isSortingCourse ? Color.black:ink)
                         .accessibilityLabel("Choose laboratory")
                     Spacer(minLength:0)
                 }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
@@ -355,7 +363,14 @@ struct FluidBoardView:View {
                         Button("Undo",systemImage:"arrow.uturn.backward") { session.undo() }.disabled(session.busy || session.moveCount == 0)
                         Button(session.findingHint ? "Finding…":"Hint",systemImage:"lightbulb") { session.hint() }.disabled(session.busy || session.solved || session.findingHint)
                         Spacer(minLength:8)
-                        if let endless=session.endlessBoard {
+                        if let course=session.sortingCourseBoard,course.number<LabSortingCourseBoard.levelCount {
+                            Button("Next: \(course.number+1)",systemImage:"arrow.right") {openSortingCourse(level:course.number+1)}
+                                .lineLimit(1).minimumScaleFactor(0.75)
+                                .buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
+                                .opacity(session.solved ? 1:0).disabled(!session.solved)
+                                .allowsHitTesting(session.solved).accessibilityHidden(!session.solved)
+                                .accessibilityIdentifier("sortingCourse.nextLevel")
+                        } else if let endless=session.endlessBoard {
                             Button("Next: \(endless.number+1)",systemImage:"arrow.right") {openEndless(endless.difficulty,level:endless.number+1)}
                                 .lineLimit(1).minimumScaleFactor(0.75)
                                 .buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
@@ -469,7 +484,7 @@ struct FluidBoardView:View {
             }
             Button("Cancel",role:.cancel) {}
         } message: {
-            Text("Start again at Level 1. This clears all saved Lab puzzles, completion marks, undo history, Endless Sorting progress, and Valve Course progress. This can’t be undone.")
+            Text("Start again at Level 1. This clears all saved Lab puzzles, completion marks, undo history, Sorting Course, Endless Sorting, and Valve Lab progress. This can’t be undone.")
         }
         .confirmationDialog("No hint from here",isPresented:Binding(get:{session.hintUndoOffer},set:{if !$0 {session.dismissHintUndoOffer()}}),titleVisibility:.visible) {
             Button("Undo until a hint is available") {session.undoUntilHintAvailable()}
@@ -505,6 +520,15 @@ struct FluidBoardView:View {
             Divider()
             ForEach(1...LabValveBoard.levelCount,id:\.self) {number in
                 Button("\(number). \(LabValveBoard.title(for:number))\(session.hasCompletedValveLevel(number) ? " ✓":"")") {openValves(level:number)}
+            }
+            Divider()
+            Button("Return to Sorting Lab") {session.changeDiscipline(.sorting)}
+        } else if let course=session.sortingCourseBoard {
+            Button("Previous level") {openSortingCourse(level:course.number-1)}.disabled(course.number==1)
+            Button("Next level") {openSortingCourse(level:course.number+1)}.disabled(course.number==LabSortingCourseBoard.levelCount)
+            Divider()
+            ForEach(1...LabSortingCourseBoard.levelCount,id:\.self) {number in
+                Button("\(number). Level \(number)\(number.isMultiple(of:5) ? " · Discovery":"")\(session.hasCompletedSortingCourseLevel(number) ? " ✓":"")") {openSortingCourse(level:number)}
             }
             Divider()
             Button("Return to Sorting Lab") {session.changeDiscipline(.sorting)}

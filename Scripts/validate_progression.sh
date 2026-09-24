@@ -11,7 +11,7 @@ xcodebuild -project 'Vials Fluid Lab.xcodeproj' -scheme 'Vials Fluid Lab' \
   > "$lab_output/build.log" 2>&1 || { tail -n 60 "$lab_output/build.log"; exit 1; }
 lab_sources=(Vials/FluidLab/LabGeometry.swift Vials/FluidLab/LabRenderer.swift
   Vials/FluidLab/LabBoard.swift Vials/FluidLab/LabBoardGeometry.swift
-  Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabBoardRenderer.swift)
+  Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabSortingCourse.swift Vials/FluidLab/LabBoardRenderer.swift)
 xcrun swiftc -O -parse-as-library "${lab_sources[@]}" Scripts/validate_fluid_board.swift -o "$lab_output/validate-board"
 lab_library="$lab_output/DerivedData/Build/Products/Debug/VialsFluidLab.app/Contents/Resources/default.metallib"
 for lab_fixture in greenArrival tidalPool glassGarden switchback estuary crossingPaths deepCurrent orchard confluence; do

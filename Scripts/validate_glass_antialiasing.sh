@@ -15,6 +15,6 @@ pathlib.Path(sys.argv[1]).write_text(source)
 PY
 xcrun swiftc -O -parse-as-library Vials/FluidLab/LabGeometry.swift Vials/FluidLab/LabRenderer.swift \
  Vials/FluidLab/LabBoard.swift Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardRenderer.swift \
- Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabFluid2D.swift \
+ Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabSortingCourse.swift Vials/FluidLab/LabFluid2D.swift \
  "$lab_output/BaselineBoardRenderer.swift" Scripts/validate_glass_antialiasing.swift -o "$lab_output/validate"
 "$lab_output/validate" "$lab_library" "$lab_output"

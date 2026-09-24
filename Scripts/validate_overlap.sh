@@ -8,7 +8,7 @@ lab_output="$(cd "$lab_output" && pwd)"
 cd "$lab_root"
 xcrun swiftc -O -parse-as-library Vials/FluidLab/LabGeometry.swift Vials/FluidLab/LabRenderer.swift \
  Vials/FluidLab/LabBoard.swift Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardRenderer.swift \
- Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabBoardFeedback.swift Vials/FluidLab/LabBoardSession.swift \
+ Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabSortingCourse.swift Vials/FluidLab/LabBoardFeedback.swift Vials/FluidLab/LabBoardSession.swift \
  Vials/FluidLab/LabFluid2D.swift Vials/FluidLab/LabPerformance.swift Vials/FluidLab/LabClassicBoardView.swift \
  Vials/FluidLab/LabFluid2DView.swift Vials/FluidLab/LabPlanarSurface.swift Scripts/validate_overlap.swift -o "$lab_output/validate-overlap"
 cp "$lab_library" "$lab_output/default.metallib"

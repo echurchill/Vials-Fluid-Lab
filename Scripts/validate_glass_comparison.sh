@@ -10,7 +10,7 @@ xcodebuild -project 'Vials Fluid Lab.xcodeproj' -scheme 'Vials Fluid Lab' -confi
  -destination 'generic/platform=macOS' -derivedDataPath "$lab_build" CODE_SIGNING_ALLOWED=NO build \
  > "$lab_output/build.log" 2>&1 || { tail -60 "$lab_output/build.log"; exit 1; }
 lab_sources=(Vials/FluidLab/LabGeometry.swift Vials/FluidLab/LabRenderer.swift Vials/FluidLab/LabBoard.swift \
- Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardRenderer.swift Vials/FluidLab/LabBoardPreferences.swift \
+ Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardRenderer.swift Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabSortingCourse.swift \
  Vials/FluidLab/LabBoardFeedback.swift Vials/FluidLab/LabBoardSession.swift Vials/FluidLab/LabFluid2D.swift \
  Vials/FluidLab/LabPerformance.swift Vials/FluidLab/LabClassicBoardView.swift Vials/FluidLab/LabFluid2DView.swift)
 lab_library="$lab_build/Build/Products/Release/VialsFluidLab.app/Contents/Resources/default.metallib"

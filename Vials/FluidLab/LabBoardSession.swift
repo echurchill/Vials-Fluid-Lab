@@ -17,21 +17,36 @@ import Combine
     @Published private(set) var presentation:LabBoardPresentation
     @Published private(set) var pace:LabBoardPace
     @Published private(set) var puzzle:LabBoardPuzzle
+    @Published private(set) var sortingCourseBoard:LabSortingCourseBoard?
     @Published private(set) var endlessBoard:LabEndlessBoard?
     @Published private(set) var valveBoard:LabValveBoard?
     @Published private(set) var journeyMode:Bool
+    var isSortingCourse:Bool {sortingCourseBoard != nil}
     var isEndlessSorting:Bool {endlessBoard != nil}
     var isValveCourse:Bool {valveBoard != nil}
-    private var isSortingSubcourse:Bool {isEndlessSorting || isValveCourse}
+    private var isSortingSubcourse:Bool {isSortingCourse || isEndlessSorting || isValveCourse}
     var discipline:LabDiscipline {isSortingSubcourse ? .sorting:puzzle.discipline}
-    var boardID:String {valveBoard?.saveKey ?? endlessBoard?.saveKey ?? puzzle.rawValue}
-    var boardTitle:String {valveBoard?.title ?? endlessBoard?.title ?? puzzle.title}
-    var boardDetail:String {valveBoard?.detail ?? endlessBoard?.detail ?? puzzle.detail}
-    var boardHeader:String {isValveCourse ? "VALVE LAB":(isEndlessSorting ? (endlessBoard?.isDiscoveryLevel == true ? "ENDLESS DISCOVERY":"ENDLESS SORTING"):(journeyMode ? "JOURNEY · \(discipline.title.uppercased())":discipline.header))}
-    var boardProgressSummary:String {isValveCourse ? "\(completedValveLevelCount) / \(LabValveBoard.levelCount) complete":(isEndlessSorting ? "Generated curriculum":"\(completedPuzzleCount) complete")}
-    private var initialState:LabBoardState {valveBoard?.initial ?? endlessBoard?.initial ?? puzzle.initial}
-    private var gameKey:String {valveBoard?.saveKey ?? endlessBoard?.saveKey ?? puzzle.rawValue}
-    private var boardInstruction:String {isValveCourse ? "Fill each cyan valve with one color. A valve can receive liquid but cannot pour it back out.":(endlessBoard?.isDiscoveryLevel == true ? "Pour known colors to reveal what is below. Discoveries stay known.":(isEndlessSorting ? "Tap a filled vial, then a matching color or an empty vial.":puzzle.instruction))}
+    var boardID:String {valveBoard?.saveKey ?? sortingCourseBoard?.saveKey ?? endlessBoard?.saveKey ?? puzzle.rawValue}
+    var boardTitle:String {valveBoard?.title ?? sortingCourseBoard?.title ?? endlessBoard?.title ?? puzzle.title}
+    var boardDetail:String {valveBoard?.detail ?? sortingCourseBoard?.detail ?? endlessBoard?.detail ?? puzzle.detail}
+    var boardHeader:String {
+        if isValveCourse {return "VALVE LAB"}
+        if let sortingCourseBoard {return sortingCourseBoard.isDiscoveryLevel ? "SORTING DISCOVERY":"SORTING COURSE"}
+        if let endlessBoard {return endlessBoard.isDiscoveryLevel ? "ENDLESS DISCOVERY":"ENDLESS SORTING"}
+        return journeyMode ? "JOURNEY · \(discipline.title.uppercased())":discipline.header
+    }
+    var boardProgressSummary:String {
+        if isValveCourse {return "\(completedValveLevelCount) / \(LabValveBoard.levelCount) complete"}
+        if isSortingCourse {return "\(completedSortingCourseLevelCount) / \(LabSortingCourseBoard.levelCount) complete"}
+        return isEndlessSorting ? "Generated curriculum":"\(completedPuzzleCount) complete"
+    }
+    private var initialState:LabBoardState {valveBoard?.initial ?? sortingCourseBoard?.initial ?? endlessBoard?.initial ?? puzzle.initial}
+    private var gameKey:String {valveBoard?.saveKey ?? sortingCourseBoard?.saveKey ?? endlessBoard?.saveKey ?? puzzle.rawValue}
+    private var boardInstruction:String {
+        if isValveCourse {return "Fill each cyan valve with one color. A valve can receive liquid but cannot pour it back out."}
+        if sortingCourseBoard?.isDiscoveryLevel == true || endlessBoard?.isDiscoveryLevel == true {return "Pour known colors to reveal what is below. Discoveries stay known."}
+        return isSortingSubcourse ? "Tap a filled vial, then a matching color or an empty vial.":puzzle.instruction
+    }
     @Published private(set) var renderer:LabBoardRenderer?
     @Published private(set) var classicPour:LabClassicPour?
     @Published private(set) var transformation:LabApparatusTransition?
@@ -99,10 +114,16 @@ import Combine
     @Published var quality:LabRenderQuality = .automatic { didSet { renderer?.quality=quality;defaults?.set(quality.rawValue,forKey:"lab.quality");finishMeasurement(reason:"quality changed") } }
     private let feedback=LabBoardFeedback()
     var completedPuzzleCount:Int { discipline.levels.filter(hasCompleted).count }
+    var completedSortingCourseLevelCount:Int {(1...LabSortingCourseBoard.levelCount).filter(hasCompletedSortingCourseLevel).count}
     var completedValveLevelCount:Int {(1...LabValveBoard.levelCount).filter(hasCompletedValveLevel).count}
+    func hasCompletedSortingCourseLevel(_ number:Int)->Bool {saved.games["sortingCourse.\(number)"]?.state.solved ?? false}
     func hasCompletedValveLevel(_ number:Int)->Bool {saved.games["valves.\(number)"]?.state.solved ?? false}
     func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool { !isSortingSubcourse && puzzle == self.puzzle ? state.solved:(saved.games[puzzle.rawValue]?.state.solved ?? false) }
-    var learningTopics:[LabLearningTopic] {isValveCourse ? [.valves]:(endlessBoard?.isDiscoveryLevel == true ? [.discovery]:(isEndlessSorting ? []:LabLearningTopic.topics(for:puzzle)))}
+    var learningTopics:[LabLearningTopic] {
+        if isValveCourse {return [.valves]}
+        if sortingCourseBoard?.isDiscoveryLevel == true || endlessBoard?.isDiscoveryLevel == true {return [.discovery]}
+        return isSortingSubcourse ? []:LabLearningTopic.topics(for:puzzle)
+    }
     var unseenLearningTopics:[LabLearningTopic] {learningTopics.filter {!saved.seenLearningTopics.contains($0.rawValue)}}
     func markLearningTopicSeen(_ topic:LabLearningTopic) {
         guard learningTopics.contains(topic),saved.seenLearningTopics.insert(topic.rawValue).inserted else {return}
@@ -137,7 +158,7 @@ import Combine
     /// Endless has a shorter play cadence than the instructional labs, while
     /// keeping the same simulation, choreography and completion rules.
     private var boardPlaybackSpeed:Float {
-        isEndlessSorting && pace == .quick ? 2.4:pace.speed
+        (isEndlessSorting || isSortingCourse) && pace == .quick ? 2.4:pace.speed
     }
     var effectiveSpeed:Float { (comparisonSpeed ?? boardPlaybackSpeed)*(slow ? 0.35:1) }
     var validDestinations:Set<Int> {
@@ -204,7 +225,7 @@ import Combine
         var save=self.defaults?.data(forKey:"lab.comparison.v1").flatMap { try? JSONDecoder().decode(LabComparisonSave.self,from:$0) } ?? LabComparisonSave(journeyMode:true)
         if let restoredSave { save=restoredSave }
         if let trial { save=LabComparisonSave(presentation:trial.presentation,pace:trial.pace,puzzle:trial.puzzle,games:[:]) }
-        if restoredSave == nil,trial == nil,save.endlessBoard == nil,save.valveBoard == nil,save.puzzle.discipline == .discovery {
+        if restoredSave == nil,trial == nil,save.sortingCourseBoard == nil,save.endlessBoard == nil,save.valveBoard == nil,save.puzzle.discipline == .discovery {
             let remembered=save.lastPuzzles[LabDiscipline.sorting.rawValue].flatMap(LabBoardPuzzle.init(rawValue:))
             if let remembered,remembered.discipline == .sorting {save.puzzle=remembered}
             else {save.puzzle = .firstSort}
@@ -218,10 +239,12 @@ import Combine
         hapticsEnabled=self.defaults?.object(forKey:"lab.haptics") as? Bool ?? (self.defaults != nil)
         quality=trial?.quality ?? LabRenderQuality(rawValue:self.defaults?.string(forKey:"lab.quality") ?? "automatic") ?? .automatic
         saved=save;presentation=save.presentation;pace=save.pace;puzzle=save.puzzle
-        valveBoard=save.valveBoard;endlessBoard=save.valveBoard == nil ? save.endlessBoard:nil
-        journeyMode=save.endlessBoard == nil && save.valveBoard == nil && save.journeyMode && LabJourney.stop(save.puzzle) != nil
-        let restoredKey=save.valveBoard?.saveKey ?? save.endlessBoard?.saveKey ?? save.puzzle.rawValue
-        let restoredInitial=save.valveBoard?.initial ?? save.endlessBoard?.initial ?? save.puzzle.initial
+        valveBoard=save.valveBoard
+        sortingCourseBoard=save.valveBoard == nil ? save.sortingCourseBoard:nil
+        endlessBoard=save.valveBoard == nil && save.sortingCourseBoard == nil ? save.endlessBoard:nil
+        journeyMode=save.sortingCourseBoard == nil && save.endlessBoard == nil && save.valveBoard == nil && save.journeyMode && LabJourney.stop(save.puzzle) != nil
+        let restoredKey=save.valveBoard?.saveKey ?? save.sortingCourseBoard?.saveKey ?? save.endlessBoard?.saveKey ?? save.puzzle.rawValue
+        let restoredInitial=save.valveBoard?.initial ?? save.sortingCourseBoard?.initial ?? save.endlessBoard?.initial ?? save.puzzle.initial
         var restored=save.games[restoredKey] ?? LabBoardGame(state:restoredInitial)
         restored.cancel() // A launch restores the last committed move.
         game=restored;undoParticles=Array(repeating:nil,count:restored.moveCount)
@@ -263,7 +286,7 @@ import Combine
     private func checkpoint() {
         performance.traceBegin("Checkpoint");defer { performance.traceEnd("Checkpoint") }
         var stable=game;stable.cancel()
-        saved.games[gameKey]=stable;saved.presentation=presentation;saved.pace=pace;saved.puzzle=puzzle;saved.endlessBoard=endlessBoard;saved.valveBoard=valveBoard
+        saved.games[gameKey]=stable;saved.presentation=presentation;saved.pace=pace;saved.puzzle=puzzle;saved.sortingCourseBoard=sortingCourseBoard;saved.endlessBoard=endlessBoard;saved.valveBoard=valveBoard
         if !isSortingSubcourse {saved.lastPuzzles[puzzle.discipline.rawValue]=puzzle.rawValue}
         saved.journeyMode=journeyMode
         if let data=try? JSONEncoder().encode(saved) { defaults?.set(data,forKey:"lab.comparison.v1") }
@@ -293,7 +316,7 @@ import Combine
         guard value != puzzle || isSortingSubcourse || journeyMode != enteringJourney else {checkpoint();return}
         cancelHint()
         lastPour=nil;pendingExample=nil;clearSelectionFeedback()
-        finishMeasurement(reason:"puzzle changed");checkpoint();endlessBoard=nil;valveBoard=nil;journeyMode=enteringJourney
+        finishMeasurement(reason:"puzzle changed");checkpoint();sortingCourseBoard=nil;endlessBoard=nil;valveBoard=nil;journeyMode=enteringJourney
         puzzle=value;game=saved.games[value.rawValue] ?? LabBoardGame(state:value.initial);game.cancel()
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
@@ -301,12 +324,25 @@ import Combine
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         notice=value.instruction;checkpoint();refresh()
     }
+    func changeSortingCourseBoard(_ value:LabSortingCourseBoard) {
+        guard !busy else {return}
+        if sortingCourseBoard?.saveKey == value.saveKey {checkpoint();return}
+        cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
+        finishMeasurement(reason:"sorting course level changed");checkpoint()
+        sortingCourseBoard=value;endlessBoard=nil;valveBoard=nil;journeyMode=false
+        game=saved.games[value.saveKey] ?? LabBoardGame(state:value.initial);game.cancel()
+        undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
+        selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
+        if presentation == .fluid {prepareFluid()}
+        if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
+        notice=boardInstruction;checkpoint();refresh()
+    }
     func changeEndlessBoard(_ value:LabEndlessBoard) {
         guard !busy else {return}
         if endlessBoard?.saveKey == value.saveKey {checkpoint();return}
         cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         finishMeasurement(reason:"endless level changed");checkpoint()
-        endlessBoard=value;valveBoard=nil;journeyMode=false
+        endlessBoard=value;sortingCourseBoard=nil;valveBoard=nil;journeyMode=false
         game=saved.games[value.saveKey] ?? LabBoardGame(state:value.initial);game.cancel()
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
@@ -319,7 +355,7 @@ import Combine
         if valveBoard?.saveKey == value.saveKey {checkpoint();return}
         cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         finishMeasurement(reason:"valve course level changed");checkpoint()
-        valveBoard=value;endlessBoard=nil;journeyMode=false
+        valveBoard=value;sortingCourseBoard=nil;endlessBoard=nil;journeyMode=false
         game=saved.games[value.saveKey] ?? LabBoardGame(state:value.initial);game.cancel()
         undoParticles=Array(repeating:nil,count:game.moveCount);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
@@ -535,7 +571,7 @@ import Combine
     func resetAllProgress() {
         finishMeasurement(reason:"all progress reset")
         saved=LabComparisonSave(journeyMode:true);journeyMode=true
-        puzzle=saved.puzzle;endlessBoard=nil;valveBoard=nil;presentation=saved.presentation;pace=saved.pace
+        puzzle=saved.puzzle;sortingCourseBoard=nil;endlessBoard=nil;valveBoard=nil;presentation=saved.presentation;pace=saved.pace
         comparisonSpeed=nil;slow=false;points=false;diagnostics=false;orbit=0.12
         error=nil;reportURL=nil
         reset(keepingDiscoveries:false)

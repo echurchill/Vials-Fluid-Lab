@@ -13,13 +13,13 @@ xcodebuild -project 'Vials Fluid Lab.xcodeproj' -scheme 'Vials Fluid Lab' \
 
 xcrun swiftc -module-cache-path "$lab_output/ModuleCache" -O -parse-as-library \
   Vials/FluidLab/LabGeometry.swift Vials/FluidLab/LabBoard.swift \
-  Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardPreferences.swift \
+  Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabSortingCourse.swift \
   Scripts/validate_complexity.swift -o "$lab_output/validate-complexity"
 "$lab_output/validate-complexity" | tee "$lab_output/model.log"
 
 lab_sources=(Vials/FluidLab/LabGeometry.swift Vials/FluidLab/LabRenderer.swift
   Vials/FluidLab/LabBoard.swift Vials/FluidLab/LabBoardGeometry.swift
-  Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabFluid2D.swift Vials/FluidLab/LabBoardRenderer.swift)
+  Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabSortingCourse.swift Vials/FluidLab/LabFluid2D.swift Vials/FluidLab/LabBoardRenderer.swift)
 xcrun swiftc -module-cache-path "$lab_output/ModuleCache" -O -parse-as-library \
   "${lab_sources[@]}" Scripts/validate_fluid_board.swift -o "$lab_output/validate-board"
 lab_library="$lab_output/DerivedData/Build/Products/Release/VialsFluidLab.app/Contents/Resources/default.metallib"
@@ -30,7 +30,7 @@ for lab_fixture in fiveStreams tallOrder sixfold valveCircuit; do
 done
 
 lab_planar=(Vials/FluidLab/LabGeometry.swift Vials/FluidLab/LabBoard.swift
-  Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabFluid2D.swift)
+  Vials/FluidLab/LabBoardGeometry.swift Vials/FluidLab/LabBoardPreferences.swift Vials/FluidLab/LabSortingCourse.swift Vials/FluidLab/LabFluid2D.swift)
 xcrun swiftc -module-cache-path "$lab_output/ModuleCache" -O -parse-as-library \
   "${lab_planar[@]}" Scripts/validate_fluid_2d.swift -o "$lab_output/validate-2d"
 for lab_fixture in fiveStreams tallOrder sixfold valveCircuit; do
