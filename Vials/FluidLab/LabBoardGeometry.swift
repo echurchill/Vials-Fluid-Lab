@@ -126,7 +126,13 @@ struct LabBoardLayout {
             let standardSeparation:Float=0.22+0.27*extraCapacity
             let separation:Float=approach==0 ? standardSeparation:1.2
             let highLip=receiver-direction*separation+SIMD3<Float>(0,highHome.y+h-receiver.y,0)
-            let pouringLip=receiver-direction*(approach==0 ? standardSeparation:max(0.65,standardSeparation))+SIMD3<Float>(0,profiles[move.destination].height+0.59,0)
+            // Capacity may move a large vial farther away while it is raised,
+            // but its mouth still has to enter the receiver's guide apron for
+            // the actual pour.  Letting this offset continue to grow put the
+            // eight-unit vial's mouth outside that apron, so its stream could
+            // miss every receiver and force the move to roll back.
+            let pouringSeparation:Float=approach==0 ? min(standardSeparation,0.65):0.65
+            let pouringLip=receiver-direction*pouringSeparation+SIMD3<Float>(0,profiles[move.destination].height+0.59,0)
             var position=simd_mix(home,highHome,SIMD3(repeating:labLiftProgress(time/LabBoardTiming.lift)))
             if time>=LabBoardTiming.lift { position=simd_mix(highHome,highLip-SIMD3(0,h,0),SIMD3(repeating:labSmooth((time-LabBoardTiming.lift)/LabBoardTiming.travel))) }
             // Bring the nozzle into guide range before the first liquid exits.

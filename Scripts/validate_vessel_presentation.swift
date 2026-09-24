@@ -40,7 +40,7 @@ import AppKit
   let reusable=try LabBoardRenderer(device:device,library:library)
   let reference=LabVesselProfile(name:"Reference",height:2.35,knots:LabVesselShape.testTube.knots).usableVolume
   for shape in LabVesselShape.allCases {
-   for capacity in 1...6 {
+   for capacity in 1...8 {
     let profile=LabBoardLayout.profiles(capacities:[capacity],shapes:[shape])[0]
     precondition(abs(profile.height-2.35*sqrt(Float(capacity)/4))<0.00001 && profile.depthScale==1)
     precondition(abs(profile.usableVolume-reference*Float(capacity)/4)<0.0001,"Capacity scaling changed")
@@ -67,7 +67,7 @@ import AppKit
    let expected=LabBoardLayout.profiles(state:state)
    precondition(reusable.profiles.map(\.radii)==expected.map(\.radii),"Stale same-capacity role meshes")
   }
-  print("PASS role mapping: 39 boards, shared-role precedence, fixed shapes through routes, seven silhouettes/capacities, renderer parity and same-capacity cache changes");fflush(stdout)
+  print("PASS role mapping: 39 boards, shared-role precedence, fixed shapes through routes, seven silhouettes across capacities 1–8, renderer parity and same-capacity cache changes");fflush(stdout)
   let crossRowState=LabBoardState(layers:[[],[1,2],[2,3],[3,4],[4,5],[5,0],[0,1],[]],capacities:Array(repeating:2,count:8))
   let crossRowProfiles=LabBoardLayout.profiles(state:crossRowState)
   let crossRowHomes=LabBoardLayout.homes(count:8,twoRows:true)
@@ -129,6 +129,43 @@ import AppKit
       "3D liquid remained outside its reflowed vessel after \(label)")
    }
   }
+  func requireFilled3DEnvelopes(_ session:FluidBoardSession,_ label:String) {
+   let renderer=session.renderer!,samples=renderer.particleSamples(),vessels=renderer.currentVessels
+   for owner in session.state.stacks.indices where !session.state.stacks[owner].isEmpty {
+    let owned=samples.filter {Int($0.position.w)==owner}
+    precondition(owned.count==session.state.stacks[owner].count*LabBoardRenderer.particlesPerUnit,"Wrong particle count in vial \(owner) after \(label)")
+    let maximum=owned.map {(vessels[owner].inverseWorld*SIMD4($0.position.xyz,1)).y}.max()!
+    let expected=renderer.profiles[owner].height(for:renderer.profiles[owner].usableVolume*Float(session.state.stacks[owner].count)/Float(session.state.capacity(owner)))
+    precondition(maximum>expected*0.80,"Collapsed 3D fill in vial \(owner) after \(label): \(maximum) vs \(expected)")
+   }
+  }
+  let course45Session=FluidBoardSession(defaults:nil,device:device,library:library,
+    restoredSave:LabComparisonSave(presentation:.fluid,pace:.quick,puzzle:.firstSort,sortingCourseBoard:course45,
+      games:[course45.saveKey:LabBoardGame(state:course45.initial)]),allowsConcurrentPours:true)
+  for (source,destination) in [(5,8),(4,8),(5,9),(4,9),(2,9),(1,9),(3,2)] {
+   let move=course45Session.state.move(from:source,to:destination)!
+   let expected=course45Session.state.applying(move)!
+   precondition(course45Session.begin(move,automaticClock:false))
+   for _ in 0..<1800 where course45Session.busy {await course45Session.advanceConcurrent(deltaTime:1/60)}
+   precondition(!course45Session.busy,"Course 45 reproduction did not finish \(source)→\(destination)")
+   precondition(course45Session.state==expected,"Course 45 reproduction rejected \(source)→\(destination): \(course45Session.notice)")
+   requireVisible3DLiquid(course45Session,"Course 45 \(source)→\(destination)")
+   requireFilled3DEnvelopes(course45Session,"Course 45 \(source)→\(destination)")
+  }
+  precondition(course45Session.state.stacks.map(\.count)==[4,5,6,7,3,4,6,6,2,4],"Course 45 reproduction diverged from the reported state")
+  print("PASS Course 45 seven-move 3D reproduction: all vial fills intact and D→C committed");fflush(stdout)
+  let course45FarSession=FluidBoardSession(defaults:nil,device:device,library:library,
+    restoredSave:LabComparisonSave(presentation:.fluid,pace:.quick,puzzle:.firstSort,sortingCourseBoard:course45,
+      games:[course45.saveKey:LabBoardGame(state:course45.initial)]),allowsConcurrentPours:true)
+  let farMove=course45FarSession.state.move(from:3,to:9)!
+  let farExpected=course45FarSession.state.applying(farMove)!
+  precondition(course45FarSession.begin(farMove,automaticClock:false),"Course 45 D→J is no longer legal")
+  for _ in 0..<1800 where course45FarSession.busy {await course45FarSession.advanceConcurrent(deltaTime:1/60)}
+  precondition(!course45FarSession.busy,"Course 45 D→J did not finish")
+  precondition(course45FarSession.state==farExpected,"Course 45 D→J rolled back: \(course45FarSession.notice)")
+  requireVisible3DLiquid(course45FarSession,"Course 45 D→J")
+  requireFilled3DEnvelopes(course45FarSession,"Course 45 D→J")
+  print("PASS Course 45 eight-unit source pours: D→C and D→J committed without spills");fflush(stdout)
   for mode in LabBoardPresentation.allCases {
    let session=FluidBoardSession(defaults:nil,device:device,library:library,
      restoredSave:LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort))
