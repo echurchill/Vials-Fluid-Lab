@@ -30,3 +30,7 @@
 ## Deliberate scope
 
 Helpers are not offered in Valve Lab or the experimental target/apparatus labs yet. That keeps this first release on the pure sorting rules where the mechanic is understood. Expanding them should be an explicit design decision after tester feedback rather than an automatic consequence of shared model support.
+
+## September 24 3D topology correction
+
+The first Mac build exposed a 3D-only regression: adding a helper correctly rebuilt the vessel layout but then restored the previous board's world-space particle snapshot. The liquid remained owned and saved, yet it was visually left at the old four-vial coordinates until a pour reactivated the simulation. Helper add/upgrade now retain the old particle snapshot only for Undo and canonically seed the new topology from the exact board state. A focused regression verifies particle inventory, ownership and physical containment immediately after add, upgrade and both topology-changing Undo paths; fresh Classic/2D/3D captures confirm the liquid is visible before any pour.

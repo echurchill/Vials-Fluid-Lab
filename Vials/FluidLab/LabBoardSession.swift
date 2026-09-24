@@ -602,7 +602,10 @@ import Combine
         cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         let particles=presentation == .fluid ? renderer?.particleSamples():settledParticles
         guard game.addHelper() else {return}
-        undoParticles.append(particles);settledParticles=particles
+        // Adding a vessel reflows every home position. Keep the old sample for
+        // Undo, but seed the new topology instead of restoring world-space
+        // particles at their now-stale coordinates.
+        undoParticles.append(particles);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil
         if presentation == .fluid {prepareFluid()}
         if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
@@ -614,7 +617,9 @@ import Combine
         cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         let particles=presentation == .fluid ? renderer?.particleSamples():settledParticles
         guard game.upgradeHelper(index) else {return}
-        undoParticles.append(particles);settledParticles=particles
+        // Capacity changes replace the helper profile. Preserve the old sample
+        // only for Undo and rebuild liquid inside the new physical volume.
+        undoParticles.append(particles);settledParticles=nil
         selected=nil;hintTarget=nil;hintApparatusID=nil
         if presentation == .fluid {prepareFluid()}
         if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}

@@ -73,13 +73,38 @@ import AppKit
    }
    try NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(name+".png"))
   }
+  func requireVisible3DLiquid(_ session:FluidBoardSession,_ label:String) {
+   guard let renderer=session.renderer else {preconditionFailure("Missing 3D renderer for \(label)")}
+   let samples=renderer.particleSamples(),vessels=renderer.currentVessels,profiles=renderer.profiles
+   precondition(samples.count==session.state.colors.count*LabBoardRenderer.particlesPerUnit,"Particle inventory changed after \(label)")
+   var owners=[Int](repeating:-1,count:session.state.colors.count)
+   for (owner,stack) in session.state.stacks.enumerated() {for parcel in stack {owners[parcel]=owner}}
+   for particle in samples {
+    let parcel=Int(particle.visual.y),owner=owners[parcel]
+    precondition(owner>=0 && Int(particle.position.w)==owner,"Particle ownership changed after \(label)")
+    let local=(vessels[owner].inverseWorld*SIMD4(particle.position.xyz,1)).xyz
+    let y=min(profiles[owner].height,max(0,local.y)),radius=profiles[owner].radius(at:y)+0.10
+    precondition(local.y >= -0.10 && local.y <= profiles[owner].height+0.10 && simd_length(SIMD2(local.x,local.z))<=radius,
+      "3D liquid remained outside its reflowed vessel after \(label)")
+   }
+  }
   for mode in LabBoardPresentation.allCases {
    let session=FluidBoardSession(defaults:nil,device:device,library:library,
      restoredSave:LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort))
-   session.addHelper();try capture(session,mode,"helper-\(mode.rawValue)-tea",1000,650)
+   session.addHelper()
+   if mode == .fluid {requireVisible3DLiquid(session,"adding the first helper")}
+   try capture(session,mode,"helper-\(mode.rawValue)-tea",1000,650)
    let index=session.state.helpers[0]
-   session.upgradeHelper(index);try capture(session,mode,"helper-\(mode.rawValue)-mug",1000,650)
-   session.upgradeHelper(index);session.addHelper();try capture(session,mode,"helper-\(mode.rawValue)-jug-tea",1000,650)
+   session.upgradeHelper(index)
+   if mode == .fluid {requireVisible3DLiquid(session,"upgrading to a mug")}
+   try capture(session,mode,"helper-\(mode.rawValue)-mug",1000,650)
+   session.upgradeHelper(index);session.addHelper()
+   if mode == .fluid {requireVisible3DLiquid(session,"adding the second helper")}
+   try capture(session,mode,"helper-\(mode.rawValue)-jug-tea",1000,650)
+   if mode == .fluid {
+    session.undo();requireVisible3DLiquid(session,"undoing the second helper")
+    session.undo();requireVisible3DLiquid(session,"undoing the jug upgrade")
+   }
   }
   for mode in LabBoardPresentation.allCases {
    for puzzle in [LabBoardPuzzle.measuredBatch,.heavyLanding,.fiveStreams,.secondChance,.twinProducts] {
