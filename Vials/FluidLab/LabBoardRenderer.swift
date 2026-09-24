@@ -829,6 +829,17 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         return result
     }
+    private func valveLidOpenness(_ index:Int)->Float {
+        func fraction(time:Float,cutoff:Float?)->Float {
+            let opening=labSmooth((time-LabBoardTiming.lift*0.55)/0.28)
+            guard let cutoff else {return opening}
+            return opening*(1-labSmooth((time-cutoff)/LabBoardTiming.upright))
+        }
+        let grouped=groupTransfers.filter {$0.item.move.destination==index}.map {fraction(time:$0.time,cutoff:$0.cutoff)}.max() ?? 0
+        if grouped>0 {return grouped}
+        if game.pending?.destination==index {return fraction(time:pourTime ?? 0,cutoff:cutoffTime)}
+        return 0
+    }
     private func groupDensityBands()->[Int:SIMD2<Float>] {
         guard game.state.behavior.settlesByDensity,let receiver=groupMoves.first?.destination else {return [:]}
         let values=particleSamples(),profile=profiles[receiver],vessel=groupVessels()[receiver]
@@ -1116,12 +1127,17 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         // another sampled layer; a normal resting board is usually one batch.
         let movingCaps=Set(groupMoves.flatMap { [$0.source,$0.destination] }+(game.pending.map { [$0.source,$0.destination] } ?? []))
         let excludedCaps=capExclusions.union(movingCaps).union(transformation?.vessels ?? [])
-        func capColor(_ index:Int)->SIMD4<Float>? {
-            guard !excludedCaps.contains(index),game.state.isComplete(index),let parcel=game.state.stacks[index].first else { return nil }
-            let palette:[SIMD4<Float>]=[
+        let palette:[SIMD4<Float>]=[
                 SIMD4(0.05,0.58,0.86,1),SIMD4(0.96,0.34,0.07,1),SIMD4(0.20,0.76,0.36,1),SIMD4(0.94,0.34,0.65,1),
                 SIMD4(1.00,0.72,0.08,1),SIMD4(0.98,0.71,0.61,1),SIMD4(0.55,0.30,0.95,1),SIMD4(0.12,0.78,0.62,1),
                 SIMD4(0.72,0.04,0.24,1),SIMD4(0.08,0.24,0.88,1),SIMD4(0.54,0.78,0.06,1),SIMD4(0.82,0.78,0.68,1)]
+        func capColor(_ index:Int)->SIMD4<Float>? {
+            if let key=game.state.valvePigment(index) {
+                var color=palette[(key%palette.count+palette.count)%palette.count]
+                color.w=Float((key%4+4)%4+2) // 2...5 select the keyed-lid motif in Metal.
+                return color
+            }
+            guard !excludedCaps.contains(index),game.state.isComplete(index),let parcel=game.state.stacks[index].first else { return nil }
             let visual=game.state.visualDye(parcel)
             let pigment=(visual % palette.count+palette.count)%palette.count
             return palette[pigment]
@@ -1129,7 +1145,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         func bounds(_ i:Int)->CGRect {
             let capRadius=capColor(i)==nil ? Float(0):(profiles[i].radii.last!+0.065)
             let handleRadius=game.state.isHelper(i) ? (profiles[i].radii.max() ?? 0.6)+0.45:Float(0)
-            let radius=max(max(profiles[i].radii.max() ?? 0.6,capRadius),handleRadius),height=profiles[i].height+(capRadius>0 ? 0.18:0)
+            let valve=game.state.valvePigment(i) != nil
+            let radius=max(max(profiles[i].radii.max() ?? 0.6,capRadius*(valve ? 1.8:1)),handleRadius)
+            let height=profiles[i].height+(capRadius>0 ? 0.18:0)+(valve ? capRadius*1.6:0)
             var x:[CGFloat]=[],y:[CGFloat]=[]
             for a:Float in [-radius,radius] {for b:Float in [0,height] {for c:Float in [-radius,radius] {
                 let clip=vp*vessels[i].world*SIMD4(a,b,c,1)
@@ -1182,6 +1200,13 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             for i in batch {
                 guard var color=capColor(i) else { continue }
                 var vessel=vessels[i]
+                if game.state.valvePigment(i) != nil {
+                    let open=valveLidOpenness(i),hinge=profiles[i].radii.last!+0.02,y=profiles[i].height+0.015
+                    let local=labTranslation(SIMD3(hinge,y,0))*labRotation(-open*1.42)*labTranslation(SIMD3(-hinge,-y,0))
+                    vessel.world=vessel.world*local
+                    vessel.inverseWorld=vessel.world.inverse
+                    vessel.previousWorld=vessel.world
+                }
                 glass.setVertexBuffer(capMeshes[i].0,offset:0,index:0)
                 glass.setVertexBytes(&vessel,length:MemoryLayout<LabVesselUniform>.stride,index:2)
                 glass.setFragmentBytes(&color,length:MemoryLayout<SIMD4<Float>>.stride,index:3)

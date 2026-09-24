@@ -135,6 +135,17 @@ nonisolated struct LabFluid2D:Sendable {
     var concurrentReveals:[Int:Float]=[:]
     private var densityBands:[Int:SIMD2<Float>]=[:]
     var busy:Bool { game.pending != nil || !displayMoves.isEmpty || !transfers.isEmpty }
+    func valveLidOpenness(_ index:Int)->Float {
+        func fraction(time:Float,cutoff:Float?)->Float {
+            let opening=labSmooth((time-motion.lift*0.55)/0.28)
+            guard let cutoff else {return opening}
+            return opening*(1-labSmooth((time-cutoff)/motion.upright))
+        }
+        let grouped=transfers.filter {$0.item.move.destination==index}.map {fraction(time:$0.time,cutoff:$0.cutoff)}.max() ?? 0
+        if grouped>0 {return grouped}
+        if game.pending?.destination==index {return fraction(time:time,cutoff:cutoff)}
+        return displayMoves.contains(where:{$0.destination==index}) ? 1:0
+    }
     var phase:String {
         if targets != nil { return "Final settling" }
         if cutoff != nil { return "Returning the vial" }

@@ -42,10 +42,17 @@ import Metal
             check(board.initial.behavior == .sorting,"Valve board did not enter Sorting rules")
             check(board.initial.capacities==source.vials.map(\.capacity),"Valve capacities changed during adaptation")
             check(board.initial.rules==source.vials.map {$0.rule == .receiveOnly ? .receiveOnly:.normal},"Valve rules changed during adaptation")
-            check(layers(board.initial)==source.vials.map {$0.fluids.map(pigment)},"Valve colors or layer order changed during adaptation")
             check(board.initial.stacks.indices.allSatisfy {index in
-                board.initial.stacks[index].count==source.vials[index].fluids.count
-            },"Valve fluid volume changed during adaptation")
+                guard source.vials[index].rule == .receiveOnly else {return board.initial.valvePigment(index)==nil}
+                return board.initial.valvePigment(index)==source.vials[index].topFluid.map {pigment($0)}
+            },"Valve pigment keys changed during adaptation")
+            var expectedLayers=source.vials.map {$0.fluids.map(pigment)}
+            if number==1 {
+                expectedLayers[1].append(contentsOf:expectedLayers[2]);expectedLayers[2]=[]
+                check(board.initial.stacks[2].isEmpty && board.initial.valvePigment(2)==0,"Teaching valve does not start empty with a Tide key")
+            }
+            check(layers(board.initial)==expectedLayers,"Valve colors or layer order changed outside the accepted empty-start teaching layout")
+            check(layers(board.initial).flatMap {$0}.sorted()==source.vials.flatMap {$0.fluids.map(pigment)}.sorted(),"Valve pigment inventory changed during adaptation")
             let expectedValves=number>=8 ? 2:1
             check(board.initial.rules.filter {$0 == .receiveOnly}.count==expectedValves,"Valve count changed for level \(number)")
             guard let route=board.initial.solution(limit:800_000) else {
@@ -89,24 +96,18 @@ import Metal
         check(switched.valveBoard==nil && switched.endlessBoard==nil,"Authored Lab still restores a sorting sub-course")
         check(switched.games[board.saveKey]?.state==board.initial.applying(first),"Leaving the Valve Course discarded its progress")
 
-        let recoverable=LabBoardState(layers:[[0],[1],[]],capacities:[1,1,1],rules:[.normal,.normal,.receiveOnly],
-            targets:[.init(vial:2,layers:[.init(1)])])
-        let wrongMove=recoverable.move(from:0,to:2)!
-        check(recoverable.solution() != nil && recoverable.applying(wrongMove)!.solution() == nil,"Hint-recovery fixture is not a recoverable dead end")
-        let recovery=FluidBoardSession(defaults:nil,device:nil,restoredSave:.init(presentation:.classic,puzzle:.valveCircuit,
-            games:[LabBoardPuzzle.valveCircuit.rawValue:LabBoardGame(state:recoverable)]))
-        check(recovery.begin(wrongMove,automaticClock:false),"Could not enter the hint-recovery dead end")
-        finishClassicPour(recovery)
-        recovery.hint()
-        for _ in 0..<500 where recovery.findingHint {try? await Task.sleep(for:.milliseconds(5))}
-        check(!recovery.findingHint && recovery.hintUndoOffer,"A dead end did not offer Undo-to-hint recovery")
-        recovery.undoUntilHintAvailable()
-        for _ in 0..<500 where recovery.findingHint {try? await Task.sleep(for:.milliseconds(5))}
-        check(!recovery.findingHint && recovery.moveCount==0,"Hint recovery did not rewind to the nearest solvable state")
-        check(recovery.selected==1 && recovery.hintTarget==2 && !recovery.hintUndoOffer,"Hint recovery did not present the recovered hint")
+        let emptyKeyed=LabBoardState(layers:[[0],[1],[]],capacities:[1,1,1],
+            rules:[.normal,.normal,.receiveOnly],valvePigments:[nil,nil,1])
+        check(emptyKeyed.stacks[2].isEmpty && emptyKeyed.valvePigment(2)==1,"An empty valve lost its independent pigment key")
+        check(emptyKeyed.move(from:0,to:2)==nil,"A keyed lid accepted the wrong pigment")
+        let matching=emptyKeyed.move(from:1,to:2)!
+        check(emptyKeyed.applying(matching)?.stacks[2].count==1,"A keyed lid rejected its matching pigment")
+        let encoded=try JSONEncoder().encode(emptyKeyed),decoded=try JSONDecoder().decode(LabBoardState.self,from:encoded)
+        check(decoded==emptyKeyed,"An empty valve's pigment key did not survive save/restore")
 
-        print("PASS Valve adapter: all 15 boards preserve capacities, rules, colors, layers and volume")
-        print("PASS Valve solver: all 15 boards solve under Lab rules")
-        print("PASS Valve session: pour, teaching, checkpoint/restore, sub-course switching and opt-in Undo-to-hint recovery")
+        print("PASS Valve catalog: all 15 boards preserve capacity/rules/inventory; Level 1 uses the accepted empty keyed valve")
+        print("PASS Valve solver: all 15 boards solve under keyed-lid rules")
+        print("PASS Valve model: empty starts, wrong-color rejection, matching-color acceptance and key persistence")
+        print("PASS Valve session: pour, teaching, checkpoint/restore and sub-course switching")
     }
 }

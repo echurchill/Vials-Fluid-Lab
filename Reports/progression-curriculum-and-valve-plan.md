@@ -165,7 +165,7 @@ This is preferred over a reactive-fluid rule because it is legible, deterministi
 - An attempted outgoing pour retains the existing invalid feedback; the valve remains receive-only.
 - The helper beaker never receives the valve rule.
 
-This is a future Valve Lab revision, not the current behavior. It requires explicit accepted-pigment metadata rather than inferring the commitment from the valve's existing top liquid. The hint solver, generator, save format, concurrent reservation rules, and all three renderers must use that same metadata. Once the lid is legible in testing, remove the redundant arrow/rim marker.
+Implemented September 24 in Prototype50. Valve pigment metadata is explicit and shared by legal moves, exact reservations, solver/hints, saves, completion and all three renderers. The old arrow/rim marker is removed; keyed lids use redundant motifs and may identify an empty valve.
 
 ### Model and solver changes
 

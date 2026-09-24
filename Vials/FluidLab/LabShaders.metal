@@ -579,6 +579,17 @@ fragment float4 labBoardCapFragment(GlassOut in [[stage_in]], constant Uniforms 
     float side=1-smoothstep(0.35f,0.75f,abs(n.y));
     float grooves=0.5f+0.5f*cos(atan2(in.local.z,in.local.x)*48.0f);
     float3 color=capColor.rgb*diffuse*(1-side*grooves*0.12f);
+    // Valve lids encode one of four redundant motifs in alpha (2...5).
+    // Ordinary completion stoppers keep alpha at one and remain unmarked.
+    if(capColor.a>1.5f && in.normal.y>0.75f) {
+        int motif=int(round(capColor.a))-2;
+        float mark=0;
+        if(motif==0) mark=1-smoothstep(0.018f,0.045f,abs(length(in.local.xz)-0.30f));
+        else if(motif==1) mark=1-smoothstep(0.018f,0.045f,abs(in.local.x));
+        else if(motif==2) mark=1-smoothstep(0.018f,0.045f,abs(in.local.z));
+        else mark=max(1-smoothstep(0.018f,0.045f,abs(in.local.x-in.local.z)),1-smoothstep(0.018f,0.045f,abs(in.local.x+in.local.z)));
+        color=mix(color,float3(0.92,0.96,0.98),mark*0.72f);
+    }
     color+=studio(reflect(-eye,n))*(0.08f+fresnel*0.20f);
     color+=float3(0.30,0.38,0.42)*pow(max(dot(reflect(-normalize(float3(-0.6,1,1)),n),eye),0.0f),70.0f);
     // A neutral gasket keeps the air pocket visually distinct from a cap that

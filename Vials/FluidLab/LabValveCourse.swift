@@ -11,7 +11,10 @@ extension LabValveBoard {
 
     private nonisolated static func initial(_ number:Int)->LabBoardState {
         switch number {
-        case 1:return LabBoardState(layers:[[0,0,1],[2,1],[0],[1,2,2]],capacities:[3,3,3,3],rules:[.normal,.normal,.receiveOnly,.normal])
+        // The keyed lid, rather than preloaded liquid, declares Tide. Moving
+        // the former seed unit into B preserves the exact pigment inventory.
+        case 1:return LabBoardState(layers:[[0,0,1],[2,1,0],[],[1,2,2]],capacities:[3,3,3,3],
+            rules:[.normal,.normal,.receiveOnly,.normal],valvePigments:[nil,nil,0,nil])
         case 2:return LabBoardState(layers:[[2,0],[1],[0,2,2],[1,1,0]],capacities:[3,3,3,3],rules:[.normal,.receiveOnly,.normal,.normal])
         case 3:return LabBoardState(layers:[[2],[0,1],[2,2,1],[1,0,0]],capacities:[3,3,3,3],rules:[.receiveOnly,.normal,.normal,.normal])
         case 4:return LabBoardState(layers:[[1,0],[2],[0,1,1],[2,2,0]],capacities:[3,3,3,3],rules:[.normal,.receiveOnly,.normal,.normal])

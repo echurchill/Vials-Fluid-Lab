@@ -264,11 +264,6 @@ struct FluidBoardView:View {
                                                         .foregroundStyle(focusedApparatus?.id==apparatus.id ? Color.black:(session.hintApparatusID==apparatus.id ? Color.orange:Color.purple))
                                                 }
                                             }.fixedSize().offset(y:-13-CGFloat(tools.count-1)*18)
-                                        } else if session.state.rules[index] == .receiveOnly {
-                                            Label("FILL",systemImage:"arrow.down").font(.system(size:8,weight:.bold,design:.monospaced))
-                                                .fixedSize(horizontal:true,vertical:false)
-                                                .padding(.horizontal,5).padding(.vertical,3).background(.black.opacity(0.72),in:Capsule())
-                                                .foregroundStyle(Color.cyan).offset(y:-13)
                                         } else if session.target(index) != nil {
                                             Label(session.vialComplete(index) ? "TARGET ✓":"TARGET",systemImage:"scope")
                                                 .font(.system(size:8,weight:.bold,design:.monospaced))
@@ -311,7 +306,9 @@ struct FluidBoardView:View {
                                         Text(FluidBoardSession.letter(index)).font(.system(size:denseDebug ? 10:13,weight:.semibold,design:.monospaced))
                                         Text(session.vialComplete(index) ? "✓":"\(session.state.stacks[index].count) / \(session.state.capacity(index))")
                                             .font(.system(size:denseDebug ? 9:11,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
-                                        if session.state.rules[index] == .receiveOnly { Image(systemName:"arrow.down").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(Color.cyan) }
+                                        if let key=session.state.valvePigment(index) {
+                                            Image(systemName:"lock.fill").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(FluidBoardSession.color(key))
+                                        }
                                         if session.state.rules[index] == .sourceOnly { Image(systemName:"arrow.up").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(Color.purple) }
                                         if session.state.isHelper(index) {Image(systemName:"cup.and.saucer.fill").font(.system(size:denseDebug ? 7:9,weight:.bold)).foregroundStyle(Color.mint)}
                                     }

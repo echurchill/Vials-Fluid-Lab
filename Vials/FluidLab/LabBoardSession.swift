@@ -43,7 +43,7 @@ import Combine
     private var initialState:LabBoardState {valveBoard?.initial ?? sortingCourseBoard?.initial ?? endlessBoard?.initial ?? puzzle.initial}
     private var gameKey:String {valveBoard?.saveKey ?? sortingCourseBoard?.saveKey ?? endlessBoard?.saveKey ?? puzzle.rawValue}
     private var boardInstruction:String {
-        if isValveCourse {return "Fill each cyan valve with one color. A valve can receive liquid but cannot pour it back out."}
+        if isValveCourse {return "Match each valve lid's color. A lid opens only for that liquid, and a valve cannot pour back out."}
         if sortingCourseBoard?.isDiscoveryLevel == true || endlessBoard?.isDiscoveryLevel == true {return "Pour known colors to reveal what is below. Discoveries stay known."}
         return isSortingSubcourse ? "Tap a filled vial, then a matching color or an empty vial.":puzzle.instruction
     }
@@ -420,8 +420,12 @@ import Combine
             if source == index { clearSelectionFeedback();selected=nil;hintTarget=nil;hintApparatusID=nil;notice="Choose another vial.";return }
             guard let move=availableMove(from:source,to:index) else {
                 reject(index)
+                let projected=pourQueue.projected(state)
                 if concurrentPoursEnabled,pourQueue.movingSources.contains(index) { notice="That vial is already pouring or queued." }
-                else if pourQueue.projected(state).stacks[index].count == state.capacity(index) { notice="That vial is full or its remaining space is reserved." }
+                else if projected.stacks[index].count == state.capacity(index) { notice="That vial is full or its remaining space is reserved." }
+                else if let key=projected.valvePigment(index),let parcel=projected.stacks[source].last,projected.colors[parcel] != key {
+                    notice="That lid opens only for \(Self.name(key))."
+                }
                 else { notice=state.behavior.unrestrictedDestinations ? "That destination cannot receive this batch.":"Choose the same top material, an apparatus input, or an empty vial." }
                 return
             }
@@ -431,7 +435,7 @@ import Combine
             }
         } else {
             guard !concurrentPoursEnabled || !pourQueue.lockedSources.contains(index) else { reject(index);notice="That vial is already in use.";return }
-            guard state.canPourOut(index) else { reject(index);notice=targetExplanation(index) ?? "That valve is fill only. Choose a vial that can pour out.";return }
+            guard state.canPourOut(index) else { reject(index);notice=targetExplanation(index) ?? "That keyed valve cannot pour out. Choose an ordinary vial first.";return }
             guard !state.stacks[index].isEmpty else { reject(index);notice=targetExplanation(index) ?? "Choose a vial that contains liquid first.";return }
             clearSelectionFeedback();feedback.selection();selected=index;hintTarget=nil;hintApparatusID=nil
             notice=targetExplanation(index) ?? (state.behavior.unrestrictedDestinations ? "Now choose any non-full destination.":"Now choose a matching material, apparatus input, or empty vial.")
@@ -1124,7 +1128,8 @@ import Combine
             case .densityModifier:return tool.direction == .heavier ? "Make heavier chamber.":"Make lighter chamber."
             }
         }.joined(separator:" ")
-        let rule=state.rules[index] == .receiveOnly ? " Fill only; it cannot pour out.":(state.rules[index] == .sourceOnly ? " Apparatus output; it cannot receive a pour.":"")
+        let rule=state.valvePigment(index).map {" Color-keyed valve; its \(Self.name($0)) lid accepts only \(Self.name($0)) liquid, and it cannot pour out."}
+            ?? (state.rules[index] == .sourceOnly ? " Apparatus output; it cannot receive a pour.":"")
         let target=state.target(index).map { target in
             " Target bottom to top: "+target.layers.map { "\($0.density.title) \(Self.name($0.pigment))" }.joined(separator:", ")+"."
         } ?? ""

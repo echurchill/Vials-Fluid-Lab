@@ -122,6 +122,9 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     var stacks: [[Int]] // bottom to top, containing stable unit IDs
     var capacities: [Int]
     var rules: [LabVialRule]
+    /// Receive-only valves declare their accepted pigment independently of
+    /// their contents, so a keyed valve may begin completely empty.
+    var valvePigments:[Int?]
     let behavior:LabBehavior
     let targets:[LabVialTarget]
     let apparatus:[LabApparatus]
@@ -131,7 +134,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     init(layers: [[Int]], capacity: Int = 4) {
         self.init(layers:layers,capacities:Array(repeating:capacity,count:layers.count))
     }
-    init(layers:[[Int]],capacities:[Int],rules:[LabVialRule]?=nil,densityLayers:[[LabDensity]]?=nil,
+    init(layers:[[Int]],capacities:[Int],rules:[LabVialRule]?=nil,valvePigments:[Int?]?=nil,densityLayers:[[LabDensity]]?=nil,
          behavior:LabBehavior = .sorting,targets:[LabVialTarget]=[],apparatus:[LabApparatus]=[],obscured:Bool=false) {
         precondition(capacities.count==layers.count && zip(layers,capacities).allSatisfy { $0.count <= $1 && $1 > 0 })
         if let densityLayers { precondition(densityLayers.count==layers.count && zip(layers,densityLayers).allSatisfy {$0.count==$1.count}) }
@@ -142,16 +145,29 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
             densities += densityLayers?[index] ?? Array(repeating:.medium,count:layer.count)
             stacks.append(Array(start..<colors.count))
         }
+        let resolvedRules=rules ?? Array(repeating:.normal,count:layers.count)
+        precondition(resolvedRules.count==layers.count)
         self.colors=colors;self.densities=densities;self.stacks=stacks;self.capacities=capacities
-        self.rules=rules ?? Array(repeating:.normal,count:layers.count)
+        self.rules=resolvedRules
+        self.valvePigments=valvePigments ?? layers.indices.map {index in
+            guard resolvedRules[index] == .receiveOnly else {return nil}
+            return layers[index].last ?? targets.first(where:{$0.vial==index})?.layers.first?.pigment
+        }
         self.behavior=behavior;self.targets=targets;self.apparatus=apparatus;helperIndices=[]
         knownParcels=obscured ? Set(stacks.compactMap(\.last)):nil
-        precondition(self.rules.count==layers.count)
+        precondition(self.rules.count==layers.count && self.valvePigments.count==layers.count)
+        precondition(layers.indices.allSatisfy {index in
+            if self.rules[index] == .receiveOnly {
+                guard let key=self.valvePigments[index] else {return false}
+                return layers[index].allSatisfy {$0==key}
+            }
+            return self.valvePigments[index] == nil
+        })
         precondition(targets.allSatisfy { stacks.indices.contains($0.vial) && $0.layers.count<=capacities[$0.vial] })
         precondition(apparatus.flatMap(\.inputs).allSatisfy(stacks.indices.contains))
         precondition(apparatus.flatMap(\.outputs).allSatisfy(stacks.indices.contains))
     }
-    private enum CodingKeys:String,CodingKey { case colors,densities,stacks,capacity,capacities,rules,behavior,targets,apparatus,knownParcels,helperIndices }
+    private enum CodingKeys:String,CodingKey { case colors,densities,stacks,capacity,capacities,rules,valvePigments,behavior,targets,apparatus,knownParcels,helperIndices }
     init(from decoder:Decoder) throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
         colors=try values.decode([Int].self,forKey:.colors)
@@ -168,16 +184,31 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         targets=try values.decodeIfPresent([LabVialTarget].self,forKey:.targets) ?? []
         apparatus=try values.decodeIfPresent([LabApparatus].self,forKey:.apparatus) ?? []
         helperIndices=try values.decodeIfPresent(Set<Int>.self,forKey:.helperIndices) ?? []
-        guard capacities.count==stacks.count,rules.count==stacks.count,densities.count==colors.count,
+        if let decoded=try values.decodeIfPresent([Int?].self,forKey:.valvePigments) {valvePigments=decoded}
+        else {
+            let legacyStacks=stacks,legacyRules=rules,legacyColors=colors,legacyTargets=targets
+            valvePigments=legacyStacks.indices.map {index in
+                guard legacyRules[index] == .receiveOnly else {return nil}
+                return legacyStacks[index].last.map {legacyColors[$0]} ?? legacyTargets.first(where:{$0.vial==index})?.layers.first?.pigment
+            }
+        }
+        guard capacities.count==stacks.count,rules.count==stacks.count,valvePigments.count==stacks.count,densities.count==colors.count,
               helperIndices.allSatisfy(stacks.indices.contains),
-              zip(stacks,capacities).allSatisfy({$0.count <= $1 && $1 > 0}) else {
+              zip(stacks,capacities).allSatisfy({$0.count <= $1 && $1 > 0}),
+              stacks.indices.allSatisfy({index in
+                  if rules[index] == .receiveOnly {
+                      guard let key=valvePigments[index] else {return false}
+                      return stacks[index].allSatisfy {colors[$0]==key}
+                  }
+                  return valvePigments[index] == nil
+              }) else {
             throw DecodingError.dataCorrupted(.init(codingPath:decoder.codingPath,debugDescription:"Invalid Fluid Lab vial metadata"))
         }
     }
     func encode(to encoder:Encoder) throws {
         var values=encoder.container(keyedBy:CodingKeys.self)
         try values.encode(colors,forKey:.colors);try values.encode(densities,forKey:.densities);try values.encode(stacks,forKey:.stacks)
-        try values.encode(capacities,forKey:.capacities);try values.encode(rules,forKey:.rules)
+        try values.encode(capacities,forKey:.capacities);try values.encode(rules,forKey:.rules);try values.encode(valvePigments,forKey:.valvePigments)
         try values.encodeIfPresent(knownParcels,forKey:.knownParcels)
         if !helperIndices.isEmpty {try values.encode(helperIndices,forKey:.helperIndices)}
         try values.encode(behavior,forKey:.behavior);try values.encode(targets,forKey:.targets);try values.encode(apparatus,forKey:.apparatus)
@@ -186,6 +217,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     var maximumCapacity:Int { capacities.max() ?? 0 }
     func capacity(_ index:Int)->Int { capacities[index] }
     func isHelper(_ index:Int)->Bool {helperIndices.contains(index)}
+    func valvePigment(_ index:Int)->Int? {valvePigments[index]}
     var helpers:[Int] {helperIndices.sorted()}
     var hasHelpers:Bool {!helperIndices.isEmpty}
     var canAddHelper:Bool {helperIndices.count<2}
@@ -197,7 +229,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     func addingHelper()->Self? {
         guard canAddHelper else {return nil}
         var next=self;let index=stacks.count
-        next.stacks.append([]);next.capacities.append(1);next.rules.append(.normal);next.helperIndices.insert(index)
+        next.stacks.append([]);next.capacities.append(1);next.rules.append(.normal);next.valvePigments.append(nil);next.helperIndices.insert(index)
         return next
     }
     func upgradingHelper(_ index:Int)->Self? {
@@ -252,6 +284,9 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
     }
     func isComplete(_ index:Int) -> Bool {
         guard stacks.indices.contains(index),!isHelper(index) else { return false }
+        if let key=valvePigment(index) {
+            return stacks[index].count==capacities[index] && stacks[index].allSatisfy {colors[$0]==key}
+        }
         if !targets.isEmpty {return target(index).map(matchesTarget) ?? false}
         let stack=stacks[index]
         return stack.allSatisfy(isKnown) && stack.count==capacities[index] && Set(stack.map { colors[$0] }).count==1
@@ -269,6 +304,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
         guard stacks.indices.contains(source), stacks.indices.contains(destination), source != destination,
               canPourOut(source),canPourIn(destination),let top=stacks[source].last, stacks[destination].count < capacities[destination] else { return nil }
         let color=colors[top]
+        if let key=valvePigment(destination),color != key {return nil}
         let acceptsDifferent=behavior.unrestrictedDestinations || apparatusInputs.contains(destination)
         guard acceptsDifferent || (stacks[destination].last.map({ sameMaterial($0,top) }) ?? true) else { return nil }
         let run=stacks[source].reversed().prefix { isKnown($0) && sameMaterial($0,top) }.count
@@ -286,6 +322,7 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
               Array(stacks[move.source].suffix(move.amount))==move.parcels,
               move.parcels.allSatisfy({ colors[$0]==move.color }),
               canPourOut(move.source),canPourIn(move.destination),stacks[move.destination].count+move.amount<=capacities[move.destination] else { return nil }
+        if let key=valvePigment(move.destination),move.color != key {return nil}
         let top=move.parcels.last!,acceptsDifferent=behavior.unrestrictedDestinations || apparatusInputs.contains(move.destination)
         guard acceptsDifferent || (stacks[move.destination].last.map({sameMaterial($0,top)}) ?? true) else {return nil}
         var next=self
@@ -340,11 +377,13 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
             return left==right ? $0.offset<$1.offset:left<right
         }.map(\.element)
     }
-    var colorKey: String { stacks.map { $0.map { "\(colors[$0]).\(densities[$0].rawValue)" }.joined(separator:",") }.joined(separator:"|") }
+    var colorKey: String { stacks.indices.map {index in
+        (valvePigment(index).map {"key:\($0):"} ?? "")+stacks[index].map { "\(colors[$0]).\(densities[$0].rawValue)" }.joined(separator:",")
+    }.joined(separator:"|") }
     // Only vials with the same capacity and rule are interchangeable.
     private var searchKey:String {
         let components=stacks.indices.map { index in
-            "\(isHelper(index) ? "helper":"vial"):\(capacities[index]):\(rules[index].rawValue):"+stacks[index].map { "\(colors[$0]).\(densities[$0].rawValue)"+(knownParcels == nil ? "":(isKnown($0) ? ":seen":":hidden")) }.joined(separator:",")
+            "\(isHelper(index) ? "helper":"vial"):\(capacities[index]):\(rules[index].rawValue):\(valvePigment(index).map(String.init) ?? "-"):"+stacks[index].map { "\(colors[$0]).\(densities[$0].rawValue)"+(knownParcels == nil ? "":(isKnown($0) ? ":seen":":hidden")) }.joined(separator:",")
         }
         // Targets and apparatus attach meaning to concrete vial positions.
         // Only the legacy free-standing sorting vials are interchangeable.

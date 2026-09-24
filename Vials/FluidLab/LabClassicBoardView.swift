@@ -105,6 +105,13 @@ struct LabClassicBoardView:View {
         }
         return min(Float(state.capacity(index)),max(0,units))
     }
+    private func valveLidOpenness(_ index:Int)->Float {
+        pours.filter {$0.move.destination==index}.map {pour in
+            let opening=labSmooth((pour.time-0.35)/0.35)
+            let closing=1-labSmooth((pour.time-5.35)/0.45)
+            return opening*closing
+        }.max() ?? 0
+    }
     private func shape(_ profile:LabVesselProfile,scale:CGFloat) -> Path {
         Path { path in
             for i in profile.radii.indices {
@@ -236,7 +243,10 @@ struct LabClassicBoardView:View {
             ctx.stroke(mark,with:.color(.white.opacity(0.23)),lineWidth:1)
         }
         let excluded=capExclusions.union(pours.flatMap { [$0.move.source,$0.move.destination] }).union(transformation?.vessels ?? [])
-        if !excluded.contains(index),state.isComplete(index),let first=state.stacks[index].first {
+        if let key=state.valvePigment(index) {
+            drawLabPlanarValveLid(context:&ctx,height:profile.height,radius:profile.radii.last!+0.07,
+                scale:scale,color:FluidBoardSession.color(key),pigment:key,openness:valveLidOpenness(index))
+        } else if !excluded.contains(index),state.isComplete(index),let first=state.stacks[index].first {
             drawLabPlanarCap(context:&ctx,height:profile.height,radius:profile.radii.last!+0.065,
                 scale:scale,color:FluidBoardSession.color(state.visualDye(first)))
         }
@@ -305,6 +315,40 @@ func drawLabPlanarCap(context:inout GraphicsContext,height:Float,radius:Float,sc
     context.fill(lid,with:.linearGradient(Gradient(colors:[.white.opacity(0.5),.white.opacity(0.12),.black.opacity(0.15)]),startPoint:left,endPoint:right))
     context.stroke(lid,with:.color(.white.opacity(0.55)),lineWidth:0.8)
     context.stroke(path(ring(height+0.182,radius*0.79)),with:.color(.black.opacity(0.20)),lineWidth:0.7)
+}
+
+/// A permanent, keyed valve lid. It hinges upward for a valid incoming pour;
+/// its high-contrast motif makes the key distinguishable without hue alone.
+func drawLabPlanarValveLid(context:inout GraphicsContext,height:Float,radius:Float,scale:CGFloat,
+                           color:Color,pigment:Int,openness:Float) {
+    let open=CGFloat(labSmooth(openness)),r=CGFloat(radius)*scale
+    let closedThickness=max(5,scale*0.11)
+    let width=r*2*(1-open*0.64)
+    let lidHeight=closedThickness+(r*1.55-closedThickness)*open
+    let center=CGPoint(x:r*0.58*open,y:-CGFloat(height)*scale-closedThickness*0.32-r*0.64*open)
+    let hinge=CGPoint(x:r*0.88,y:-CGFloat(height)*scale)
+    var arm=Path();arm.move(to:hinge);arm.addLine(to:CGPoint(x:center.x+width*0.42,y:center.y+lidHeight*0.34))
+    context.stroke(arm,with:.color(.black.opacity(0.75)),style:StrokeStyle(lineWidth:max(3,scale*0.06),lineCap:.round))
+    context.stroke(arm,with:.color(color.opacity(0.82)),style:StrokeStyle(lineWidth:max(1.5,scale*0.025),lineCap:.round))
+    let rect=CGRect(x:center.x-width/2,y:center.y-lidHeight/2,width:width,height:lidHeight)
+    let lid=Path(ellipseIn:rect)
+    let shadow=Path(ellipseIn:rect.offsetBy(dx:1.5,dy:2.5))
+    context.fill(shadow,with:.color(.black.opacity(0.48)))
+    context.fill(lid,with:.color(color))
+    context.fill(lid,with:.linearGradient(Gradient(colors:[.white.opacity(0.42),.clear,.black.opacity(0.24)]),startPoint:CGPoint(x:rect.minX,y:rect.minY),endPoint:CGPoint(x:rect.maxX,y:rect.maxY)))
+    var marked=context;marked.clip(to:lid)
+    let mark=Color.white.opacity(0.72),line=max(1.2,scale*0.022)
+    switch (pigment%4+4)%4 {
+    case 0:
+        marked.stroke(Path(ellipseIn:rect.insetBy(dx:width*0.27,dy:lidHeight*0.27)),with:.color(mark),lineWidth:line)
+    case 1:
+        var p=Path();p.move(to:CGPoint(x:rect.midX,y:rect.minY));p.addLine(to:CGPoint(x:rect.midX,y:rect.maxY));marked.stroke(p,with:.color(mark),lineWidth:line)
+    case 2:
+        var p=Path();p.move(to:CGPoint(x:rect.minX,y:rect.midY));p.addLine(to:CGPoint(x:rect.maxX,y:rect.midY));marked.stroke(p,with:.color(mark),lineWidth:line)
+    default:
+        var p=Path();p.move(to:CGPoint(x:rect.minX,y:rect.minY));p.addLine(to:CGPoint(x:rect.maxX,y:rect.maxY));p.move(to:CGPoint(x:rect.maxX,y:rect.minY));p.addLine(to:CGPoint(x:rect.minX,y:rect.maxY));marked.stroke(p,with:.color(mark),lineWidth:line)
+    }
+    context.stroke(lid,with:.color(.white.opacity(0.58)),lineWidth:max(1,scale*0.018))
 }
 
 /// Flatten a soft radial footprint into a floor ellipse; no offscreen blur pass.

@@ -112,6 +112,15 @@ import AppKit
     session.undo();requireVisible3DLiquid(session,"undoing the jug upgrade")
    }
   }
+  let emptyValve=LabBoardState(layers:[[0],[1],[]],capacities:[1,1,1],
+    rules:[.normal,.normal,.receiveOnly],valvePigments:[nil,nil,1])
+  for mode in LabBoardPresentation.allCases {
+   let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.valveCircuit,
+     games:[LabBoardPuzzle.valveCircuit.rawValue:LabBoardGame(state:emptyValve)])
+   let session=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save)
+   precondition(session.state.stacks[2].isEmpty && session.state.valvePigment(2)==1)
+   try capture(session,mode,"valve-keyed-empty-\(mode.rawValue)",1000,650)
+  }
   for mode in LabBoardPresentation.allCases {
    for puzzle in [LabBoardPuzzle.measuredBatch,.heavyLanding,.fiveStreams,.secondChance,.twinProducts] {
     let session=FluidBoardSession(defaults:nil,device:device,library:library,

@@ -90,8 +90,12 @@ private struct LabFluid2DLayer:View {
                         let cue:Color?=rejected==owner ? .orange:(selected==owner ? .cyan:(destinations.contains(owner) ? Color(red:0.28,green:0.85,blue:0.79):nil))
                         drawGlass(owner,context:context,scale:scale,base:screen(engine.pose(owner).base),cue:cue)
                         let active=Set((engine.displayMoves+[engine.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] })
-                        if !capExclusions.union(active).contains(owner),engine.game.state.isComplete(owner),let first=engine.game.state.stacks[owner].first {
-                            let profile=engine.profiles[owner],pose=engine.pose(owner)
+                        let profile=engine.profiles[owner],pose=engine.pose(owner)
+                        if let key=engine.game.state.valvePigment(owner) {
+                            var cap=context;cap.translateBy(x:screen(pose.base).x,y:screen(pose.base).y);cap.rotate(by:.radians(Double(pose.angle)))
+                            drawLabPlanarValveLid(context:&cap,height:profile.height,radius:profile.radius(profile.height)+0.07,
+                                scale:scale,color:FluidBoardSession.color(key),pigment:key,openness:engine.valveLidOpenness(owner))
+                        } else if !capExclusions.union(active).contains(owner),engine.game.state.isComplete(owner),let first=engine.game.state.stacks[owner].first {
                             var cap=context;cap.translateBy(x:screen(pose.base).x,y:screen(pose.base).y);cap.rotate(by:.radians(Double(pose.angle)))
                             drawLabPlanarCap(context:&cap,height:profile.height,radius:profile.radius(profile.height)+0.065,
                                 scale:scale,color:FluidBoardSession.color(engine.game.state.visualDye(first)))

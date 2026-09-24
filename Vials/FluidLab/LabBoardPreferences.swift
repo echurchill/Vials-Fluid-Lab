@@ -74,7 +74,7 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
         if !state.targets.isEmpty {parts.append(state.targets.count==1 ? "1 target":"\(state.targets.count) targets")}
         if range.lowerBound != 4 || range.upperBound != 4 { parts.append(range.lowerBound==range.upperBound ? "\(range.lowerBound) units":"\(range.lowerBound)–\(range.upperBound) units") }
         let valves=state.rules.filter {$0 == .receiveOnly}.count
-        if valves>0 { parts.append("\(valves) fill-only") }
+        if valves>0 { parts.append("\(valves) keyed \(valves == 1 ? "valve":"valves")") }
         return parts.joined(separator:" · ")
     }
     var initial:LabBoardState {
@@ -285,7 +285,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
     var title:String {
         switch self {
         case .discovery:"Discover hidden liquids"
-        case .valves:"Use fill-only valves"
+        case .valves:"Use color-keyed valves"
         case .density:"Read the layers"
         case .mixing:"Use a mixer"
         case .recovery:"Recover the ingredients"
@@ -296,7 +296,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
     var explanation:String {
         switch self {
         case .discovery:"Only exposed liquid is known. Pour a visible color to reveal the next layer. Once discovered, a layer stays known even after Undo or Play again."
-        case .valves:"A cyan down arrow marks a fill-only valve. Liquid can enter that vial, but it can never pour back out. Plan the route before committing a color to a valve."
+        case .valves:"A valve has a color-keyed lid. It opens only for matching liquid, then closes after the pour. A valve can receive liquid but can never pour it back out."
         case .density:"Pale upward triangles mean light; no triangles mean medium; dark downward triangles mean heavy. Heavier liquid sinks below lighter liquid. Match each target’s color, amount and density."
         case .mixing:"Put one unit in each mixer input, at the same density. Activate Mix to make two units of a new color. The output must be empty, with room for both units."
         case .recovery:"Put exactly two units of one mixed color, at one density, in the separator input. Activate Separate to recover one unit of each ingredient. Both outputs need room."
@@ -307,7 +307,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
     var reminder:String {
         switch self {
         case .discovery:"Hidden colors are a clue to uncover, not a new kind of liquid. Use empty space to investigate."
-        case .valves:"A valve is complete only when it is full of one color. Use ordinary vials as workspace until you know which color belongs there."
+        case .valves:"Match the lid color and fill the valve completely. The lid declares its color even when the valve starts empty; use ordinary vials as workspace."
         case .density:"Target strips read left to right, from the bottom of the vial to the top. Select a target vial to learn what is missing."
         case .mixing:"Red + yellow = orange; yellow + blue = green; blue + red = purple."
         case .recovery:"Orange separates into red and yellow; green into yellow and blue; purple into blue and red. No liquid is lost."
@@ -385,7 +385,7 @@ nonisolated struct LabValveBoard:Codable,Equatable {
     var detail:String {
         let range=(initial.capacities.min() ?? 0)...(initial.capacities.max() ?? 0)
         let valves=initial.rules.filter {$0 == .receiveOnly}.count
-        var parts=["Course \(number) / \(Self.levelCount)","\(initial.stacks.count) vials","\(Set(initial.colors).count) colors","\(valves) fill-only"]
+        var parts=["Course \(number) / \(Self.levelCount)","\(initial.stacks.count) vials","\(Set(initial.colors).count) colors","\(valves) keyed \(valves == 1 ? "valve":"valves")"]
         if range.lowerBound != 4 || range.upperBound != 4 {
             parts.append(range.lowerBound==range.upperBound ? "\(range.lowerBound) units":"\(range.lowerBound)–\(range.upperBound) units")
         }
