@@ -4,7 +4,7 @@
 
 Sorting Course now has 50 frozen, Lab-solvable boards while Endless remains dynamically generated. The first 25 are unchanged; levels 26–50 extend the hard progression, and every fifth board remains Discovery. The draft tail that reached 11–12 vials was rejected in favor of distinct boards capped at ten vials because its hint search and iPad readability were worse. The offline authoring utility now gates candidates through the shipping Lab solver and supports targeted generation; targeted and full-course validation support targeted level arguments. See `Reports/Prototype51/README.md`.
 
-The signed Valve/helper build was installed and launched on Eddie's connected M4 iPad. Landscape inspection confirms the helper card remains beside vial summaries and Hint is unobstructed. Connected-device tooling cannot synthesize touches, and setting reported portrait orientation did not override the physical sensor, so direct add/upgrade/pour/Undo and true portrait acceptance remain for Eddie unless a UI-test target is added.
+The final signed build was installed and launched on Eddie's connected M4 iPad with saved game state intact. Landscape and portrait inspection confirm the helper card remains beside vial summaries and Hint is unobstructed. Connected-device tooling cannot synthesize touches, so direct add/upgrade/pour/Undo acceptance remains for Eddie unless a UI-test target is added.
 
 ## September 23: Lab-native helper vessels (Prototype49)
 

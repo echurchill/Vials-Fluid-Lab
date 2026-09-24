@@ -18,5 +18,4 @@
 - Every frozen board is compared with its recorded source mode, source number, and generation variant.
 - Every board has a complete Lab-engine route; the final four routes are 51, 50, 48, and 58 moves.
 - Session checks cover the 50-level progress total, navigation, Quick pace, save/relaunch, helper add/upgrade/Undo, helper-required-empty completion, helper-aware hints, concurrent helper reservations, Discovery knowledge, and return to the authored Sorting Lab.
-- A signed build was installed and launched on Eddie's physical iPad. Landscape inspection confirms the helper card remains beside the vial summaries and Hint remains unobstructed. Physical touch and a true sensor-driven portrait pass still require direct interaction on the iPad; the connected device interface can install, launch, orient, and capture, but cannot synthesize taps.
-
+- The final signed build was installed and launched on Eddie's physical iPad with its saved game intact. Landscape and portrait inspection confirm the helper card remains beside the vial summaries and Hint remains unobstructed. Direct add/upgrade/pour/Undo touch acceptance still requires interaction on the iPad; the connected device interface can install, launch, orient, and capture, but cannot synthesize taps.
