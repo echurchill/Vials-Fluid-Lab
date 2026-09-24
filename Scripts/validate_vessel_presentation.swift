@@ -112,6 +112,19 @@ import AppKit
     session.undo();requireVisible3DLiquid(session,"undoing the jug upgrade")
    }
   }
+  let finalCourse=LabSortingCourseBoard.level(LabSortingCourseBoard.levelCount)!
+  var crowded=finalCourse.initial.addingHelper()!
+  let firstHelper=crowded.helpers[0]
+  crowded=crowded.upgradingHelper(firstHelper)!.upgradingHelper(firstHelper)!.addingHelper()!
+  precondition(crowded.stacks.count==12 && crowded.helperName(firstHelper)=="Water jug")
+  for mode in LabBoardPresentation.allCases {
+   let save=LabComparisonSave(presentation:mode,pace:.quick,puzzle:.firstSort,sortingCourseBoard:finalCourse,
+     games:[finalCourse.saveKey:LabBoardGame(state:crowded)])
+   let session=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:save)
+   if mode == .fluid {requireVisible3DLiquid(session,"opening the final course board with two helpers")}
+   try capture(session,mode,"course-50-helpers-\(mode.rawValue)-landscape",1200,650)
+   try capture(session,mode,"course-50-helpers-\(mode.rawValue)-portrait",650,1000)
+  }
   let emptyValve=LabBoardState(layers:[[0],[1],[]],capacities:[1,1,1],
     rules:[.normal,.normal,.receiveOnly],valvePigments:[nil,nil,1])
   for mode in LabBoardPresentation.allCases {
@@ -141,9 +154,6 @@ import AppKit
     // Large Sorting fixtures use the shared overlap regression separately.
     if puzzle == .fiveStreams {continue}
     let route=puzzle.authoredRoute(from:session.state)!
-    let d=MTLTextureDescriptor.texture2DDescriptor(pixelFormat:.bgra8Unorm_srgb,width:700,height:455,mipmapped:false)
-    d.storageMode = .shared;d.usage=[.renderTarget,.shaderRead]
-    let texture=device.makeTexture(descriptor:d)!
     for (index,operation) in route.enumerated() {
      switch operation {
      case .activate(let activation): session.activateApparatus(activation.apparatusID,animated:false)
@@ -166,6 +176,6 @@ import AppKit
     try capture(session,mode,name+"-solved",1200,650)
    }
   }
-  print("Vessel presentation and complete small-capacity routes passed.")
+  print(staticOnly ? "Static vessel presentation passed.":"Vessel presentation and complete small-capacity routes passed.")
  }
 }

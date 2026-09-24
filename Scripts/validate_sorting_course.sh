@@ -16,4 +16,4 @@ xcrun swiftc -O -module-cache-path "$output/module-cache" -parse-as-library \
   Vials/FluidLab/LabFluid2D.swift Vials/FluidLab/LabPerformance.swift \
   Vials/FluidLab/LabClassicBoardView.swift Scripts/validate_sorting_course.swift \
   -o "$output/validate-sorting-course"
-"$output/validate-sorting-course"
+"$output/validate-sorting-course" "$@"

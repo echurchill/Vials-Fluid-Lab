@@ -1,5 +1,6 @@
 import Foundation
 import Metal
+import Darwin
 
 @main @MainActor struct ValidateSortingCourse {
     static func check(_ condition:@autoclosure()->Bool,_ message:String) {
@@ -12,8 +13,12 @@ import Metal
     }
 
     static func main() throws {
+        let requested=Set(CommandLine.arguments.dropFirst().compactMap(Int.init))
+        let numbers=requested.isEmpty ? Array(1...LabSortingCourseBoard.levelCount):requested.sorted()
         var routes=[[LabBoardMove]]()
-        for number in 1...LabSortingCourseBoard.levelCount {
+        for number in numbers {
+            print("Checking frozen Sorting Course level \(number)…",terminator:"")
+            fflush(stdout)
             guard let board=LabSortingCourseBoard.level(number),let profile=LabSortingCourseBoard.sourceProfile(number) else {
                 preconditionFailure("Missing Sorting Course level \(number)")
             }
@@ -31,6 +36,12 @@ import Metal
             }
             check(route.reduce(board.initial) {$0.applying($1)!}.solved,"Route did not solve level \(number)")
             routes.append(route)
+            print(" \(route.count) moves")
+            fflush(stdout)
+        }
+        if !requested.isEmpty {
+            print("PASS selected frozen Sorting Course levels: \(numbers.map(String.init).joined(separator:", "))")
+            return
         }
 
         let first=LabSortingCourseBoard.level(1)!
@@ -38,7 +49,7 @@ import Metal
         session.changeSortingCourseBoard(first)
         check(session.isSortingCourse && !session.isEndlessSorting && !session.isValveCourse && !session.journeyMode,"Sorting Course did not replace the prior context")
         check(session.boardID==first.saveKey && session.boardHeader=="SORTING COURSE","Sorting Course identity is incorrect")
-        check(session.boardProgressSummary=="0 / 25 complete","Fresh course progress is incorrect")
+        check(session.boardProgressSummary=="0 / 50 complete","Fresh course progress is incorrect")
         session.changePace(.quick)
         check(session.effectiveSpeed==2.4,"Sorting Course Quick pacing is not aligned with Endless")
 
@@ -107,8 +118,8 @@ import Metal
         let switched=try JSONDecoder().decode(LabComparisonSave.self,from:restored.checkpointData())
         check(switched.sortingCourseBoard == nil && switched.games[first.saveKey]?.state==savedAfterMove.games[first.saveKey]?.state,"Leaving the course lost or overwrote progress")
 
-        print("PASS Sorting Course: 25 frozen source-matched and Lab-solvable boards")
-        print("PASS cadence: levels 5, 10, 15, 20 and 25 use persistent Discovery knowledge")
+        print("PASS Sorting Course: 50 frozen source-matched and Lab-solvable boards")
+        print("PASS cadence: every fifth level through 50 uses persistent Discovery knowledge")
         print("PASS session: navigation, Quick pace, checkpoint/restore, progress isolation and authored-lab escape")
         print("PASS helpers: add/upgrade/undo/save, required-empty win, solver route and Discovery identity")
     }
