@@ -97,6 +97,16 @@ import AppKit
   // Boundary even when the hidden portion has the very same true pigment.
   let same=LabBoardState(layers:[[0,0],[]],capacities:[2,2],behavior:.discovery,obscured:true)
   precondition(same.move(from:0,to:1)!.amount==1 && !same.isComplete(0))
-  print("PASS: \(checked) Discovery cases; unknown-identity hint/move invariance and known-batch boundary")
+  // Particle masks intentionally overlap at a band boundary. The band above
+  // must render last, regardless of its pigment number; unknown gray is 36 and
+  // previously always rendered over a known color above it.
+  let course45=LabSortingCourseBoard.level(45)!.initial
+  let planar=LabFluid2D(game:LabBoardGame(state:course45)),owner=7
+  let groups=Dictionary(grouping:planar.particles.filter {$0.owner==owner}) { $0.color }
+  let order=planar.renderOrder(owner:owner,groups:groups)
+  let hidden=36,known=course45.visualDye(course45.stacks[owner].last!)
+  precondition(order.firstIndex(of:hidden)!<order.firstIndex(of:known)!,"Hidden 2D liquid would overdraw the known top band")
+  try capture(LabFluid2DView(engine:planar),"fluid2D-course-45-band-order")
+  print("PASS: \(checked) Discovery cases; unknown-identity hint/move invariance, known-batch boundary and bottom-to-top 2D bands")
  }
 }

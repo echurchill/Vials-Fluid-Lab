@@ -117,9 +117,7 @@ private struct LabFluid2DLayer:View {
                 // translucent light liquid cannot erase its path to the interface.
                 let incoming=engine.game.state.behavior.settlesByDensity && engine.game.pending?.destination==owner ? engine.game.pending.map { engine.game.state.visualDye($0.parcels[0]) }:nil
                 let grouped=Dictionary(grouping:owned) { engine.concurrentReveals[$0.parcel] == nil ? $0.color:100+$0.parcel }
-                let colors=grouped.keys.sorted { a,b in
-                    if a==incoming { return false };if b==incoming { return true };return a<b
-                }
+                let colors=engine.renderOrder(owner:owner,groups:grouped,incoming:incoming)
                 for color in colors {
                     let pigment=color>=36 ? -1:color%12
                     let group=grouped[color]!

@@ -177,6 +177,25 @@ nonisolated struct LabFluid2D:Sendable {
         guard let move=game.pending,i==move.source else { return Lab2DPose(base:home) }
         return pourPose(i,move:move,time:time,cutoff:cutoff,stopAngle:stopAngle,approach:0)
     }
+    /// Liquid masks overlap slightly to produce a continuous fill. Draw settled
+    /// bands from bottom to top so that the upper band owns that shared edge.
+    /// This is especially important in Discovery, where opaque unknown liquid
+    /// otherwise covered the exposed color directly above it.
+    func renderOrder(owner:Int,groups:[Int:[Lab2DParticle]],incoming:Int?=nil)->[Int] {
+        let pose=owner>=0 ? self.pose(owner):Lab2DPose(base:.zero)
+        var heights:[Int:Float]=[:]
+        for (key,particles) in groups {
+            let bulk=particles.filter(\.inBulk)
+            heights[key]=bulk.isEmpty ? .greatestFiniteMagnitude:
+                bulk.reduce(0) {$0+(owner>=0 ? pose.local($1.position).y:$1.position.y)}/Float(bulk.count)
+        }
+        return groups.keys.sorted {a,b in
+            if a==incoming {return false}
+            if b==incoming {return true}
+            let ah=heights[a]!,bh=heights[b]!
+            return abs(ah-bh)>0.0001 ? ah<bh:a<b
+        }
+    }
     private func pourPose(_ i:Int,move:LabBoardMove,time:Float,cutoff:Float?,stopAngle:Float,approach:Float)->Lab2DPose {
         let home=home(i)
         let destination=self.home(move.destination),h=profiles[i].height
