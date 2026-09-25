@@ -357,9 +357,10 @@ struct FluidBoardView:View {
                                             .font(.system(size:denseDebug ? 15:18,weight:.semibold))
                                             .foregroundStyle(Color.mint)
                                             .background(Circle().fill(Color.black.opacity(0.72)).padding(1))
+                                            .frame(width:44,height:44)
+                                            .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
-                                    .padding(denseDebug ? 4:6)
                                     .disabled(!session.canUpgradeHelper(index))
                                     .accessibilityLabel("Upgrade \(FluidBoardSession.letter(index)) \(session.state.helperName(index) ?? "helper")")
                                     .accessibilityHint("Increases this helper's capacity by one unit.")
@@ -647,18 +648,29 @@ struct FluidBoardView:View {
         let profiles=LabBoardLayout.profiles(state:session.state)
         if session.presentation == .fluid2D {
             let layout=LabClassicLayout(size:size,vesselCount:profiles.count,twoRows:session.twoRowLayout),profile=session.fluid2D.profiles[index]
-            let base=layout.base(index),radius=CGFloat((profile.source.radii.max() ?? 0.6)*profile.scale)*layout.scale
+            let base=layout.base(index)
+            let bodyRadius=CGFloat((profile.source.radii.max() ?? 0.6)*profile.scale)
+            let lidRadius=CGFloat(profile.source.radii.last ?? 0.6)+0.07
+            let hasValveLid=session.state.valvePigment(index) != nil
+            let radius=max(bodyRadius,hasValveLid ? lidRadius:0)*layout.scale
             let handle=session.state.isHelper(index) ? layout.scale*0.48:0
-            return CGRect(x:base.x-radius-8,y:base.y-CGFloat(profile.height)*layout.scale-8,width:radius*2+16+handle,height:CGFloat(profile.height)*layout.scale+16)
+            let lidHeight=hasValveLid ? layout.scale*0.20:0
+            return CGRect(x:base.x-radius-8,y:base.y-CGFloat(profile.height)*layout.scale-8-lidHeight,
+                          width:radius*2+16+handle,height:CGFloat(profile.height)*layout.scale+16+lidHeight)
         }
         if session.presentation == .classic {
             return LabClassicLayout(size:size,vesselCount:session.state.stacks.count,twoRows:session.twoRowLayout)
-                .hitRect(index,profile:profiles[index],includesHandle:session.state.isHelper(index))
+                .hitRect(index,profile:profiles[index],includesHandle:session.state.isHelper(index),
+                         includesValveLid:session.state.valvePigment(index) != nil)
         }
         let matrix=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:Float(session.orbit),vesselCount:session.state.stacks.count,twoRows:session.twoRowLayout).0
-        let home=LabBoardLayout.homes(count:session.state.stacks.count,twoRows:session.twoRowLayout)[index],r=(profiles[index].radii.max() ?? 0.6)+0.05+(session.state.isHelper(index) ? 0.42:0)
+        let home=LabBoardLayout.homes(count:session.state.stacks.count,twoRows:session.twoRowLayout)[index]
+        let hasValveLid=session.state.valvePigment(index) != nil
+        let lidRadius=(profiles[index].radii.last ?? 0.6)+0.07
+        let r=max((profiles[index].radii.max() ?? 0.6)+0.05,hasValveLid ? lidRadius:0)+(session.state.isHelper(index) ? 0.42:0)
+        let height=profiles[index].height+(hasValveLid ? 0.20:0)
         var xs:[CGFloat]=[],ys:[CGFloat]=[]
-        for x in [-r,r] { for z in [-r,r] { for y:Float in [0,profiles[index].height] {
+        for x in [-r,r] { for z in [-r,r] { for y:Float in [0,height] {
             let p=matrix*SIMD4(home+SIMD3(x,y,z),1)
             xs.append(CGFloat(p.x/p.w+1)*size.width/2);ys.append(CGFloat(1-p.y/p.w)*size.height/2)
         }}}

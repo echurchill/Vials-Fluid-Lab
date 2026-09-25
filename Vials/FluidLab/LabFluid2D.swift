@@ -439,6 +439,10 @@ nonisolated struct LabFluid2D:Sendable {
         displayEnvelope=transfers.map { job in job.cutoff.map {1-labSmooth((job.time-$0)/max(0.01,motion.returned+motion.settle))} ?? 1 }.max() ?? 0
         if transfers.isEmpty { for owner in receivers { surfaces[owner].energy=0 };splashes=[] }
     }
+    /// Deterministic, area-stratified resting positions before optional solver relaxation.
+    /// Validation uses this to distinguish a canonical settle from a merely
+    /// in-bounds but visibly sparse particle arrangement.
+    func canonicalSeed(for state:LabBoardState)->[Lab2DParticle] { seed(state) }
     private func seed(_ state:LabBoardState)->[Lab2DParticle] {
         var result:[Lab2DParticle]=[]
         for owner in state.stacks.indices {
@@ -513,8 +517,11 @@ nonisolated struct LabFluid2D:Sendable {
         if let cutoff,time-cutoff>motion.returned+motion.settle {
             guard let next=game.state.applying(move) else { return }
             cleanupPercent=100*Float(count-arrived)/Float(count)
-            // Preserve the solved particle surface. Only missing transfer particles
-            // are eligible for correction; successful arrivals never get repacked.
+            // Finish with a short canonical settle in the source. Retaining its
+            // disturbed particle positions could leave visible holes after a
+            // large batch departed a tall vial. Successful arrivals keep their
+            // naturally solved surface; only missing droplets remain eligible
+            // for destination correction.
             let packed=seed(next)
             var byParcel:[Int:[Lab2DParticle]]=[:]
             for p in packed { byParcel[p.parcel,default:[]].append(p) }
@@ -522,7 +529,10 @@ nonisolated struct LabFluid2D:Sendable {
             var offsets:[Int:Int]=[:],final=particles
             for i in particles.indices {
                 let p=particles[i],offset=offsets[p.parcel,default:0];offsets[p.parcel]=offset+1
-                if selected.contains(p.parcel),p.owner != move.destination {
+                let target=byParcel[p.parcel]![offset]
+                if target.owner==move.source {
+                    final[i]=target
+                } else if selected.contains(p.parcel),p.owner != move.destination {
                     final[i]=byParcel[p.parcel]![offset]
                     if let visibleTop { final[i].position.y=min(final[i].position.y,visibleTop) }
                 }

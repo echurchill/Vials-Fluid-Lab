@@ -107,6 +107,24 @@ import AppKit
   let hidden=36,known=course45.visualDye(course45.stacks[owner].last!)
   precondition(order.firstIndex(of:hidden)!<order.firstIndex(of:known)!,"Hidden 2D liquid would overdraw the known top band")
   try capture(LabFluid2DView(engine:planar),"fluid2D-course-45-band-order")
-  print("PASS: \(checked) Discovery cases; unknown-identity hint/move invariance, known-batch boundary and bottom-to-top 2D bands")
+  // Course 45 exposed a second source-side artifact after a four-unit pour:
+  // the two retained layers could keep a sparse, disturbed particle layout.
+  // The final settle must restore their canonical solid bands without
+  // repacking successful arrivals in the receiving vial.
+  var retained=LabBoardState(layers:[[0,3,1,1,1,1],[1,1],[]],capacities:[6,6,6],behavior:.discovery,obscured:true)
+  retained.knownParcels!.formUnion(retained.stacks[0][1...])
+  var disturbed=LabFluid2D(game:LabBoardGame(state:retained));disturbed.quickMotion=true
+  let largeDeparture=disturbed.game.state.move(from:0,to:1)!
+  precondition(largeDeparture.amount==4 && disturbed.begin(largeDeparture))
+  for _ in 0..<2400 where disturbed.busy {disturbed.advance(deltaTime:1/60,speed:1.6)}
+  let expected=retained.applying(largeDeparture)!,canonical=disturbed.canonicalSeed(for:expected)
+  precondition(!disturbed.busy && disturbed.game.state==expected,"Large Discovery departure did not commit")
+  let retainedParcels=Set(expected.stacks[0])
+  let settled=disturbed.particles.indices.filter {retainedParcels.contains(disturbed.particles[$0].parcel)}.allSatisfy {
+    disturbed.particles[$0]==canonical[$0]
+  }
+  precondition(settled,"Retained 2D Discovery layers did not return to solid canonical bands")
+  try capture(LabFluid2DView(engine:disturbed),"fluid2D-discovery-large-source-settled")
+  print("PASS: \(checked) Discovery cases; unknown-identity hint/move invariance, known-batch boundary, bottom-to-top bands and solid retained source layers")
  }
 }

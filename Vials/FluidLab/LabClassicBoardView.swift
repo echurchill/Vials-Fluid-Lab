@@ -15,10 +15,15 @@ struct LabClassicLayout {
         return CGPoint(x:size.width/2+CGFloat(home.x)*scale,y:baseline-CGFloat(home.y-0.18)*scale)
     }
     var rows:[Range<Int>] {LabBoardLayout.rowRanges(count:vesselCount,twoRows:twoRows)}
-    func hitRect(_ index:Int,profile:LabVesselProfile,includesHandle:Bool=false) -> CGRect {
-        let point=base(index),radius=CGFloat(profile.radii.max() ?? 0.6)*scale
+    func hitRect(_ index:Int,profile:LabVesselProfile,includesHandle:Bool=false,includesValveLid:Bool=false) -> CGRect {
+        let point=base(index)
+        let bodyRadius=CGFloat(profile.radii.max() ?? 0.6)
+        let lidRadius=CGFloat(profile.radii.last ?? 0.6)+0.07
+        let radius=max(bodyRadius,includesValveLid ? lidRadius:0)*scale
         let handle=includesHandle ? scale*0.48:0
-        return CGRect(x:point.x-radius-8,y:point.y-CGFloat(profile.height)*scale-8,width:radius*2+16+handle,height:CGFloat(profile.height)*scale+16)
+        let lidHeight=includesValveLid ? scale*0.20:0
+        return CGRect(x:point.x-radius-8,y:point.y-CGFloat(profile.height)*scale-8-lidHeight,
+                      width:radius*2+16+handle,height:CGFloat(profile.height)*scale+16+lidHeight)
     }
 }
 

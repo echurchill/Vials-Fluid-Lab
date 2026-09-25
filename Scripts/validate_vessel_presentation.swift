@@ -29,8 +29,10 @@ import AppKit
   let classicProfile=LabBoardLayout.profiles(state:LabBoardPuzzle.firstSort.initial)[0]
   let ordinaryHit=classicLayout.hitRect(0,profile:classicProfile)
   let helperHit=classicLayout.hitRect(0,profile:classicProfile,includesHandle:true)
+  let valveHit=classicLayout.hitRect(0,profile:classicProfile,includesValveLid:true)
   precondition(abs(ordinaryHit.midX-classicLayout.base(0).x)<0.001,"Ordinary Classic highlight shifted off center")
   precondition(helperHit.minX==ordinaryHit.minX && helperHit.maxX>ordinaryHit.maxX,"Helper Classic hit area missed its handle")
+  precondition(valveHit.minY<ordinaryHit.minY && valveHit.maxY==ordinaryHit.maxY,"Valve highlight missed its physical lid")
   precondition(!LabBoardLayout.usesTwoRows(portrait:true,count:7) && LabBoardLayout.usesTwoRows(portrait:true,count:8))
   precondition(!LabBoardLayout.usesTwoRows(portrait:false,count:12))
   let portraitLayout=LabClassicLayout(size:CGSize(width:650,height:1000),vesselCount:12,twoRows:true)
