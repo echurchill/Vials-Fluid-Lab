@@ -86,6 +86,24 @@ import AppKit
   for _ in 0..<1800 where planarCrossRow.busy {planarCrossRow.advance(deltaTime:1/60,speed:1)}
   precondition(!planarCrossRow.busy && planarCrossRow.game.moveCount==1 && planarCrossRow.game.state.stacks[0].count==1,"Cross-row 2D pour did not commit")
   print("PASS adaptive portrait layout: balanced rows and bidirectional safe travel; 2D cross-row pour committed");fflush(stdout)
+  // A tall receiver can be logically full while its last physical settle leaves
+  // a visible notch under the completion cap. Exercise the live concurrent 2D
+  // path and require the newly sealed seven-unit vial to use its canonical fill.
+  let tallCompletion=LabBoardState(layers:[[4],[4,4,4,4,4,4],[]],capacities:[1,7,1])
+  let tallSave=LabComparisonSave(presentation:.fluid2D,pace:.quick,puzzle:.firstSort,
+    games:[LabBoardPuzzle.firstSort.rawValue:LabBoardGame(state:tallCompletion)])
+  let tallSession=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:tallSave,allowsConcurrentPours:true)
+  let tallMove=tallSession.state.move(from:0,to:1)!
+  precondition(tallSession.begin(tallMove,automaticClock:false))
+  for _ in 0..<1800 where tallSession.busy {await tallSession.advanceConcurrent(deltaTime:1/60)}
+  precondition(!tallSession.busy && tallSession.state.isComplete(1),"Tall 2D completion did not commit")
+  let tallPacked=tallSession.fluid2D.canonicalSeed(for:tallSession.state)
+  for i in tallPacked.indices where tallPacked[i].owner==1 {
+   let actual=tallSession.fluid2D.particles[i],expected=tallPacked[i]
+   precondition(actual.owner==expected.owner && actual.inBulk && simd_distance(actual.position,expected.position)<0.00001,
+     "Completed tall 2D vial retained a noncanonical surface")
+  }
+  print("PASS completed tall 2D vial: canonical surface meets the cap after concurrent-capable play");fflush(stdout)
   let course45=LabSortingCourseBoard.level(45)!
   let course45BandBytes=course45.initial.stacks.count*course45.initial.colors.count*MemoryLayout<LabBoardBand>.stride
   precondition(course45BandBytes>4096 && course45BandBytes==7520,"Course 45 no longer exercises the large layer table")

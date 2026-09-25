@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Sealed 2D surface normalization](Reports/Prototype53/README.md) prevents a completed tall vial from retaining a visual notch beneath its cap while leaving partial and actively pouring surfaces fully simulated.
+
 [100-level Sorting Course and assistance history](Reports/Prototype52/README.md) doubles the stable curriculum while preserving Discovery every fifth level, records hint/helper use as neutral completion facts, and gives Valve Lab progressive lid guidance. All new boards are frozen from offline candidates and solved under the shipping Lab rules.
 
 [Lab-native helper vessels](Reports/Prototype49/README.md) add two optional, fully Undoable and saved workspaces to Sorting: a one-unit tea cup, two-unit mug and three-unit jug. Helpers share the Lab's pour, hint, Discovery, concurrency and three-presentation systems, never count as completed targets, and must be empty to win.

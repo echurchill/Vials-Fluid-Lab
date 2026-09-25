@@ -1,5 +1,15 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## Current development environment
+
+- The main Xcode checkout is `/Users/eddie/Documents/xCode work/Vials Fluid Lab`; `/Applications/Xcode.app/Contents/Developer` is the active developer directory.
+- The saved Codex project is named **Vials**, but it points to this separate **Vials Fluid Lab** repository. Do not confuse it with the Original Vials checkout.
+- Branch `codex/fluid-lab`, physical-iPad signing and installation have all been validated on this Mac. Inspect the current log and working tree rather than relying on historical paths or checkpoint claims later in this chronological archive.
+
+## September 25: completed 2D vial surface normalization
+
+Eddie reported a dark notch below the cap of completed seven-unit vial I on Sorting Course 46. Logical contents and play were correct. The concurrent-capable 2D path now canonicalizes only a completed vessel after the last active pour touching it finishes, ensuring its full surface meets the cap. Partial fills and active vessels keep their physical settle. The focused seven-unit regression, complete cross-mode vessel suite, macOS build and signed iPad build pass; the corrected build was installed and launched. See `Reports/Prototype53/README.md`.
+
 ## September 25: 100-level Sorting Course and neutral assistance history
 
 Sorting Course now has 100 frozen, Lab-solvable boards. The accepted first 50 remain byte-for-byte unchanged; levels 51–100 use distinct offline source variants, stay within ten vials, and preserve Discovery on every fifth level. Endless remains dynamically generated. The shipping app still never invokes Original generator, animation, concurrency or gameplay code.

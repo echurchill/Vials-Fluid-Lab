@@ -433,6 +433,22 @@ nonisolated struct LabFluid2D:Sendable {
             transfers[j]=job
         }
         for i in finished.reversed() { transfers.remove(at:i) }
+        // A completed vial is immediately capped, so its final 2D surface must
+        // meet the lid uniformly. The physical settle can occasionally leave a
+        // narrow notch in a tall, full receiver even though every particle and
+        // logical unit arrived. Canonicalize only completed, now-idle vessels;
+        // partial fills and vessels in another active pour retain their natural
+        // simulated surface.
+        let completedIdle=Set(sources.union(receivers).filter { owner in
+            game.state.isComplete(owner) && !transfers.contains {
+                $0.item.move.source==owner || $0.item.move.destination==owner
+            }
+        })
+        if !completedIdle.isEmpty {
+            let packed=seed(game.state)
+            for i in particles.indices where completedIdle.contains(packed[i].owner) {particles[i]=packed[i]}
+            for owner in completedIdle {surfaces[owner].energy=0}
+        }
         selected=Set(groupMoves.flatMap(\.parcels))
         arrived=transfers.reduce(0){$0+$1.arrived};departed=transfers.reduce(0){$0+$1.departed}
         displayStreamActive=transfers.contains {$0.departed>0 && $0.cutoff==nil}
