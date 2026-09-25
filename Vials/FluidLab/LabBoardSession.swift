@@ -119,6 +119,7 @@ import Combine
     var completedSortingCourseLevelCount:Int {(1...LabSortingCourseBoard.levelCount).filter(hasCompletedSortingCourseLevel).count}
     var completedValveLevelCount:Int {(1...LabValveBoard.levelCount).filter(hasCompletedValveLevel).count}
     func hasCompletedSortingCourseLevel(_ number:Int)->Bool {hasCompleted(key:"sortingCourse.\(number)")}
+    func sortingCourseCompletion(_ number:Int)->LabCompletionRecord? {saved.completions["sortingCourse.\(number)"]}
     func hasCompletedValveLevel(_ number:Int)->Bool {hasCompleted(key:"valves.\(number)")}
     func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool {
         (!isSortingSubcourse && puzzle == self.puzzle && state.solved) || hasCompleted(key:puzzle.rawValue)

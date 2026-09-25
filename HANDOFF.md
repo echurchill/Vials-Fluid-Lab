@@ -6,6 +6,10 @@
 - The saved Codex project is named **Vials**, but it points to this separate **Vials Fluid Lab** repository. Do not confuse it with the Original Vials checkout.
 - Branch `codex/fluid-lab`, physical-iPad signing and installation have all been validated on this Mac. Inspect the current log and working tree rather than relying on historical paths or checkpoint claims later in this chronological archive.
 
+## September 25: Sorting Course browser
+
+The 100-level Sorting Course now uses a dedicated browser with four groups of 25 instead of a single long menu. Cards mark the current level, completed levels and every-fifth-level Discovery boards. A completed card may also show whether its most recent successful attempt used a hint or helper; the browser explains that these are neutral history facts and do not affect progress or access. Every level remains directly selectable. Full course validation, macOS inspection and signed iPad build/install/launch pass. See `Reports/Prototype54/README.md`.
+
 ## September 25: completed 2D vial surface normalization
 
 Eddie reported a dark notch below the cap of completed seven-unit vial I on Sorting Course 46. Logical contents and play were correct. The concurrent-capable 2D path now canonicalizes only a completed vessel after the last active pour touching it finishes, ensuring its full surface meets the cap. Partial fills and active vessels keep their physical settle. The focused seven-unit regression, complete cross-mode vessel suite, macOS build and signed iPad build pass; the corrected build was installed and launched. See `Reports/Prototype53/README.md`.

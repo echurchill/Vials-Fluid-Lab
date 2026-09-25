@@ -139,6 +139,8 @@ import Darwin
         let completion=completedSave.completions[first.saveKey]
         check(completion?.completionCount==1 && completion?.lastUsedHint==true && completion?.lastUsedHelper==true,
               "Hint/helper completion facts were not recorded")
+        check(completionSession.sortingCourseCompletion(1)==completion,
+              "Course browser completion lookup did not match the saved completion")
         check(completionSession.completionAssistanceSummary=="Completed with a hint and a helper.","Completion assistance presentation is incorrect")
         completionSession.reset()
         check(completionSession.hasCompletedSortingCourseLevel(1) && completionSession.boardProgressSummary=="1 / \(LabSortingCourseBoard.levelCount) complete",

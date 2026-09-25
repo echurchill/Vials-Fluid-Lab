@@ -2,7 +2,104 @@ import SwiftUI
 import MetalKit
 import Combine
 
-private enum BoardSheet:String,Identifiable { case classic,study,journey;var id:String { rawValue } }
+private enum BoardSheet:String,Identifiable { case classic,study,journey,course;var id:String { rawValue } }
+
+private struct LabSortingCourseBrowserView:View {
+    let current:Int?
+    let completed:Set<Int>
+    let completion:(Int)->LabCompletionRecord?
+    let choose:(Int)->Void
+    let close:()->Void
+    @State private var rangeStart:Int
+    private let ink=Color(red:0.80,green:0.88,blue:0.90)
+    private let accent=Color(red:0.28,green:0.85,blue:0.79)
+    private var starts:[Int] {stride(from:1,through:LabSortingCourseBoard.levelCount,by:25).map {$0}}
+    private var rangeEnd:Int {min(rangeStart+24,LabSortingCourseBoard.levelCount)}
+    private var rangeCompleted:Int {(rangeStart...rangeEnd).filter(completed.contains).count}
+    private var columns:[GridItem] {[GridItem(.adaptive(minimum:68,maximum:92),spacing:10)]}
+    init(current:Int?,completed:Set<Int>,completion:@escaping (Int)->LabCompletionRecord?,choose:@escaping (Int)->Void,close:@escaping ()->Void) {
+        self.current=current;self.completed=completed;self.completion=completion;self.choose=choose;self.close=close
+        let selected=max(1,min(LabSortingCourseBoard.levelCount,current ?? 1))
+        _rangeStart=State(initialValue:((selected-1)/25)*25+1)
+    }
+    private func accessibilityValue(_ number:Int)->String {
+        var parts=[number.isMultiple(of:5) ? "Discovery level":"Sorting level"]
+        if current==number {parts.append("current")}
+        guard completed.contains(number) else {parts.append("not completed");return parts.joined(separator:", ")}
+        parts.append("completed")
+        if let record=completion(number) {
+            if record.lastUsedHint {parts.append("last completed with a hint")}
+            if record.lastUsedHelper {parts.append("last completed with a helper")}
+            if !record.lastUsedHint && !record.lastUsedHelper {parts.append("last completed without hints or helpers")}
+        }
+        return parts.joined(separator:", ")
+    }
+    var body:some View {
+        NavigationStack {
+            VStack(alignment:.leading,spacing:18) {
+                VStack(alignment:.leading,spacing:5) {
+                    Text("Choose any level").font(.title2.weight(.semibold))
+                    Text("\(completed.count) of \(LabSortingCourseBoard.levelCount) complete · \(rangeCompleted) in this group")
+                        .font(.subheadline.monospacedDigit()).foregroundStyle(ink.opacity(0.68))
+                }
+                Picker("Level group",selection:$rangeStart) {
+                    ForEach(starts,id:\.self) {start in
+                        Text("\(start)–\(min(start+24,LabSortingCourseBoard.levelCount))").tag(start)
+                    }
+                }.pickerStyle(.segmented).accessibilityIdentifier("sortingCourse.browser.range")
+                ScrollView {
+                    LazyVGrid(columns:columns,spacing:10) {
+                        ForEach(rangeStart...rangeEnd,id:\.self) {number in
+                            let record=completion(number)
+                            let isComplete=completed.contains(number)
+                            let isCurrent=current==number
+                            Button {choose(number)} label: {
+                                VStack(spacing:7) {
+                                    HStack(spacing:4) {
+                                        Text("\(number)").font(.headline.monospacedDigit())
+                                        Spacer(minLength:0)
+                                        if number.isMultiple(of:5) {
+                                            Image(systemName:"eye.slash.fill").font(.caption2).foregroundStyle(Color.cyan)
+                                        }
+                                    }
+                                    HStack(spacing:6) {
+                                        if isComplete {Image(systemName:"checkmark.circle.fill").foregroundStyle(accent)}
+                                        if record?.lastUsedHint==true {Image(systemName:"lightbulb.fill").foregroundStyle(Color.yellow.opacity(0.88))}
+                                        if record?.lastUsedHelper==true {Image(systemName:"cup.and.saucer.fill").foregroundStyle(Color.mint)}
+                                        if !isComplete {Image(systemName:"circle").foregroundStyle(ink.opacity(0.22))}
+                                        Spacer(minLength:0)
+                                    }.font(.caption)
+                                }
+                                .padding(9).frame(maxWidth:.infinity,minHeight:64)
+                                .background(isComplete ? accent.opacity(0.10):Color.white.opacity(0.035),in:RoundedRectangle(cornerRadius:10))
+                                .overlay(RoundedRectangle(cornerRadius:10).stroke(isCurrent ? accent:ink.opacity(0.12),lineWidth:isCurrent ? 2:1))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Level \(number)")
+                            .accessibilityValue(accessibilityValue(number))
+                            .accessibilityIdentifier("sortingCourse.browser.level.\(number)")
+                        }
+                    }.padding(.vertical,2)
+                }
+                VStack(alignment:.leading,spacing:7) {
+                    HStack(spacing:14) {
+                        Label("Completed",systemImage:"checkmark.circle.fill")
+                        Label("Discovery",systemImage:"eye.slash.fill")
+                        Label("Hint",systemImage:"lightbulb.fill")
+                        Label("Helper",systemImage:"cup.and.saucer.fill")
+                    }.font(.caption).foregroundStyle(ink.opacity(0.78))
+                    Text("Hint and helper symbols describe the most recent completion. They do not affect progress or unlocks.")
+                        .font(.caption).foregroundStyle(ink.opacity(0.58))
+                }
+            }
+            .padding(22).background(Color(red:0.026,green:0.043,blue:0.060)).foregroundStyle(ink)
+            .navigationTitle("Sorting Course")
+            .toolbar {
+                ToolbarItem(placement:.cancellationAction) {Button("Close",action:close)}
+            }
+        }.preferredColorScheme(.dark)
+    }
+}
 
 struct FluidBoardView:View {
     @StateObject private var session=FluidBoardSession(allowsConcurrentPours:true)
@@ -223,9 +320,15 @@ struct FluidBoardView:View {
                         ForEach(LabBoardPace.allCases,id:\.self) { Text($0.title).tag($0) }
                     }.pickerStyle(.segmented).frame(maxWidth:220)
                     Spacer(minLength:0)
-                    Menu {
-                        boardChoices
-                    } label: { Image(systemName:"square.grid.2x2").frame(width:28,height:28) }.accessibilityLabel("Choose puzzle")
+                    if session.isSortingCourse {
+                        Button {sheet = .course} label: {Image(systemName:"square.grid.2x2").frame(width:28,height:28)}
+                            .buttonStyle(.plain).accessibilityLabel("Browse Sorting Course levels")
+                            .accessibilityIdentifier("sortingCourse.browser")
+                    } else {
+                        Menu {
+                            boardChoices
+                        } label: { Image(systemName:"square.grid.2x2").frame(width:28,height:28) }.accessibilityLabel("Choose puzzle")
+                    }
                 }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
                 HStack { Text(session.boardDetail);Spacer();Text(session.boardProgressSummary) }.font(.system(size:10,design:.monospaced)).foregroundStyle(ink.opacity(0.55)).padding(.horizontal,compact ? 20:32)
                 HStack {
@@ -423,6 +526,13 @@ struct FluidBoardView:View {
                                 .opacity(session.solved ? 1:0).disabled(!session.solved)
                                 .allowsHitTesting(session.solved).accessibilityHidden(!session.solved)
                                 .accessibilityIdentifier("sortingCourse.nextLevel")
+                        } else if session.isSortingCourse {
+                            Button("Choose level",systemImage:"square.grid.2x2") {sheet = .course}
+                                .lineLimit(1).minimumScaleFactor(0.75)
+                                .buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
+                                .opacity(session.solved ? 1:0).disabled(!session.solved)
+                                .allowsHitTesting(session.solved).accessibilityHidden(!session.solved)
+                                .accessibilityIdentifier("sortingCourse.chooseLevel")
                         } else if let endless=session.endlessBoard {
                             Button("Next: \(endless.number+1)",systemImage:"arrow.right") {openEndless(endless.difficulty,level:endless.number+1)}
                                 .lineLimit(1).minimumScaleFactor(0.75)
@@ -556,6 +666,12 @@ struct FluidBoardView:View {
                     completed:Set(LabJourney.stops.map(\.puzzle).filter(session.hasCompleted)),
                     choose:{session.startJourney(at:$0);sheet=nil},close:{sheet=nil})
                     .frame(minWidth:360,idealWidth:960,minHeight:640,idealHeight:800)
+            } else if item == .course {
+                LabSortingCourseBrowserView(current:session.sortingCourseBoard?.number,
+                    completed:Set((1...LabSortingCourseBoard.levelCount).filter(session.hasCompletedSortingCourseLevel)),
+                    completion:session.sortingCourseCompletion,
+                    choose:{openSortingCourse(level:$0);sheet=nil},close:{sheet=nil})
+                    .frame(minWidth:360,idealWidth:760,minHeight:520,idealHeight:720)
             } else {
                 ZStack(alignment:.topTrailing) {
                     if item == .study { FluidLabView() } else { ContentView() }
@@ -583,8 +699,13 @@ struct FluidBoardView:View {
             Button("Previous level") {openSortingCourse(level:course.number-1)}.disabled(course.number==1)
             Button("Next level") {openSortingCourse(level:course.number+1)}.disabled(course.number==LabSortingCourseBoard.levelCount)
             Divider()
-            ForEach(1...LabSortingCourseBoard.levelCount,id:\.self) {number in
-                Button("\(number). Level \(number)\(number.isMultiple(of:5) ? " · Discovery":"")\(session.hasCompletedSortingCourseLevel(number) ? " ✓":"")") {openSortingCourse(level:number)}
+            ForEach(stride(from:1,through:LabSortingCourseBoard.levelCount,by:25).map {$0},id:\.self) {start in
+                let end=min(start+24,LabSortingCourseBoard.levelCount)
+                Menu("Levels \(start)–\(end)") {
+                    ForEach(start...end,id:\.self) {number in
+                        Button("\(number). Level \(number)\(number.isMultiple(of:5) ? " · Discovery":"")\(session.hasCompletedSortingCourseLevel(number) ? " ✓":"")") {openSortingCourse(level:number)}
+                    }
+                }
             }
             Divider()
             Button("Return to Sorting Lab") {session.changeDiscipline(.sorting)}

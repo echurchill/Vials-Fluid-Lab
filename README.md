@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Sorting Course browser](Reports/Prototype54/README.md) replaces the unwieldy 100-item level menu with four browsable groups of 25, visible Discovery cadence and neutral completion/hint/helper history.
+
 [Sealed 2D surface normalization](Reports/Prototype53/README.md) prevents a completed tall vial from retaining a visual notch beneath its cap while leaving partial and actively pouring surfaces fully simulated.
 
 [100-level Sorting Course and assistance history](Reports/Prototype52/README.md) doubles the stable curriculum while preserving Discovery every fifth level, records hint/helper use as neutral completion facts, and gives Valve Lab progressive lid guidance. All new boards are frozen from offline candidates and solved under the shipping Lab rules.
