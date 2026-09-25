@@ -6,6 +6,12 @@
 - The saved Codex project is named **Vials**, but it points to this separate **Vials Fluid Lab** repository. Do not confuse it with the Original Vials checkout.
 - Branch `codex/fluid-lab`, physical-iPad signing and installation have all been validated on this Mac. Inspect the current log and working tree rather than relying on historical paths or checkpoint claims later in this chronological archive.
 
+## September 25: fast helper reflow and Journey acceptance
+
+Adding an empty helper no longer rebuilds and settles all liquid. Existing 2D/3D particles retain their vessel-local positions while homes reflow, including portrait one-row/two-row changes; 3D also reuses unchanged meshes and canonical seeds. A Course 45 local benchmark reduced the 2D add path from 1,306.01 ms to 0.49 ms. Shape-changing upgrades intentionally keep the conservative full rebuild. Full Sorting Course, vessel and concurrency suites pass. The final signed build was installed and launched on Eddie's connected iPad with existing data preserved.
+
+The live Journey acceptance pass covered map selection, automatic first-use teaching, dismissal/replay, completing Ready to blend, Next navigation, and the two-page density/heavier guide. Structural validation covers all 19 current reachable/solvable stops, shared progress, save migration and reset. See `Reports/Prototype55/README.md`.
+
 ## September 25: Sorting Course browser
 
 The 100-level Sorting Course now uses a dedicated browser with four groups of 25 instead of a single long menu. Cards mark the current level, completed levels and every-fifth-level Discovery boards. A completed card may also show whether its most recent successful attempt used a hint or helper; the browser explains that these are neutral history facts and do not affect progress or access. Every level remains directly selectable. Full course validation, macOS inspection and signed iPad build/install/launch pass. See `Reports/Prototype54/README.md`.

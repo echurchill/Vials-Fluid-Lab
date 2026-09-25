@@ -157,11 +157,15 @@ nonisolated struct LabFluid2D:Sendable {
     var twoRowLayout=false
     mutating func setTwoRowLayout(_ enabled:Bool) {
         guard twoRowLayout != enabled else {return}
+        let oldHomes=profiles.indices.map(home)
         twoRowLayout=enabled
-        // Layout is part of the particle coordinate system. Force a canonical
-        // idle reseed instead of taking install's same-state preservation path.
-        particles=[]
-        install(game)
+        guard !busy,!particles.isEmpty,oldHomes.count==profiles.count else {particles=[];install(game);return}
+        let newHomes=profiles.indices.map(home)
+        for i in particles.indices where particles[i].owner>=0 && particles[i].owner<oldHomes.count {
+            let owner=particles[i].owner
+            particles[i].position += newHomes[owner]-oldHomes[owner]
+        }
+        surfaces=Array(repeating:Lab2DSurfaceState(),count:profiles.count);splashes=[]
     }
     func home(_ i:Int)->SIMD2<Float> {
         let point=LabBoardLayout.homes(count:profiles.count,twoRows:twoRowLayout)[i]
@@ -252,6 +256,34 @@ nonisolated struct LabFluid2D:Sendable {
         // Relax the deterministic area-stratified seed without advancing a game move.
         for _ in 0..<240 { solve(active:Set(game.state.stacks.indices),dt:Self.step,poses:profiles.indices.map { pose($0) }) }
         for i in particles.indices { particles[i].velocity = .zero }
+    }
+    /// Adding an empty helper changes only vessel homes. Preserve the already
+    /// settled local liquid instead of solving the entire board for 240 more
+    /// steps. Shape-changing upgrades intentionally keep the full rebuild.
+    @discardableResult mutating func installAddingEmptyHelper(_ next:LabBoardGame)->Bool {
+        guard !busy,!particles.isEmpty,game.state.addingHelper()==next.state else {return false}
+        let oldHomes=profiles.indices.map(home),oldParticles=particles
+        transformation=nil;transformationFrom=[];transformationTargets=[]
+        displayPoses=[:];displayMoves=[];displayEnvelope=nil;displayStreamActive=nil
+        transfers=[];groupMode=false;groupResults=[];concurrentReveals=[:]
+        game=next;game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
+        cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
+        profiles=zip(LabBoardLayout.profiles(state:next.state),next.state.capacities).map {
+            Lab2DProfile($0.0,capacity:$0.1)
+        }
+        guard profiles.count==oldHomes.count+1 else {particles=[];install(next);return false}
+        let newHomes=profiles.indices.map(home)
+        particles=oldParticles
+        for i in particles.indices {
+            let owner=particles[i].owner
+            guard owner>=0,owner<oldHomes.count else {particles=[];install(next);return false}
+            particles[i].position += newHomes[owner]-oldHomes[owner]
+            particles[i].velocity = .zero
+        }
+        materialTimes=Array(repeating:0,count:profiles.count)
+        surfaces=Array(repeating:Lab2DSurfaceState(),count:profiles.count);splashes=[]
+        links=Array(repeating:-1,count:particles.count)
+        return true
     }
     mutating func beginTransformation(_ transition:LabApparatusTransition) {
         transformationFrom=particles

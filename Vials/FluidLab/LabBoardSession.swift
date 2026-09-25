@@ -281,16 +281,17 @@ import Combine
     }
     private func applyRequestedLayoutIfPossible() {
         guard !busy,requestedTwoRowLayout != twoRowLayout else {return}
+        let metalSamples=renderer?.reflowedParticleSamples(for:game.state,twoRows:requestedTwoRowLayout)
         twoRowLayout=requestedTwoRowLayout
-        settledParticles=nil
         fluid2D.setTwoRowLayout(twoRowLayout)
         if presentation == .fluid2D {
             fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)
         }
         renderer?.twoRowLayout=twoRowLayout
         for engine in metalPool {engine.twoRowLayout=twoRowLayout}
+        if renderer != nil {settledParticles=metalSamples}
         if presentation == .fluid,let renderer {
-            renderer.install(game:game);compositeSamples=renderer.particleSamples()
+            renderer.install(game:game,samples:metalSamples);compositeSamples=renderer.particleSamples()
         }
     }
     private func prepareFluid() {
@@ -662,13 +663,18 @@ import Combine
         let particles=presentation == .fluid ? renderer?.particleSamples():settledParticles
         guard game.addHelper() else {return}
         markAssistance(helper:true)
-        // Adding a vessel reflows every home position. Keep the old sample for
-        // Undo, but seed the new topology instead of restoring world-space
-        // particles at their now-stale coordinates.
-        undoParticles.append(particles);settledParticles=nil
+        // An empty helper changes only the vessel homes. Preserve local liquid
+        // placement while translating it into the new topology; Undo retains
+        // the exact old world-space sample.
+        undoParticles.append(particles)
+        settledParticles=renderer?.reflowedParticleSamples(particles,for:game.state)
         selected=nil;hintTarget=nil;hintApparatusID=nil
         if presentation == .fluid {prepareFluid()}
-        if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
+        if presentation == .fluid2D {
+            fluid2D.quickMotion=pace == .quick
+            if !fluid2D.installAddingEmptyHelper(game) {fluid2D.install(game)}
+            planarDisplay.publish(fluid2D)
+        }
         notice="Tea cup added. It must be empty to finish the level."
         checkpoint();refresh()
     }

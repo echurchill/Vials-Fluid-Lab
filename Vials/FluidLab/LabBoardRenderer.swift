@@ -244,22 +244,45 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         previousWorlds=[];accumulator=0;lastWallTime=nil;pausedSignature=nil
         correctionCount=0;arrivalBeforeCorrection=0;lastMetrics=LabBoardMetrics();paused=false
     }
-    func reset(state:LabBoardState = .firstSort) {
+    private func canonicalPositions(_ profile:LabVesselProfile,capacity:Int)->[SIMD3<Float>] {
+        let unit=particleFillVolume(profile)/Float(capacity)
+        return (0..<(capacity*Self.particlesPerUnit)).map { slot in
+            let layer=slot/Self.particlesPerUnit,i=slot%Self.particlesPerUnit
+            let v=(Float(layer)+(Float(i)+0.5)/Float(Self.particlesPerUnit))*unit
+            let y=max(0.04,profile.height(for:v))
+            let r=max(0.01,profile.radius(at:y)-0.042)*sqrt(radical(i+1,2)),a=radical(i+1,3)*2*Float.pi
+            return SIMD3(r*cos(a),y,r*sin(a))
+        }
+    }
+    func reset(state:LabBoardState = .firstSort,samples:[LabParticle]? = nil) {
         lastCommand?.waitUntilCompleted()
         game=LabBoardGame(state:state);simulationTime=0;clearMotion();historyParticles=[];beforeParticles=[];lastOutcome=""
         let shapes=LabBoardLayout.shapes(for:state)
         if profileCapacities != state.capacities || profileShapes != shapes {
+            let appendingOne = state.capacities.count==profileCapacities.count+1 &&
+                Array(state.capacities.dropLast())==profileCapacities && Array(shapes.dropLast())==profileShapes
+            let oldMeshes=meshes,oldHandles=handleMeshes,oldCaps=capMeshes,oldSeeds=seedPositions
             profileCapacities=state.capacities;profileShapes=shapes;profiles=LabBoardLayout.profiles(state:state);seedPositions=[]
             profilesBuffer=makeBuffer(profiles.flatMap(\.radii))
-            meshes=profiles.map { let vertices=labGlassMesh($0,rings:48,segments:64);return (makeBuffer(vertices),vertices.count) }
-            handleMeshes=profiles.indices.map {index in
-                guard state.isHelper(index) else {return nil}
-                let vertices=labHelperHandleMesh(profiles[index],capacity:state.capacity(index))
-                return (makeBuffer(vertices),vertices.count)
+            if appendingOne,oldMeshes.count+1==profiles.count,oldHandles.count==oldMeshes.count,oldCaps.count==oldMeshes.count {
+                let index=profiles.count-1,profile=profiles[index]
+                let mesh=labGlassMesh(profile,rings:48,segments:64),cap=labCapMesh(profile)
+                let handle=state.isHelper(index) ? labHelperHandleMesh(profile,capacity:state.capacity(index)):[]
+                meshes=oldMeshes+[(makeBuffer(mesh),mesh.count)]
+                handleMeshes=oldHandles+[handle.isEmpty ? nil:(makeBuffer(handle),handle.count)]
+                capMeshes=oldCaps+[(makeBuffer(cap),cap.count)]
+                if oldSeeds.count==index {seedPositions=oldSeeds+[canonicalPositions(profile,capacity:state.capacity(index))]}
+            } else {
+                meshes=profiles.map { let vertices=labGlassMesh($0,rings:48,segments:64);return (makeBuffer(vertices),vertices.count) }
+                handleMeshes=profiles.indices.map {index in
+                    guard state.isHelper(index) else {return nil}
+                    let vertices=labHelperHandleMesh(profiles[index],capacity:state.capacity(index))
+                    return (makeBuffer(vertices),vertices.count)
+                }
+                capMeshes=profiles.map { let vertices=labCapMesh($0);return (makeBuffer(vertices),vertices.count) }
             }
-            capMeshes=profiles.map { let vertices=labCapMesh($0);return (makeBuffer(vertices),vertices.count) }
         }
-        let values=seed(state:state)
+        let values=samples?.count==state.colors.count*Self.particlesPerUnit ? samples!:seed(state:state)
         particleVolume=profiles.first.map(particleFillVolume) ?? 1
         particleVolume/=Float(max(1,state.capacities.first ?? 4))*Float(Self.particlesPerUnit)
         installParticleStorage(values)
@@ -269,9 +292,25 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     /// are reconstructed from exact unit volumes on the next Fluid presentation.
     func install(game:LabBoardGame,samples:[LabParticle]? = nil) {
         precondition(game.pending == nil)
-        reset(state:game.state)
+        reset(state:game.state,samples:samples)
         self.game=game
-        if let samples, samples.count==particleCount { particles=makeBuffer(samples) }
+    }
+
+    /// Translate resting samples between vessel-home layouts. Adding an empty
+    /// helper does not change parcel ownership or any existing vessel profile.
+    func reflowedParticleSamples(_ samples:[LabParticle]? = nil,for state:LabBoardState,twoRows newTwoRows:Bool? = nil)->[LabParticle]? {
+        guard game.pending==nil,state==game.state || game.state.addingHelper()==state else {return nil}
+        let oldHomes=homes,newHomes=LabBoardLayout.homes(count:state.stacks.count,twoRows:newTwoRows ?? twoRowLayout)
+        var result=samples ?? particleSamples()
+        guard result.count==state.colors.count*Self.particlesPerUnit else {return nil}
+        for i in result.indices {
+            let owner=Int(result[i].position.w)
+            guard owner>=0,owner<oldHomes.count,owner<newHomes.count else {return nil}
+            let delta=newHomes[owner]-oldHomes[owner]
+            result[i].position.x+=delta.x;result[i].position.y+=delta.y;result[i].position.z+=delta.z
+            result[i].predicted.x+=delta.x;result[i].predicted.y+=delta.y;result[i].predicted.z+=delta.z
+        }
+        return result
     }
 
     func beginTransformation(_ transition:LabApparatusTransition) {
@@ -324,14 +363,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private func seed(state:LabBoardState) -> [LabParticle] {
         if seedPositions.count != profiles.count {
             seedPositions=profiles.enumerated().map { owner,profile in
-                let capacity=game.state.capacities[owner],unit=particleFillVolume(profile)/Float(capacity)
-                return (0..<(capacity*Self.particlesPerUnit)).map { slot in
-                    let layer=slot/Self.particlesPerUnit,i=slot%Self.particlesPerUnit
-                    let v=(Float(layer)+(Float(i)+0.5)/Float(Self.particlesPerUnit))*unit
-                    let y=max(0.04,profile.height(for:v))
-                    let r=max(0.01,profile.radius(at:y)-0.042)*sqrt(radical(i+1,2)),a=radical(i+1,3)*2*Float.pi
-                    return SIMD3(r*cos(a),y,r*sin(a))
-                }
+                canonicalPositions(profile,capacity:game.state.capacities[owner])
             }
         }
         var values:[LabParticle]=[]
@@ -724,7 +756,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         reset(state:source.game.state)
     }
     func installSimulation(game:LabBoardGame,samples:[LabParticle],vessels:Set<Int>) {
-        install(game:game)
+        install(game:game,samples:samples)
         let ids=Set(vessels.flatMap { game.state.stacks[$0] })
         installParticleStorage(samples.filter {ids.contains(Int($0.visual.y))})
     }

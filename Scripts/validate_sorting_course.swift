@@ -56,6 +56,19 @@ import Darwin
         // Helper vessels are first-class Lab containers, but adding/upgrading
         // them is an undoable board action rather than a scored pour.
         check(session.supportsHelpers && session.canAddHelper,"Sorting Course did not offer helpers")
+        var planar=LabFluid2D(game:LabBoardGame(state:first.initial))
+        let originalLocal=planar.particles.map {$0.position-planar.home($0.owner)}
+        var planarHelperGame=LabBoardGame(state:first.initial)
+        check(planarHelperGame.addHelper(),"Could not prepare the planar helper reflow fixture")
+        check(planar.installAddingEmptyHelper(planarHelperGame),"Planar helper add fell back to a full-board settle")
+        check(planar.particles.count==originalLocal.count,"Planar helper reflow changed the particle inventory")
+        let helperLocal=planar.particles.map {$0.position-planar.home($0.owner)}
+        check(zip(originalLocal,helperLocal).allSatisfy {abs($0.x-$1.x)<0.0001 && abs($0.y-$1.y)<0.0001},
+              "Planar helper reflow changed settled local liquid positions")
+        planar.setTwoRowLayout(true)
+        let rowLocal=planar.particles.map {$0.position-planar.home($0.owner)}
+        check(zip(helperLocal,rowLocal).allSatisfy {abs($0.x-$1.x)<0.0001 && abs($0.y-$1.y)<0.0001},
+              "Planar row reflow changed settled local liquid positions")
         session.addHelper()
         let helper=session.state.helpers[0]
         check(session.state.helperName(helper)=="Tea cup" && session.state.capacity(helper)==1,"The first helper is not a one-unit tea cup")
