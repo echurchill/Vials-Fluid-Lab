@@ -8,7 +8,7 @@
 
 ## September 25: fast helper reflow and Journey acceptance
 
-Adding an empty helper no longer rebuilds and settles all liquid. Existing 2D/3D particles retain their vessel-local positions while homes reflow, including portrait one-row/two-row changes; 3D also reuses unchanged meshes and canonical seeds. A Course 45 local benchmark reduced the 2D add path from 1,306.01 ms to 0.49 ms. Shape-changing upgrades intentionally keep the conservative full rebuild. Full Sorting Course, vessel and concurrency suites pass. The final signed build was installed and launched on Eddie's connected iPad with existing data preserved.
+Adding an empty helper no longer rebuilds and settles all liquid. Existing 2D/3D particles retain their vessel-local positions while homes reflow, including portrait one-row/two-row changes; 3D also reuses unchanged meshes and canonical seeds. A Course 45 local benchmark reduced the 2D add path from 1,387.30 ms to 0.48 ms and an empty-helper upgrade from 1,344.59 ms to 0.46 ms. Filled-helper upgrades intentionally keep the conservative full rebuild. Full Sorting Course, vessel and concurrency suites pass. The final signed build was installed and launched on Eddie's connected iPad with existing data preserved.
 
 The live Journey acceptance pass covered map selection, automatic first-use teaching, dismissal/replay, completing Ready to blend, Next navigation, and the two-page density/heavier guide. Structural validation covers all 19 current reachable/solvable stops, shared progress, save migration and reset. See `Reports/Prototype55/README.md`.
 

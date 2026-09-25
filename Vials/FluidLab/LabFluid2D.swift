@@ -285,6 +285,26 @@ nonisolated struct LabFluid2D:Sendable {
         links=Array(repeating:-1,count:particles.count)
         return true
     }
+    /// An empty helper has no particles to remap when its cup profile changes.
+    /// Rebuild only the profile metadata; filled upgrades use install(_:) so
+    /// their liquid is repacked into the new physical volume.
+    @discardableResult mutating func installUpgradingEmptyHelper(_ index:Int,to next:LabBoardGame)->Bool {
+        guard !busy,!particles.isEmpty,game.state.isHelper(index),game.state.stacks[index].isEmpty,
+              game.state.upgradingHelper(index)==next.state else {return false}
+        transformation=nil;transformationFrom=[];transformationTargets=[]
+        displayPoses=[:];displayMoves=[];displayEnvelope=nil;displayStreamActive=nil
+        transfers=[];groupMode=false;groupResults=[];concurrentReveals=[:]
+        game=next;game.cancel();time=0;cutoff=nil;targets=nil;accumulator=0;selected=[]
+        cleanupPercent=0;arrived=0;departed=0;lastOutcome="";cpuMilliseconds=0
+        profiles=zip(LabBoardLayout.profiles(state:next.state),next.state.capacities).map {
+            Lab2DProfile($0.0,capacity:$0.1)
+        }
+        materialTimes=Array(repeating:0,count:profiles.count)
+        surfaces=Array(repeating:Lab2DSurfaceState(),count:profiles.count);splashes=[]
+        links=Array(repeating:-1,count:particles.count)
+        for i in particles.indices {particles[i].velocity = .zero}
+        return true
+    }
     mutating func beginTransformation(_ transition:LabApparatusTransition) {
         transformationFrom=particles
         if transition.isRevealing {

@@ -65,9 +65,15 @@ import Darwin
         let helperLocal=planar.particles.map {$0.position-planar.home($0.owner)}
         check(zip(originalLocal,helperLocal).allSatisfy {abs($0.x-$1.x)<0.0001 && abs($0.y-$1.y)<0.0001},
               "Planar helper reflow changed settled local liquid positions")
+        let helperIndex=planarHelperGame.state.helpers[0]
+        check(planarHelperGame.upgradeHelper(helperIndex),"Could not prepare the empty-helper upgrade fixture")
+        check(planar.installUpgradingEmptyHelper(helperIndex,to:planarHelperGame),"Empty planar helper upgrade fell back to a full-board settle")
+        let upgradeLocal=planar.particles.map {$0.position-planar.home($0.owner)}
+        check(zip(helperLocal,upgradeLocal).allSatisfy {abs($0.x-$1.x)<0.0001 && abs($0.y-$1.y)<0.0001},
+              "Empty planar helper upgrade changed settled local liquid positions")
         planar.setTwoRowLayout(true)
         let rowLocal=planar.particles.map {$0.position-planar.home($0.owner)}
-        check(zip(helperLocal,rowLocal).allSatisfy {abs($0.x-$1.x)<0.0001 && abs($0.y-$1.y)<0.0001},
+        check(zip(upgradeLocal,rowLocal).allSatisfy {abs($0.x-$1.x)<0.0001 && abs($0.y-$1.y)<0.0001},
               "Planar row reflow changed settled local liquid positions")
         session.addHelper()
         let helper=session.state.helpers[0]

@@ -261,6 +261,9 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         if profileCapacities != state.capacities || profileShapes != shapes {
             let appendingOne = state.capacities.count==profileCapacities.count+1 &&
                 Array(state.capacities.dropLast())==profileCapacities && Array(shapes.dropLast())==profileShapes
+            let changed=state.capacities.indices.filter {
+                !profileCapacities.indices.contains($0) || state.capacities[$0] != profileCapacities[$0] || shapes[$0] != profileShapes[$0]
+            }
             let oldMeshes=meshes,oldHandles=handleMeshes,oldCaps=capMeshes,oldSeeds=seedPositions
             profileCapacities=state.capacities;profileShapes=shapes;profiles=LabBoardLayout.profiles(state:state);seedPositions=[]
             profilesBuffer=makeBuffer(profiles.flatMap(\.radii))
@@ -272,6 +275,16 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 handleMeshes=oldHandles+[handle.isEmpty ? nil:(makeBuffer(handle),handle.count)]
                 capMeshes=oldCaps+[(makeBuffer(cap),cap.count)]
                 if oldSeeds.count==index {seedPositions=oldSeeds+[canonicalPositions(profile,capacity:state.capacity(index))]}
+            } else if changed.count==1,oldMeshes.count==profiles.count,oldHandles.count==profiles.count,oldCaps.count==profiles.count {
+                let index=changed[0],profile=profiles[index]
+                let mesh=labGlassMesh(profile,rings:48,segments:64),cap=labCapMesh(profile)
+                let handle=state.isHelper(index) ? labHelperHandleMesh(profile,capacity:state.capacity(index)):[]
+                meshes=oldMeshes;meshes[index]=(makeBuffer(mesh),mesh.count)
+                handleMeshes=oldHandles;handleMeshes[index]=handle.isEmpty ? nil:(makeBuffer(handle),handle.count)
+                capMeshes=oldCaps;capMeshes[index]=(makeBuffer(cap),cap.count)
+                if oldSeeds.count==profiles.count {
+                    seedPositions=oldSeeds;seedPositions[index]=canonicalPositions(profile,capacity:state.capacity(index))
+                }
             } else {
                 meshes=profiles.map { let vertices=labGlassMesh($0,rings:48,segments:64);return (makeBuffer(vertices),vertices.count) }
                 handleMeshes=profiles.indices.map {index in
@@ -299,7 +312,10 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     /// Translate resting samples between vessel-home layouts. Adding an empty
     /// helper does not change parcel ownership or any existing vessel profile.
     func reflowedParticleSamples(_ samples:[LabParticle]? = nil,for state:LabBoardState,twoRows newTwoRows:Bool? = nil)->[LabParticle]? {
-        guard game.pending==nil,state==game.state || game.state.addingHelper()==state else {return nil}
+        let emptyUpgrade=game.state.helpers.contains {
+            game.state.stacks[$0].isEmpty && game.state.upgradingHelper($0)==state
+        }
+        guard game.pending==nil,state==game.state || game.state.addingHelper()==state || emptyUpgrade else {return nil}
         let oldHomes=homes,newHomes=LabBoardLayout.homes(count:state.stacks.count,twoRows:newTwoRows ?? twoRowLayout)
         var result=samples ?? particleSamples()
         guard result.count==state.colors.count*Self.particlesPerUnit else {return nil}

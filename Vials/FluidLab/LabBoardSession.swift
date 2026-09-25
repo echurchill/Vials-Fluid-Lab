@@ -682,13 +682,20 @@ import Combine
         guard canUpgradeHelper(index) else {return}
         cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         let particles=presentation == .fluid ? renderer?.particleSamples():settledParticles
+        let wasEmpty=state.stacks[index].isEmpty
         guard game.upgradeHelper(index) else {return}
         // Capacity changes replace the helper profile. Preserve the old sample
-        // only for Undo and rebuild liquid inside the new physical volume.
-        undoParticles.append(particles);settledParticles=nil
+        // for Undo. An empty helper can reuse every existing liquid sample;
+        // a filled helper still rebuilds liquid inside the new physical volume.
+        undoParticles.append(particles)
+        settledParticles=wasEmpty ? renderer?.reflowedParticleSamples(particles,for:game.state):nil
         selected=nil;hintTarget=nil;hintApparatusID=nil
         if presentation == .fluid {prepareFluid()}
-        if presentation == .fluid2D {fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)}
+        if presentation == .fluid2D {
+            fluid2D.quickMotion=pace == .quick
+            if !wasEmpty || !fluid2D.installUpgradingEmptyHelper(index,to:game) {fluid2D.install(game)}
+            planarDisplay.publish(fluid2D)
+        }
         notice="Helper upgraded to \(state.helperName(index) ?? "the next size"). It still must be empty to finish."
         checkpoint();refresh()
     }
