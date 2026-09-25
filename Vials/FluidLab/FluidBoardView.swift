@@ -111,6 +111,8 @@ struct FluidBoardView:View {
     @State private var connectionPreviewID:Int?
     @State private var sheet:BoardSheet?
     @State private var comparison:LabPourExample?
+    @State private var celebrationSequence=0
+    @State private var celebrationVisible=false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -193,6 +195,13 @@ struct FluidBoardView:View {
             return completed(session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice)
         }
         return session.notice
+    }
+    private var milestoneCompletion:Bool {
+        if let course=session.sortingCourseBoard {return course.number.isMultiple(of:5) || course.number==LabSortingCourseBoard.levelCount}
+        if let valve=session.valveBoard {return valve.number==LabValveBoard.levelCount}
+        if let endless=session.endlessBoard {return endless.number.isMultiple(of:5)}
+        if session.journeyMode {return session.journeyNext.isEmpty}
+        return session.puzzle.next == nil
     }
     private var apparatusControls:some View {
         HStack(spacing:10) {
@@ -343,6 +352,11 @@ struct FluidBoardView:View {
                         else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial,capExclusions:capExclusions,twoRows:session.twoRowLayout) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer,capExclusions:capExclusions).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
+                        if celebrationVisible {
+                            LabCompletionCelebrationView(state:session.state,presentation:session.presentation,twoRows:session.twoRowLayout,milestone:milestoneCompletion)
+                                .id(celebrationSequence)
+                                .transition(.opacity)
+                        }
                         if let tool=focusedApparatus {
                             LabMachineConnectionOverlay(tool:tool,rects:session.state.stacks.indices.map {hitRect($0,size:board.size)},tint:machineAccent)
                                 .allowsHitTesting(false).accessibilityHidden(true)
@@ -626,7 +640,16 @@ struct FluidBoardView:View {
             do {try await Task.sleep(for:.seconds(4))} catch {return}
             connectionPreviewID=nil
         }
-        .onChange(of:session.boardID) { _,_ in inspectedApparatus=nil;connectionPreviewID=nil;showLearningGuide=false }
+        .task(id:celebrationSequence) {
+            guard celebrationVisible else {return}
+            do {try await Task.sleep(for:.milliseconds(reduceMotion ? 900:1650))} catch {return}
+            celebrationVisible=false
+        }
+        .onChange(of:session.solved) { wasSolved,isSolved in
+            if isSolved && !wasSolved {celebrationSequence+=1;celebrationVisible=true}
+            if !isSolved {celebrationVisible=false}
+        }
+        .onChange(of:session.boardID) { _,_ in inspectedApparatus=nil;connectionPreviewID=nil;showLearningGuide=false;celebrationVisible=false }
         .onChange(of:session.busy) { _,busy in if busy {inspectedApparatus=nil;connectionPreviewID=nil} }
         .onChange(of:session.selected) { _,_ in connectionPreviewID=nil }
         .onChange(of:session.hintApparatusID) { _,_ in connectionPreviewID=nil }

@@ -41,12 +41,6 @@ struct LabClassicBoardView:View {
     var body:some View {
         Canvas { context,size in
             let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count,twoRows:twoRows),scale=layout.scale
-            for row in layout.rows where !row.isEmpty {
-                let left=layout.base(row.lowerBound).x-scale*1.25
-                let right=layout.base(row.index(before:row.upperBound)).x+scale*1.25
-                let tray=CGRect(x:left,y:layout.base(row.lowerBound).y-10,width:right-left,height:40)
-                context.stroke(Path(ellipseIn:tray),with:.color(.white.opacity(0.08)),lineWidth:1)
-            }
             for index in state.stacks.indices {
                 let home=layout.base(index)
                 let base=pours.first(where:{$0.move.source==index}).map {pose($0,layout:layout).base} ?? home

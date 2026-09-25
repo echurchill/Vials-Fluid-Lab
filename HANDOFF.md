@@ -6,6 +6,12 @@
 - The saved Codex project is named **Vials**, but it points to this separate **Vials Fluid Lab** repository. Do not confuse it with the Original Vials checkout.
 - Branch `codex/fluid-lab`, physical-iPad signing and installation have all been validated on this Mac. Inspect the current log and working tree rather than relying on historical paths or checkpoint claims later in this chronological archive.
 
+## September 25: board completion celebrations
+
+The broad row-sized floor ellipse is removed from Classic; each vial keeps its softer contact shadow. A read-only completion overlay now gives Classic crisp outline sweeps and sparks, 2D Fluid meniscus ripples and bubbles, and 3D Fluid glass shimmer, expanding rings and droplets. Every-fifth Sorting/Endless levels and course/lab endings get a slightly richer burst. The effect lasts about 1.5 seconds, never mutates the solved board, never blocks Next/Undo/Play Again, and substitutes a restrained static glow under Reduce Motion. Existing optional haptics now pair with a short procedural success chime when sound is enabled.
+
+The macOS Debug and signed physical-iPad Debug builds, live isolated Classic completion, complete 100-level Sorting Course, vessel-presentation suite and all 18 cross-lab/presentation concurrency cases pass. Classic inspection confirms the large floor ellipse is gone and individual contact shadows remain. The final build was installed and launched on Eddie's connected iPad with its existing app data preserved. See `Reports/Prototype56/README.md`.
+
 ## September 25: fast helper reflow and Journey acceptance
 
 Adding an empty helper no longer rebuilds and settles all liquid. Existing 2D/3D particles retain their vessel-local positions while homes reflow, including portrait one-row/two-row changes; 3D also reuses unchanged meshes and canonical seeds. A Course 45 local benchmark reduced the 2D add path from 1,387.30 ms to 0.48 ms and an empty-helper upgrade from 1,344.59 ms to 0.46 ms. Filled-helper upgrades intentionally keep the conservative full rebuild. Full Sorting Course, vessel and concurrency suites pass. The final signed build was installed and launched on Eddie's connected iPad with existing data preserved.

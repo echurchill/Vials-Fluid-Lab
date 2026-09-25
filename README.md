@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Board completion celebrations](Reports/Prototype56/README.md) remove the broad Classic floor ellipse while retaining contact shadows, then add presentation-specific, nonblocking completion effects for Classic, 2D Fluid and 3D Fluid. Milestones receive a richer burst, Reduce Motion gets a restrained treatment, and optional sound/haptics share the payoff.
+
 [Fast helper reflow and Journey acceptance](Reports/Prototype55/README.md) preserve settled liquid while adding helpers or changing portrait rows, removing the expensive full-board 2D resettle and reusing unchanged 3D geometry. The Journey map, first-use teaching, replay, completion and Next flow also pass live acceptance.
 
 [Sorting Course browser](Reports/Prototype54/README.md) replaces the unwieldy 100-item level menu with four browsable groups of 25, visible Discovery cadence and neutral completion/hint/helper history.

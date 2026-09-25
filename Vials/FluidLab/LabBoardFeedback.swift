@@ -13,6 +13,7 @@ import UIKit
     }
     var hapticsEnabled=false
     private var player:AVAudioPlayer?
+    private var successPlayer:AVAudioPlayer?
     private var pouring=false
     func setPouring(_ value:Bool) {
         guard value != pouring else { return }
@@ -37,6 +38,11 @@ import UIKit
     }
     func completed(solved:Bool) {
         stop()
+        if solved && soundEnabled {
+            successPlayer=try? AVAudioPlayer(data:Self.successSound())
+            successPlayer?.volume=0.24
+            successPlayer?.play()
+        }
         #if os(iOS)
         if hapticsEnabled {
             if solved { UINotificationFeedbackGenerator().notificationOccurred(.success) }
@@ -61,6 +67,25 @@ import UIKit
         func ascii(_ s:String) { data.append(contentsOf:s.utf8) }
         func u32(_ v:UInt32) { var x=v.littleEndian;withUnsafeBytes(of:&x) { data.append(contentsOf:$0) } }
         func u16(_ v:UInt16) { var x=v.littleEndian;withUnsafeBytes(of:&x) { data.append(contentsOf:$0) } }
+        ascii("RIFF");u32(UInt32(samples.count+36));ascii("WAVEfmt ");u32(16);u16(1);u16(1)
+        u32(UInt32(rate));u32(UInt32(rate*2));u16(2);u16(16);ascii("data");u32(UInt32(samples.count));data.append(samples)
+        return data
+    }
+    static func successSound() -> Data {
+        let rate=22050,count=Int(Double(rate)*0.62)
+        var samples=Data()
+        for i in 0..<count {
+            let t=Double(i)/Double(rate),attack=min(1,t/0.018),release=max(0,1-t/0.62)
+            let first=sin(t*Double.pi*2*523.25)*exp(-t*5.2)
+            let second=t>0.13 ? sin((t-0.13)*Double.pi*2*659.25)*exp(-(t-0.13)*5.8):0
+            let third=t>0.27 ? sin((t-0.27)*Double.pi*2*783.99)*exp(-(t-0.27)*6.4):0
+            var sample=Int16(max(-1,min(1,(first+second+third)*0.28*attack*release))*30000).littleEndian
+            withUnsafeBytes(of:&sample) {samples.append(contentsOf:$0)}
+        }
+        var data=Data()
+        func ascii(_ s:String) {data.append(contentsOf:s.utf8)}
+        func u32(_ v:UInt32) {var x=v.littleEndian;withUnsafeBytes(of:&x) {data.append(contentsOf:$0)}}
+        func u16(_ v:UInt16) {var x=v.littleEndian;withUnsafeBytes(of:&x) {data.append(contentsOf:$0)}}
         ascii("RIFF");u32(UInt32(samples.count+36));ascii("WAVEfmt ");u32(16);u16(1);u16(1)
         u32(UInt32(rate));u32(UInt32(rate*2));u16(2);u16(16);ascii("data");u32(UInt32(samples.count));data.append(samples)
         return data
