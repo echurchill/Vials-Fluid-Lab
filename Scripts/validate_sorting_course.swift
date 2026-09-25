@@ -12,7 +12,7 @@ import Darwin
         check(!session.busy,"Classic test pour did not finish")
     }
 
-    static func main() throws {
+    static func main() async throws {
         let requested=Set(CommandLine.arguments.dropFirst().compactMap(Int.init))
         let numbers=requested.isEmpty ? Array(1...LabSortingCourseBoard.levelCount):requested.sorted()
         var routes=[[LabBoardMove]]()
@@ -49,7 +49,7 @@ import Darwin
         session.changeSortingCourseBoard(first)
         check(session.isSortingCourse && !session.isEndlessSorting && !session.isValveCourse && !session.journeyMode,"Sorting Course did not replace the prior context")
         check(session.boardID==first.saveKey && session.boardHeader=="SORTING COURSE","Sorting Course identity is incorrect")
-        check(session.boardProgressSummary=="0 / 50 complete","Fresh course progress is incorrect")
+        check(session.boardProgressSummary=="0 / \(LabSortingCourseBoard.levelCount) complete","Fresh course progress is incorrect")
         session.changePace(.quick)
         check(session.effectiveSpeed==2.4,"Sorting Course Quick pacing is not aligned with Endless")
 
@@ -66,8 +66,11 @@ import Darwin
         let assistedSave=try JSONDecoder().decode(LabComparisonSave.self,from:session.checkpointData())
         let assistedGame=assistedSave.games[first.saveKey]!
         check(assistedGame.state.hasHelpers && assistedGame.actionCount==3 && assistedGame.moveCount==0,"Helper metadata/history did not persist")
+        check(assistedSave.attempts[first.saveKey]?.usedHelper == true,"Helper assistance was not recorded")
         session.undo();session.undo();session.undo()
         check(!session.state.hasHelpers && session.moveCount==0 && !session.canUndo,"Undo did not remove the upgrades and helper in order")
+        let afterHelperUndo=try JSONDecoder().decode(LabComparisonSave.self,from:session.checkpointData())
+        check(afterHelperUndo.attempts[first.saveKey]?.usedHelper == true,"Undo incorrectly erased helper assistance")
 
         var helperState=first.initial.addingHelper()!
         let smallHelper=helperState.helpers[0]
@@ -118,9 +121,33 @@ import Darwin
         let switched=try JSONDecoder().decode(LabComparisonSave.self,from:restored.checkpointData())
         check(switched.sortingCourseBoard == nil && switched.games[first.saveKey]?.state==savedAfterMove.games[first.saveKey]?.state,"Leaving the course lost or overwrote progress")
 
-        print("PASS Sorting Course: 50 frozen source-matched and Lab-solvable boards")
-        print("PASS cadence: every fifth level through 50 uses persistent Discovery knowledge")
+        // Completion facts are intentionally neutral: record what helped, keep
+        // the completion after replay, and never feed assistance into scoring.
+        let completionSession=FluidBoardSession(defaults:nil,device:nil,
+            restoredSave:.init(presentation:.classic,pace:.quick,puzzle:.firstSort))
+        completionSession.changeSortingCourseBoard(first)
+        completionSession.hint()
+        while completionSession.findingHint {try await Task.sleep(for:.milliseconds(10))}
+        check(completionSession.hintTarget != nil,"Hint did not produce a visible course move")
+        completionSession.addHelper()
+        for routeMove in routes[0] {
+            check(completionSession.begin(routeMove,automaticClock:false),"Could not replay the accepted route for assistance completion")
+            finishClassicPour(completionSession)
+        }
+        check(completionSession.solved,"Assistance completion route did not solve")
+        let completedSave=try JSONDecoder().decode(LabComparisonSave.self,from:completionSession.checkpointData())
+        let completion=completedSave.completions[first.saveKey]
+        check(completion?.completionCount==1 && completion?.lastUsedHint==true && completion?.lastUsedHelper==true,
+              "Hint/helper completion facts were not recorded")
+        check(completionSession.completionAssistanceSummary=="Completed with a hint and a helper.","Completion assistance presentation is incorrect")
+        completionSession.reset()
+        check(completionSession.hasCompletedSortingCourseLevel(1) && completionSession.boardProgressSummary=="1 / \(LabSortingCourseBoard.levelCount) complete",
+              "Replay reset erased durable course completion")
+
+        print("PASS Sorting Course: \(LabSortingCourseBoard.levelCount) frozen source-matched and Lab-solvable boards")
+        print("PASS cadence: every fifth level through \(LabSortingCourseBoard.levelCount) uses persistent Discovery knowledge")
         print("PASS session: navigation, Quick pace, checkpoint/restore, progress isolation and authored-lab escape")
         print("PASS helpers: add/upgrade/undo/save, required-empty win, solver route and Discovery identity")
+        print("PASS completion: hint/helper facts are saved and presented without affecting durable completion")
     }
 }

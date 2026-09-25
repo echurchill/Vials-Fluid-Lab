@@ -45,7 +45,7 @@ import Combine
     private var initialState:LabBoardState {valveBoard?.initial ?? sortingCourseBoard?.initial ?? endlessBoard?.initial ?? puzzle.initial}
     private var gameKey:String {valveBoard?.saveKey ?? sortingCourseBoard?.saveKey ?? endlessBoard?.saveKey ?? puzzle.rawValue}
     private var boardInstruction:String {
-        if isValveCourse {return "Match each valve lid's color. A lid opens only for that liquid, and a valve cannot pour back out."}
+        if let valveBoard {return valveBoard.instruction}
         if sortingCourseBoard?.isDiscoveryLevel == true || endlessBoard?.isDiscoveryLevel == true {return "Pour known colors to reveal what is below. Discoveries stay known."}
         return isSortingSubcourse ? "Tap a filled vial, then a matching color or an empty vial.":puzzle.instruction
     }
@@ -118,9 +118,21 @@ import Combine
     var completedPuzzleCount:Int { discipline.levels.filter(hasCompleted).count }
     var completedSortingCourseLevelCount:Int {(1...LabSortingCourseBoard.levelCount).filter(hasCompletedSortingCourseLevel).count}
     var completedValveLevelCount:Int {(1...LabValveBoard.levelCount).filter(hasCompletedValveLevel).count}
-    func hasCompletedSortingCourseLevel(_ number:Int)->Bool {saved.games["sortingCourse.\(number)"]?.state.solved ?? false}
-    func hasCompletedValveLevel(_ number:Int)->Bool {saved.games["valves.\(number)"]?.state.solved ?? false}
-    func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool { !isSortingSubcourse && puzzle == self.puzzle ? state.solved:(saved.games[puzzle.rawValue]?.state.solved ?? false) }
+    func hasCompletedSortingCourseLevel(_ number:Int)->Bool {hasCompleted(key:"sortingCourse.\(number)")}
+    func hasCompletedValveLevel(_ number:Int)->Bool {hasCompleted(key:"valves.\(number)")}
+    func hasCompleted(_ puzzle:LabBoardPuzzle) -> Bool {
+        (!isSortingSubcourse && puzzle == self.puzzle && state.solved) || hasCompleted(key:puzzle.rawValue)
+    }
+    private func hasCompleted(key:String)->Bool {saved.completions[key] != nil || (saved.games[key]?.state.solved ?? false)}
+    var completionAssistanceSummary:String? {
+        guard solved,let record=saved.completions[gameKey] else {return nil}
+        switch (record.lastUsedHint,record.lastUsedHelper) {
+        case (false,false):return "Completed without hints or helpers."
+        case (true,false):return "Completed with a hint."
+        case (false,true):return "Completed with a helper."
+        case (true,true):return "Completed with a hint and a helper."
+        }
+    }
     var learningTopics:[LabLearningTopic] {
         if isValveCourse {return [.valves]}
         if sortingCourseBoard?.isDiscoveryLevel == true || endlessBoard?.isDiscoveryLevel == true {return [.discovery]}
@@ -254,6 +266,7 @@ import Combine
         var restored=save.games[restoredKey] ?? LabBoardGame(state:restoredInitial)
         restored.cancel() // A launch restores the last committed move.
         game=restored;undoParticles=Array(repeating:nil,count:restored.actionCount)
+        if restored.state.hasHelpers {saved.attempts[restoredKey,default:LabAssistanceUsage()].usedHelper=true}
         feedback.soundEnabled=soundEnabled;feedback.hapticsEnabled=hapticsEnabled
         notice=boardInstruction
         if presentation == .fluid { prepareFluid() }
@@ -310,11 +323,28 @@ import Combine
     }
     private func checkpoint() {
         performance.traceBegin("Checkpoint");defer { performance.traceEnd("Checkpoint") }
+        if state.hasHelpers {saved.attempts[gameKey,default:LabAssistanceUsage()].usedHelper=true}
         var stable=game;stable.cancel()
         saved.games[gameKey]=stable;saved.presentation=presentation;saved.pace=pace;saved.puzzle=puzzle;saved.sortingCourseBoard=sortingCourseBoard;saved.endlessBoard=endlessBoard;saved.valveBoard=valveBoard
         if !isSortingSubcourse {saved.lastPuzzles[puzzle.discipline.rawValue]=puzzle.rawValue}
         saved.journeyMode=journeyMode
         if let data=try? JSONEncoder().encode(saved) { defaults?.set(data,forKey:"lab.comparison.v1") }
+    }
+    private func markAssistance(hint:Bool=false,helper:Bool=false) {
+        var usage=saved.attempts[gameKey] ?? LabAssistanceUsage()
+        usage.usedHint = usage.usedHint || hint
+        usage.usedHelper = usage.usedHelper || helper
+        saved.attempts[gameKey]=usage
+    }
+    private func recordCompletionIfNeeded() {
+        guard solved,!busy else {return}
+        var usage=saved.attempts[gameKey] ?? LabAssistanceUsage()
+        guard !usage.completionRecorded else {return}
+        var record=saved.completions[gameKey] ?? LabCompletionRecord()
+        record.record(moveCount:moveCount,usage:usage)
+        usage.completionRecorded=true
+        saved.attempts[gameKey]=usage;saved.completions[gameKey]=record
+        checkpoint()
     }
     func checkpointData() throws -> Data { checkpoint();return try JSONEncoder().encode(saved) }
     func changePresentation(_ value:LabBoardPresentation) {
@@ -403,6 +433,7 @@ import Combine
             startTransformationClock()
         }
         updateFeedback()
+        recordCompletionIfNeeded()
         let nextPhase:String
         if solved {
             nextPhase=state.targets.isEmpty ? "Sorted beautifully":"Targets complete"
@@ -594,6 +625,7 @@ import Combine
         feedback.stop()
         classicTask?.cancel();classicTask=nil;classicPour=nil
         game=LabBoardGame(state:initial);undoParticles=[];settledParticles=nil;beforeParticles=nil
+        saved.attempts[gameKey]=LabAssistanceUsage()
         renderer?.reset(state:initial)
         if presentation == .fluid2D { fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D) }
         selected=nil;hintTarget=nil;hintApparatusID=nil;paused=false;metrics=LabBoardMetrics();correction=0;captured=0
@@ -628,6 +660,7 @@ import Combine
         cancelHint();lastPour=nil;pendingExample=nil;clearSelectionFeedback()
         let particles=presentation == .fluid ? renderer?.particleSamples():settledParticles
         guard game.addHelper() else {return}
+        markAssistance(helper:true)
         // Adding a vessel reflows every home position. Keep the old sample for
         // Undo, but seed the new topology instead of restoring world-space
         // particles at their now-stale coordinates.
@@ -740,6 +773,7 @@ import Combine
         }
     }
     private func showHint(_ operation:LabBoardOperation) {
+        markAssistance(hint:true);checkpoint()
         switch operation {
         case .pour(let move):
             hintApparatusID=nil;selected=move.source;hintTarget=move.destination

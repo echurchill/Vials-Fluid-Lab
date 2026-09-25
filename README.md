@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[100-level Sorting Course and assistance history](Reports/Prototype52/README.md) doubles the stable curriculum while preserving Discovery every fifth level, records hint/helper use as neutral completion facts, and gives Valve Lab progressive lid guidance. All new boards are frozen from offline candidates and solved under the shipping Lab rules.
+
 [Lab-native helper vessels](Reports/Prototype49/README.md) add two optional, fully Undoable and saved workspaces to Sorting: a one-unit tea cup, two-unit mug and three-unit jug. Helpers share the Lab's pour, hint, Discovery, concurrency and three-presentation systems, never count as completed targets, and must be empty to win.
 
 [Valve Course consolidation](Reports/Prototype45/README.md) brings all fifteen Original receive-only experiments into the shared Lab engine with course navigation, progress, teaching, saves and full Lab-rule solver validation. It also records the recommended helper-cup and hybrid curriculum-expansion path.

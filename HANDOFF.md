@@ -1,5 +1,13 @@
 # Vials Fluid Lab — handoff to the next chat
 
+## September 25: 100-level Sorting Course and neutral assistance history
+
+Sorting Course now has 100 frozen, Lab-solvable boards. The accepted first 50 remain byte-for-byte unchanged; levels 51–100 use distinct offline source variants, stay within ten vials, and preserve Discovery on every fifth level. Endless remains dynamically generated. The shipping app still never invokes Original generator, animation, concurrency or gameplay code.
+
+Hints and helper vessels now become neutral facts on a completed attempt. The solved message says whether the player used either tool, with no score or penalty. Durable completion records preserve completed status and best move count across reset/replay, while each replay starts a new assistance record. Older saves decode with empty history. Valve Lab guidance now progresses from the empty keyed-lid lesson through irreversible routing, twin lids and variable vessel sizes; board details name their actual keys.
+
+All 100 source/solver/cadence checks, Sorting and Endless sessions, all 15 Valve boards, Journey, reset/relaunch across three presentations, the full vessel presentation suite, the macOS Debug build and the signed physical-iPad Debug build pass. The final build was installed and launched on Eddie's connected M4 iPad with existing app data preserved. See `Reports/Prototype52/README.md`.
+
 ## September 24: Course 45 Metal inline-upload crash fixed
 
 An interactive 3D F→I/J pour on Sorting Course 45 tripped Metal's 4 KB `setBytes` assertion in `LabBoardRenderer.constrainLayers`. The vessel-by-parcel constraint table is 7,520 bytes on that 10-vial/47-parcel board; the earlier 25-level curriculum never crossed the inline-upload ceiling. Variable-size simulation tables now use command-retained Metal buffers, while small fixed uniforms remain inline. A GPU regression constructs the real Course 45 board and encodes both F→I and F→J, explicitly confirming that its table remains above 4 KB so the original failure cannot silently fall out of coverage. The focused presentation regression and macOS Debug build pass.

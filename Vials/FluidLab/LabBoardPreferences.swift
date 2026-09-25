@@ -374,6 +374,15 @@ nonisolated struct LabValveBoard:Codable,Equatable {
     let initial:LabBoardState
     var saveKey:String {"valves.\(number)"}
     var title:String {Self.title(for:number)}
+    var instruction:String {
+        switch number {
+        case 1:"Fill the empty Tide valve. Its keyed lid opens only for Tide, and a valve cannot pour back out."
+        case 2...5:"Read the lid before pouring. Only the matching color can enter a valve, and nothing can pour back out."
+        case 6...7:"Plan the route before filling the valve; once liquid enters, it stays there."
+        case 8...10:"Route each color to its matching lid. Both one-way valves must finish correctly."
+        default:"Use vial sizes and lid colors together. Fill both one-way valves without trapping a needed color."
+        }
+    }
     static func title(for number:Int)->String {
         switch number {
         case 1...5:"Valve Basics \(number)"
@@ -385,11 +394,17 @@ nonisolated struct LabValveBoard:Codable,Equatable {
     var detail:String {
         let range=(initial.capacities.min() ?? 0)...(initial.capacities.max() ?? 0)
         let valves=initial.rules.filter {$0 == .receiveOnly}.count
-        var parts=["Course \(number) / \(Self.levelCount)","\(initial.stacks.count) vials","\(Set(initial.colors).count) colors","\(valves) keyed \(valves == 1 ? "valve":"valves")"]
+        let keyNames=initial.stacks.indices.compactMap(initial.valvePigment).map(Self.keyName)
+        var parts=["Course \(number) / \(Self.levelCount)","\(initial.stacks.count) vials","\(Set(initial.colors).count) colors",
+                   keyNames.joined(separator:" + ")+" \(valves == 1 ? "key":"keys")"]
         if range.lowerBound != 4 || range.upperBound != 4 {
             parts.append(range.lowerBound==range.upperBound ? "\(range.lowerBound) units":"\(range.lowerBound)–\(range.upperBound) units")
         }
         return parts.joined(separator:" · ")
+    }
+    private static func keyName(_ pigment:Int)->String {
+        let names=["Tide","Ember","Leaf","Petal","Sun","Cream","Violet","Mint","Ruby","Cobalt","Lime","Pearl"]
+        return names[(pigment % names.count+names.count)%names.count]
     }
 }
 
@@ -403,13 +418,15 @@ struct LabComparisonSave:Codable {
     var endlessBoard:LabEndlessBoard?
     var valveBoard:LabValveBoard?
     var games:[String:LabBoardGame] = [:]
+    var attempts:[String:LabAssistanceUsage] = [:]
+    var completions:[String:LabCompletionRecord] = [:]
     var lastPuzzles:[String:String] = [:]
     /// Revised density starts must replace saved pre-settlement setups, without
     /// disturbing progress in the other three laboratories.
     var densitySetupVersion:Int = 1
-    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,sortingCourseBoard,endlessBoard,valveBoard,games,lastPuzzles,densitySetupVersion,journeyMode,seenLearningTopics}
-    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,sortingCourseBoard:LabSortingCourseBoard?=nil,endlessBoard:LabEndlessBoard?=nil,valveBoard:LabValveBoard?=nil,games:[String:LabBoardGame] = [:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1,journeyMode:Bool=false,seenLearningTopics:Set<String>=[]) {
-        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.sortingCourseBoard=sortingCourseBoard;self.endlessBoard=endlessBoard;self.valveBoard=valveBoard;self.games=games;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion;self.journeyMode=journeyMode;self.seenLearningTopics=seenLearningTopics
+    private enum CodingKeys:String,CodingKey {case presentation,pace,puzzle,sortingCourseBoard,endlessBoard,valveBoard,games,attempts,completions,lastPuzzles,densitySetupVersion,journeyMode,seenLearningTopics}
+    init(presentation:LabBoardPresentation = .fluid,pace:LabBoardPace = .relaxed,puzzle:LabBoardPuzzle = .firstSort,sortingCourseBoard:LabSortingCourseBoard?=nil,endlessBoard:LabEndlessBoard?=nil,valveBoard:LabValveBoard?=nil,games:[String:LabBoardGame] = [:],attempts:[String:LabAssistanceUsage]=[:],completions:[String:LabCompletionRecord]=[:],lastPuzzles:[String:String] = [:],densitySetupVersion:Int=1,journeyMode:Bool=false,seenLearningTopics:Set<String>=[]) {
+        self.presentation=presentation;self.pace=pace;self.puzzle=puzzle;self.sortingCourseBoard=sortingCourseBoard;self.endlessBoard=endlessBoard;self.valveBoard=valveBoard;self.games=games;self.attempts=attempts;self.completions=completions;self.lastPuzzles=lastPuzzles;self.densitySetupVersion=densitySetupVersion;self.journeyMode=journeyMode;self.seenLearningTopics=seenLearningTopics
     }
     init(from decoder:Decoder)throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
@@ -420,10 +437,41 @@ struct LabComparisonSave:Codable {
         endlessBoard=try values.decodeIfPresent(LabEndlessBoard.self,forKey:.endlessBoard)
         valveBoard=try values.decodeIfPresent(LabValveBoard.self,forKey:.valveBoard)
         games=try values.decodeIfPresent([String:LabBoardGame].self,forKey:.games) ?? [:]
+        attempts=try values.decodeIfPresent([String:LabAssistanceUsage].self,forKey:.attempts) ?? [:]
+        completions=try values.decodeIfPresent([String:LabCompletionRecord].self,forKey:.completions) ?? [:]
         lastPuzzles=try values.decodeIfPresent([String:String].self,forKey:.lastPuzzles) ?? [:]
         densitySetupVersion=try values.decodeIfPresent(Int.self,forKey:.densitySetupVersion) ?? 0
         seenLearningTopics=try values.decodeIfPresent(Set<String>.self,forKey:.seenLearningTopics) ?? []
         journeyMode=try values.decodeIfPresent(Bool.self,forKey:.journeyMode) ?? false
+    }
+}
+
+/// Assistance is descriptive, not a score. It stays with the current attempt
+/// through Undo and relaunch so the completion summary can be honest without
+/// discouraging players from using either tool.
+nonisolated struct LabAssistanceUsage:Codable,Equatable {
+    var usedHint=false
+    var usedHelper=false
+    var completionRecorded=false
+}
+
+nonisolated struct LabCompletionRecord:Codable,Equatable {
+    var completionCount=0
+    var bestMoveCount:Int?
+    var completedWithoutHints=false
+    var completedWithoutHelpers=false
+    var completedUnassisted=false
+    var lastMoveCount=0
+    var lastUsedHint=false
+    var lastUsedHelper=false
+
+    mutating func record(moveCount:Int,usage:LabAssistanceUsage) {
+        completionCount+=1
+        bestMoveCount=min(bestMoveCount ?? moveCount,moveCount)
+        completedWithoutHints = completedWithoutHints || !usage.usedHint
+        completedWithoutHelpers = completedWithoutHelpers || !usage.usedHelper
+        completedUnassisted = completedUnassisted || (!usage.usedHint && !usage.usedHelper)
+        lastMoveCount=moveCount;lastUsedHint=usage.usedHint;lastUsedHelper=usage.usedHelper
     }
 }
 

@@ -39,6 +39,7 @@ import Metal
                 preconditionFailure("Valve course level \(number) was not generated")
             }
             check(board.number==source.number,"Valve level number changed during adaptation")
+            check(board.detail.contains("key"),"Valve detail does not identify its physical lid keys")
             check(board.initial.behavior == .sorting,"Valve board did not enter Sorting rules")
             check(board.initial.capacities==source.vials.map(\.capacity),"Valve capacities changed during adaptation")
             check(board.initial.rules==source.vials.map {$0.rule == .receiveOnly ? .receiveOnly:.normal},"Valve rules changed during adaptation")
@@ -73,6 +74,7 @@ import Metal
         check(session.isValveCourse && !session.isEndlessSorting && !session.journeyMode,"Valve course did not replace the prior board context")
         check(session.discipline == .sorting && session.boardID==board.saveKey,"Valve course identity is incorrect")
         check(session.boardTitle=="Valve Basics 1" && session.learningTopics == [.valves],"Valve course teaching metadata is incorrect")
+        check(session.notice.contains("empty Tide valve"),"Valve Basics 1 does not teach the empty physical lid")
         check(session.state==board.initial,"Valve course did not start from the adapted state")
         check(session.effectiveSpeed==LabBoardPace.quick.speed,"Endless-only pacing leaked into the Valve Course")
 
@@ -108,6 +110,6 @@ import Metal
         print("PASS Valve catalog: all 15 boards preserve capacity/rules/inventory; Level 1 uses the accepted empty keyed valve")
         print("PASS Valve solver: all 15 boards solve under keyed-lid rules")
         print("PASS Valve model: empty starts, wrong-color rejection, matching-color acceptance and key persistence")
-        print("PASS Valve session: pour, teaching, checkpoint/restore and sub-course switching")
+        print("PASS Valve session: progressive lid guidance, pour, checkpoint/restore and sub-course switching")
     }
 }

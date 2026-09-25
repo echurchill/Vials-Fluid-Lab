@@ -3,7 +3,7 @@ import Foundation
 /// A small, stable progression generated and accepted offline. Only the frozen
 /// board data crosses over from the Original game; play remains in the Lab.
 nonisolated struct LabSortingCourseBoard:Codable,Equatable {
-    static let levelCount=50
+    static let levelCount=100
     let number:Int
     let initial:LabBoardState
 
@@ -28,13 +28,16 @@ nonisolated struct LabSortingCourseBoard:Codable,Equatable {
     /// Source coordinates make the offline authoring decision reproducible,
     /// but the shipping course never invokes the Original generator.
     static func sourceProfile(_ number:Int)->(difficulty:LabEndlessDifficulty,number:Int,variant:Int)? {
-        let variants=[2,0,1,3,1,1,0,0,1,0,0,1,2,0,0,0,0,0,4,0,2,1,7,0,0,
+        let firstFiftyVariants=[2,0,1,3,1,1,0,0,1,0,0,1,2,0,0,0,0,0,4,0,2,1,7,0,0,
                       0,0,0,0,2,6,0,0,0,2,0,2,1,0,0,0,0,1,1,0,0,1,2,1,1]
         guard 1...levelCount ~= number else {return nil}
-        if number<=8 {return (.easy,number,variants[number-1])}
-        if number<=17 {return (.medium,number-8,variants[number-1])}
-        if number<=46 {return (.hard,number-17,variants[number-1])}
-        return (.hard,number-25,variants[number-1])
+        if number<=8 {return (.easy,number,firstFiftyVariants[number-1])}
+        if number<=17 {return (.medium,number-8,firstFiftyVariants[number-1])}
+        if number<=46 {return (.hard,number-17,firstFiftyVariants[number-1])}
+        if number<=50 {return (.hard,number-25,firstFiftyVariants[number-1])}
+        let secondFifty:[(number:Int,variant:Int)]=[(18,2),(19,2),(20,2),(21,2),(22,2),(23,2),(24,2),(25,2),(18,13),(19,15),(20,13),(21,13),(22,14),(23,13),(24,13),(25,13),(18,24),(19,24),(20,24),(21,24),(22,24),(23,25),(24,24),(25,24),(18,35),(19,35),(20,35),(21,35),(22,35),(23,35),(24,36),(25,35),(18,46),(19,46),(20,46),(21,46),(22,46),(23,46),(24,46),(25,47),(18,57),(19,58),(20,57),(21,57),(22,57),(23,57),(24,57),(25,57),(18,68),(19,69)]
+        let source=secondFifty[number-51]
+        return (.hard,source.number,source.variant)
     }
 
     private static func initial(_ number:Int)->LabBoardState {
@@ -89,6 +92,56 @@ nonisolated struct LabSortingCourseBoard:Codable,Equatable {
         case 48:return LabBoardState(layers:[[5,4,2,4,4,3],[4,0,0,4],[1,3,5,1],[0,4,4,4],[2,5,1,0,5],[0,1,2],[4,2,5,0],[0,5,3,0],[],[]],capacities:[6,4,4,4,5,3,4,4,5,3])
         case 49:return LabBoardState(layers:[[2,4,4,5,3,2],[1,2,4,2],[4,1,2,3,3,1],[0,3,0,5],[1,5,3],[0,2,4],[1,2,0],[4,1,3],[],[]],capacities:[6,4,6,4,3,3,3,3,5,5])
         case 50:return LabBoardState(layers:[[2,0,4,1,1,4],[1,4,0,4,4,4],[5,4,5,4,2],[3,1,0,5,5],[2,3,2,3,3],[1,5,3,3,1],[3,2,4,0,0],[4,3,3,2,3],[],[]],capacities:[6,6,5,5,5,5,5,5,3,4],behavior:.discovery,obscured:true)
+        case 51:return LabBoardState(layers:[[4, 3, 0, 0, 1], [0, 2, 2, 2, 4, 1], [0, 2, 4, 4, 0, 0], [3, 0, 1, 0, 0], [3, 1, 0, 0, 2, 2], [1, 0, 1, 3, 3, 4], [], []],capacities:[5, 6, 6, 5, 6, 6, 6, 6],behavior:.sorting,obscured:false)
+        case 52:return LabBoardState(layers:[[1, 3, 5, 4, 5, 5], [3, 0, 3], [0, 4, 2], [3, 2, 3], [2, 3, 3, 4], [1, 5, 1], [5, 3, 5], [5, 3, 0], [], []],capacities:[6, 3, 3, 3, 4, 3, 3, 3, 5, 6],behavior:.sorting,obscured:false)
+        case 53:return LabBoardState(layers:[[3, 0, 2, 2, 1, 4], [3, 0, 4, 2, 0], [4, 0, 1], [3, 1, 2], [4, 3, 1, 3, 1], [2, 4, 1, 0, 0], [], []],capacities:[6, 5, 3, 3, 5, 5, 5, 3],behavior:.sorting,obscured:false)
+        case 54:return LabBoardState(layers:[[5, 4, 1, 1, 2, 2], [4, 1, 3, 2, 5, 0], [5, 2, 1, 1, 4], [1, 2, 4, 3, 3, 3], [5, 1, 3], [3, 5, 0, 0, 1], [4, 3, 5], [3, 4, 1], [], []],capacities:[6, 6, 5, 6, 3, 5, 3, 3, 5, 5],behavior:.sorting,obscured:false)
+        case 55:return LabBoardState(layers:[[2, 4, 4, 1, 3, 4], [2, 1, 3], [3, 5, 3], [4, 3, 5], [4, 1, 0, 3, 2, 1], [3, 2, 0, 4, 0], [2, 3, 3, 1, 0, 1], [1, 5, 1, 2], [], []],capacities:[6, 3, 3, 3, 6, 5, 6, 4, 6, 4],behavior:.discovery,obscured:true)
+        case 56:return LabBoardState(layers:[[5, 4, 2, 4, 4, 3], [4, 0, 0, 4], [1, 3, 5, 1], [0, 4, 4, 4], [2, 5, 1, 0, 5], [0, 1, 2], [4, 2, 5, 0], [0, 5, 3, 0], [], []],capacities:[6, 4, 4, 4, 5, 3, 4, 4, 5, 3],behavior:.sorting,obscured:false)
+        case 57:return LabBoardState(layers:[[4, 3, 3, 0], [2, 5, 3], [5, 2, 2], [2, 3, 5, 0, 3, 3], [3, 4, 4, 1], [1, 0, 0, 0], [0, 2, 3, 0, 4], [5, 2, 1, 1, 5], [], []],capacities:[4, 3, 3, 6, 4, 4, 5, 5, 3, 5],behavior:.sorting,obscured:false)
+        case 58:return LabBoardState(layers:[[5, 1, 1, 2, 1, 2], [4, 5, 1], [5, 1, 4], [1, 3, 0, 5], [4, 1, 1, 4, 0], [1, 2, 1, 2, 1], [1, 5, 0, 3, 3], [1, 2, 1, 4, 5, 1], [], []],capacities:[6, 3, 3, 4, 5, 5, 5, 6, 5, 3],behavior:.sorting,obscured:false)
+        case 59:return LabBoardState(layers:[[2, 1, 3, 4, 4], [4, 2, 3, 3], [0, 4, 4, 4], [0, 4, 2, 1, 0, 1], [2, 0, 0, 0], [4, 1, 2], [], []],capacities:[5, 4, 4, 6, 4, 3, 5, 4],behavior:.sorting,obscured:false)
+        case 60:return LabBoardState(layers:[[0, 2, 2, 3, 4, 3], [0, 1, 3, 4, 3], [5, 1, 5, 2], [4, 3, 4], [2, 1, 4, 0, 1, 1], [1, 5, 3, 2, 2, 4], [4, 0, 3, 0], [5, 0, 5], [], []],capacities:[6, 5, 4, 3, 6, 6, 4, 3, 5, 5],behavior:.discovery,obscured:true)
+        case 61:return LabBoardState(layers:[[1, 3, 2, 3, 1], [1, 3, 2, 4, 0, 2], [1, 4, 4], [1, 0, 2, 1], [3, 1, 3], [4, 1, 3, 0], [], []],capacities:[5, 6, 3, 4, 3, 4, 6, 5],behavior:.sorting,obscured:false)
+        case 62:return LabBoardState(layers:[[4, 0, 4], [1, 0, 2, 3, 5], [3, 2, 5, 5], [1, 5, 1, 0], [1, 5, 4, 1], [3, 5, 3], [1, 2, 2, 0, 2, 2], [5, 2, 2], [], []],capacities:[3, 5, 4, 4, 4, 3, 6, 3, 3, 3],behavior:.sorting,obscured:false)
+        case 63:return LabBoardState(layers:[[0, 4, 2], [3, 2, 2, 4], [3, 0, 1, 4], [2, 0, 2, 2, 4], [4, 3, 1], [5, 0, 2], [1, 5, 5], [3, 2, 2, 4, 3], [], []],capacities:[3, 4, 4, 5, 3, 3, 3, 5, 6, 6],behavior:.sorting,obscured:false)
+        case 64:return LabBoardState(layers:[[2, 3, 0], [3, 1, 4, 4, 5, 4], [4, 3, 2, 3, 2, 2], [4, 0, 1, 4, 1], [5, 0, 1], [1, 0, 3, 2, 1, 5], [2, 1, 1, 2, 3], [0, 1, 2], [], []],capacities:[3, 6, 6, 5, 3, 6, 5, 3, 3, 5],behavior:.sorting,obscured:false)
+        case 65:return LabBoardState(layers:[[5, 2, 0, 2], [0, 2, 4, 2], [4, 2, 1, 0, 1], [5, 4, 2, 4], [0, 5, 2, 0], [1, 0, 3, 2], [1, 3, 4, 3, 5, 3], [4, 1, 3, 0, 1, 0], [], []],capacities:[4, 4, 5, 4, 4, 4, 6, 6, 4, 6],behavior:.discovery,obscured:true)
+        case 66:return LabBoardState(layers:[[3, 5, 3], [3, 5, 2, 2, 0, 4], [5, 1, 3, 3, 1], [4, 5, 0], [5, 3, 3, 5, 2, 3], [2, 5, 4, 5], [1, 3, 2], [0, 1, 5], [], []],capacities:[3, 6, 5, 3, 6, 4, 3, 3, 4, 4],behavior:.sorting,obscured:false)
+        case 67:return LabBoardState(layers:[[1, 2, 2], [1, 4, 0, 4], [2, 1, 4, 3, 3, 0], [0, 1, 4, 1], [3, 0, 1, 4], [2, 4, 4, 3], [], []],capacities:[3, 4, 6, 4, 4, 4, 3, 3],behavior:.sorting,obscured:false)
+        case 68:return LabBoardState(layers:[[3, 5, 0, 3], [4, 2, 2], [5, 0, 0, 0, 0], [1, 3, 0, 3, 5], [0, 4, 1, 1, 1], [4, 1, 2, 5, 3], [4, 3, 2, 3, 3, 0], [3, 5, 3, 4, 4], [], []],capacities:[4, 3, 5, 5, 5, 5, 6, 5, 3, 4],behavior:.sorting,obscured:false)
+        case 69:return LabBoardState(layers:[[0, 4, 2], [4, 2, 2, 2, 2], [4, 2, 4, 0, 1, 1], [0, 2, 3, 2, 2], [2, 0, 2, 3, 3], [1, 0, 4], [], []],capacities:[3, 5, 6, 5, 5, 3, 6, 3],behavior:.sorting,obscured:false)
+        case 70:return LabBoardState(layers:[[2, 3, 2, 2, 5], [2, 3, 0, 5, 3], [3, 5, 2, 3, 3, 4], [1, 3, 0, 3], [5, 4, 4, 3], [1, 3, 0], [5, 3, 4, 3, 3, 3], [5, 3, 1], [], []],capacities:[5, 5, 6, 4, 4, 3, 6, 3, 3, 5],behavior:.discovery,obscured:true)
+        case 71:return LabBoardState(layers:[[1, 4, 3], [4, 1, 2], [0, 3, 0], [5, 0, 0], [1, 0, 0, 0, 5], [1, 5, 4], [3, 1, 1], [0, 2, 2, 0], [], []],capacities:[3, 3, 3, 3, 5, 3, 3, 4, 3, 6],behavior:.sorting,obscured:false)
+        case 72:return LabBoardState(layers:[[3, 5, 1, 1, 1], [2, 4, 4, 5, 5], [0, 3, 4, 5], [5, 3, 5], [4, 0, 2, 0, 5, 0], [5, 0, 5], [5, 2, 4], [2, 5, 4], [], []],capacities:[5, 5, 4, 3, 6, 3, 3, 3, 5, 4],behavior:.sorting,obscured:false)
+        case 73:return LabBoardState(layers:[[1, 4, 2, 2, 0, 2], [2, 5, 4, 4], [4, 3, 5, 0], [4, 2, 3, 1, 1, 5], [0, 2, 3], [1, 4, 2, 5], [2, 3, 2], [2, 1, 5, 5, 5, 1], [], []],capacities:[6, 4, 4, 6, 3, 4, 3, 6, 3, 4],behavior:.sorting,obscured:false)
+        case 74:return LabBoardState(layers:[[5, 4, 1, 2], [1, 4, 3, 0], [2, 4, 5], [3, 1, 2, 1, 1, 4], [2, 1, 1, 1, 0, 1], [2, 4, 0, 4, 3], [1, 5, 4, 3, 2, 1], [1, 5, 5, 4], [], []],capacities:[4, 4, 3, 6, 6, 5, 6, 4, 4, 5],behavior:.sorting,obscured:false)
+        case 75:return LabBoardState(layers:[[1, 3, 2], [2, 1, 3, 4, 1], [4, 1, 4], [2, 0, 0, 0], [1, 2, 4], [2, 1, 4, 4, 4, 3], [], []],capacities:[3, 5, 3, 4, 3, 6, 6, 6],behavior:.discovery,obscured:true)
+        case 76:return LabBoardState(layers:[[1, 2, 3, 0], [5, 3, 4, 2, 0, 1], [4, 0, 4, 4, 2], [0, 3, 0, 2, 2], [5, 0, 1, 0, 4], [1, 5, 0], [3, 5, 5, 0, 2, 5], [3, 1, 3], [], []],capacities:[4, 6, 5, 5, 5, 3, 6, 3, 6, 4],behavior:.sorting,obscured:false)
+        case 77:return LabBoardState(layers:[[4, 1, 0, 0, 1, 1], [1, 0, 4, 2, 1], [1, 4, 3, 0, 0], [2, 1, 4], [4, 1, 4, 3], [2, 0, 1, 1, 3, 2], [], []],capacities:[6, 5, 5, 3, 4, 6, 3, 3],behavior:.sorting,obscured:false)
+        case 78:return LabBoardState(layers:[[4, 1, 2, 1], [1, 5, 0, 1, 0], [4, 2, 0, 4], [4, 1, 5, 1, 1], [3, 0, 4, 4, 2], [4, 3, 5], [3, 1, 5, 3], [3, 4, 4], [], []],capacities:[4, 5, 4, 5, 5, 3, 4, 3, 4, 3],behavior:.sorting,obscured:false)
+        case 79:return LabBoardState(layers:[[3, 2, 2, 5], [1, 2, 5, 4, 1], [5, 1, 5, 4, 3, 1], [1, 5, 3], [1, 3, 1, 4], [2, 3, 5, 1, 5, 0], [5, 0, 1, 0, 5], [3, 5, 5, 0, 2, 2], [], []],capacities:[4, 5, 6, 3, 4, 6, 5, 6, 3, 5],behavior:.sorting,obscured:false)
+        case 80:return LabBoardState(layers:[[3, 5, 0, 0], [1, 4, 4, 3, 3, 4], [3, 0, 2, 1, 1], [3, 5, 4, 5, 3], [2, 4, 3, 2, 5], [3, 1, 2, 0, 3, 2], [1, 4, 4, 0], [1, 4, 4], [], []],capacities:[4, 6, 5, 5, 5, 6, 4, 3, 5, 4],behavior:.discovery,obscured:true)
+        case 81:return LabBoardState(layers:[[2, 5, 3, 5], [2, 5, 5], [2, 5, 1, 4, 2], [3, 2, 3], [2, 5, 0], [3, 2, 4, 0, 2], [3, 0, 2, 4], [2, 5, 0, 5, 1, 1], [], []],capacities:[4, 3, 5, 3, 3, 5, 4, 6, 3, 3],behavior:.sorting,obscured:false)
+        case 82:return LabBoardState(layers:[[2, 1, 1, 2], [0, 3, 4, 2, 2, 5], [5, 0, 5, 5, 0], [2, 5, 2, 2, 4], [0, 3, 4, 3], [3, 0, 3, 1], [3, 2, 1, 0, 0, 2], [0, 2, 4, 0, 0], [], []],capacities:[4, 6, 5, 5, 4, 4, 6, 5, 3, 6],behavior:.sorting,obscured:false)
+        case 83:return LabBoardState(layers:[[4, 0, 2, 4, 3, 4], [2, 0, 4, 4, 1], [4, 1, 3, 2, 2, 3], [0, 4, 1, 0, 4], [0, 4, 4, 3, 1, 3], [0, 3, 1, 1, 4, 2], [], []],capacities:[6, 5, 6, 5, 6, 6, 5, 3],behavior:.sorting,obscured:false)
+        case 84:return LabBoardState(layers:[[3, 5, 2, 5, 1], [0, 4, 1, 3, 0], [4, 3, 3, 1, 4], [3, 0, 3, 4, 5], [3, 2, 3, 4, 2, 1], [1, 3, 1, 5, 0, 3], [0, 1, 1, 1, 3, 2], [3, 1, 2, 0, 1, 5], [], []],capacities:[5, 5, 5, 5, 6, 6, 6, 6, 5, 3],behavior:.sorting,obscured:false)
+        case 85:return LabBoardState(layers:[[0, 3, 4, 4, 4, 2], [2, 3, 4], [3, 0, 1], [3, 1, 2, 1], [0, 1, 1], [3, 1, 3], [], []],capacities:[6, 3, 3, 4, 3, 3, 6, 3],behavior:.discovery,obscured:true)
+        case 86:return LabBoardState(layers:[[5, 2, 3], [1, 3, 2, 5, 5, 0], [4, 0, 5, 0, 4], [4, 0, 5, 0, 2, 5], [1, 4, 0, 0, 2], [1, 4, 1, 1], [5, 3, 1, 3, 5], [4, 3, 0], [], []],capacities:[3, 6, 5, 6, 5, 4, 5, 3, 3, 3],behavior:.sorting,obscured:false)
+        case 87:return LabBoardState(layers:[[2, 0, 2], [5, 2, 2], [5, 1, 3, 2, 2, 0], [0, 1, 5, 1], [0, 4, 5], [1, 0, 4, 5, 5, 5], [1, 3, 5, 3], [3, 5, 2, 1, 4], [], []],capacities:[3, 3, 6, 4, 3, 6, 4, 5, 6, 3],behavior:.sorting,obscured:false)
+        case 88:return LabBoardState(layers:[[2, 0, 5, 3, 1, 3], [3, 2, 4, 0, 4], [1, 3, 2, 4], [2, 3, 5, 4, 1], [3, 1, 3, 0, 3, 2], [4, 5, 0], [1, 3, 0, 2, 3, 5], [4, 1, 4, 3], [], []],capacities:[6, 5, 4, 5, 6, 3, 6, 4, 3, 6],behavior:.sorting,obscured:false)
+        case 89:return LabBoardState(layers:[[0, 5, 2, 4], [5, 4, 3], [1, 4, 3, 0], [1, 5, 5], [2, 4, 4, 1], [0, 4, 3, 0, 5], [1, 4, 2, 5, 4], [0, 5, 1, 2], [], []],capacities:[4, 3, 4, 3, 4, 5, 5, 4, 3, 4],behavior:.sorting,obscured:false)
+        case 90:return LabBoardState(layers:[[3, 5, 2, 1, 4, 4], [1, 4, 4, 0, 0, 5], [2, 5, 0, 1, 0], [3, 5, 3, 3], [0, 2, 2, 0], [5, 1, 0, 4, 0, 2], [2, 3, 0, 3, 5, 0], [1, 0, 0, 1], [], []],capacities:[6, 6, 5, 4, 4, 6, 6, 4, 6, 5],behavior:.discovery,obscured:true)
+        case 91:return LabBoardState(layers:[[2, 3, 3, 4, 0], [1, 0, 2, 0], [1, 0, 0, 0, 0], [0, 1, 4, 3, 2], [4, 2, 0, 4], [2, 1, 1, 3], [], []],capacities:[5, 4, 5, 5, 4, 4, 5, 5],behavior:.sorting,obscured:false)
+        case 92:return LabBoardState(layers:[[0, 2, 5, 2, 2, 4], [3, 4, 3], [0, 2, 0, 5, 5], [0, 2, 0, 2], [4, 3, 5, 2, 0], [4, 5, 2, 1, 1, 1], [2, 4, 2, 2, 2], [4, 3, 2], [], []],capacities:[6, 3, 5, 4, 5, 6, 5, 3, 4, 6],behavior:.sorting,obscured:false)
+        case 93:return LabBoardState(layers:[[3, 4, 2, 0, 0, 1], [4, 2, 2, 2], [3, 2, 1, 4, 1, 3], [1, 4, 0], [0, 4, 2, 4], [4, 3, 4, 4], [], []],capacities:[6, 4, 6, 3, 4, 4, 4, 5],behavior:.sorting,obscured:false)
+        case 94:return LabBoardState(layers:[[0, 1, 3, 3, 1], [1, 5, 1, 5, 2], [3, 1, 4, 2, 1, 3], [3, 1, 0, 3], [5, 3, 0, 4, 0], [4, 1, 1, 1, 5], [0, 5, 2, 4, 3, 1], [0, 3, 3, 2, 4], [], []],capacities:[5, 5, 6, 4, 5, 5, 6, 5, 3, 4],behavior:.sorting,obscured:false)
+        case 95:return LabBoardState(layers:[[2, 1, 4, 4], [2, 1, 1], [3, 1, 3], [4, 2, 0], [5, 0, 3, 1], [5, 1, 1, 4, 0, 4], [5, 4, 5, 4, 2], [1, 5, 5], [], []],capacities:[4, 3, 3, 3, 4, 6, 5, 3, 4, 6],behavior:.discovery,obscured:true)
+        case 96:return LabBoardState(layers:[[3, 4, 4, 5], [5, 1, 1, 0, 1], [2, 5, 4], [0, 5, 5, 1, 2], [0, 1, 1, 3, 3], [4, 3, 3, 3], [2, 0, 1, 1], [3, 0, 1], [], []],capacities:[4, 5, 3, 5, 5, 4, 4, 3, 4, 6],behavior:.sorting,obscured:false)
+        case 97:return LabBoardState(layers:[[2, 4, 4, 3, 4, 4], [2, 4, 4, 4, 5], [2, 4, 4], [2, 4, 2, 1, 0, 1], [4, 1, 0], [5, 2, 4], [4, 3, 3, 0, 3, 3], [5, 4, 4], [], []],capacities:[6, 5, 3, 6, 3, 3, 6, 3, 3, 4],behavior:.sorting,obscured:false)
+        case 98:return LabBoardState(layers:[[3, 1, 3, 5], [5, 3, 2, 1, 1], [3, 5, 5], [0, 3, 2, 0], [0, 5, 5, 3], [3, 5, 4, 5, 4, 2], [2, 3, 4, 3, 3], [2, 5, 5, 0, 4], [], []],capacities:[4, 5, 3, 4, 4, 6, 5, 5, 5, 4],behavior:.sorting,obscured:false)
+        case 99:return LabBoardState(layers:[[0, 4, 0], [3, 4, 3, 3, 0, 2], [2, 4, 3], [4, 3, 4], [4, 1, 4, 4], [4, 3, 0, 2, 1, 1], [], []],capacities:[3, 6, 3, 3, 4, 6, 3, 5],behavior:.sorting,obscured:false)
+        case 100:return LabBoardState(layers:[[3, 0, 0, 1, 1, 5], [2, 4, 2], [3, 2, 2], [4, 0, 0], [5, 3, 3, 0, 2, 1], [5, 2, 3, 3, 3], [3, 5, 5, 3], [2, 5, 4], [], []],capacities:[6, 3, 3, 3, 6, 5, 4, 3, 4, 3],behavior:.discovery,obscured:true)
         default:preconditionFailure("Invalid Sorting Course level")
         }
     }

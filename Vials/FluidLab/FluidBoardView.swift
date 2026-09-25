@@ -63,6 +63,9 @@ struct FluidBoardView:View {
         guard !topics.isEmpty else {return}
         learningTopics=topics;learningIndex=0;showLearningGuide=true
     }
+    private func completed(_ message:String)->String {
+        message+(session.completionAssistanceSummary.map {" "+$0} ?? "")
+    }
     private var learningGuide:some View {
         Group {
             if learningTopics.indices.contains(learningIndex) {
@@ -78,18 +81,21 @@ struct FluidBoardView:View {
         }.presentationCompactAdaptation(.popover)
     }
     private var boardNotice:String {
-        if session.isSortingCourse,session.solved {return session.sortingCourseBoard?.number == LabSortingCourseBoard.levelCount ? "Sorting course complete. Choose a level, or play again.":"Level complete. Continue when you are ready, or play again."}
-        if session.isEndlessSorting,session.solved {return "Generated level complete. Continue when you are ready, or play again."}
-        if session.isValveCourse,session.solved {return session.valveBoard?.number == LabValveBoard.levelCount ? "Valve course complete. Choose a level, or play again.":"Circuit complete. Continue to the next valve level when you are ready."}
+        if session.isSortingCourse,session.solved {return completed(session.sortingCourseBoard?.number == LabSortingCourseBoard.levelCount ? "Sorting course complete. Choose a level, or play again.":"Level complete. Continue when you are ready, or play again.")}
+        if session.isEndlessSorting,session.solved {return completed("Generated level complete. Continue when you are ready, or play again.")}
+        if session.isValveCourse,session.solved {return completed(session.valveBoard?.number == LabValveBoard.levelCount ? "Valve course complete. Choose a level, or play again.":"Circuit complete. Continue to the next valve level when you are ready.")}
         if session.journeyMode {
             if session.solved {
-                return session.journeyNext.isEmpty ? "Path complete. Explore another branch in Journey.":(session.journeyNext.count>1 ? "Step complete. Choose what you would like to learn next.":"Step complete. Continue your Journey when you are ready.")
+                return completed(session.journeyNext.isEmpty ? "Path complete. Explore another branch in Journey.":(session.journeyNext.count>1 ? "Step complete. Choose what you would like to learn next.":"Step complete. Continue your Journey when you are ready."))
             }
             if session.moveCount==0 && !session.busy && session.selected==nil && session.hintApparatusID==nil && session.hintTarget==nil {
                 return LabJourney.stop(session.puzzle)?.lesson ?? session.notice
             }
         }
-        return !session.isEndlessSorting && !session.isValveCourse && session.solved && session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice
+        if session.solved {
+            return completed(session.puzzle.next == nil ? "Final level complete. Choose a level, or play again.":session.notice)
+        }
+        return session.notice
     }
     private var apparatusControls:some View {
         HStack(spacing:10) {
