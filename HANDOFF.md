@@ -6,6 +6,10 @@
 - The saved Codex project is named **Vials**, but it points to this separate **Vials Fluid Lab** repository. Do not confuse it with the Original Vials checkout.
 - Branch `codex/fluid-lab`, physical-iPad signing and installation have all been validated on this Mac. Inspect the current log and working tree rather than relying on historical paths or checkpoint claims later in this chronological archive.
 
+## September 27: visible 3D valve-lid motion
+
+Concurrent 3D receiver simulations now pass their current valve-lid opening fraction into the visible full-board composite renderer. Previously the hidden receiver renderer opened its keyed lid while the displayed copy stayed shut; Classic and 2D were unaffected. A new unsolved matching-color fixture requires the visible lid to open beyond 90 percent and captures it hinged clear of the mouth. The macOS Debug build, static three-mode keyed-lid checks, existing Course 45 3D pour regressions and all 18 cross-lab/presentation concurrency cases pass. A signed physical-iPad Debug build also passed and was installed with existing app data preserved; iPadOS declined only the automated launch after the device relocked. See `Reports/Prototype58/README.md`.
+
 ## September 27: compact iPhone board controls
 
 Widths below 500 points now use a dedicated phone control hierarchy: a single current-mode menu replaces the Journey/Endless/Lab button row, presentation and pace become compact menus, and footer actions use icons while retaining full tap targets and accessibility labels. Dense control symbols have bounded sizes so Accessibility Extra Large cannot widen the entire board. Mac and iPad retain their expanded controls. macOS and iPhone Simulator Debug builds, the complete 100-level Sorting Course, vessel presentation suite and all 18 cross-lab/presentation concurrency cases pass; portrait inspection passes at both standard and Accessibility Extra Large text sizes on an iPhone 17e. See `Reports/Prototype57/README.md`.

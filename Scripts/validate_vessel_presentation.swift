@@ -227,6 +227,26 @@ import AppKit
    precondition(session.state.stacks[2].isEmpty && session.state.valvePigment(2)==1)
    try capture(session,mode,"valve-keyed-empty-\(mode.rawValue)",1000,650)
   }
+  print("PASS static keyed valve lid: empty receiver visible in all three presentations");fflush(stdout)
+  let pouringValve=LabBoardState(layers:[[0,1],[0],[]],capacities:[2,1,2],
+    rules:[.normal,.normal,.receiveOnly],valvePigments:[nil,nil,1])
+  let valveSave=LabComparisonSave(presentation:.fluid,pace:.quick,puzzle:.valveCircuit,
+    games:[LabBoardPuzzle.valveCircuit.rawValue:LabBoardGame(state:pouringValve)])
+  let valveSession=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:valveSave,allowsConcurrentPours:true)
+  guard let valveMove=valveSession.state.move(from:0,to:2) else {preconditionFailure("Matching source could not pour into the empty keyed valve")}
+  precondition(valveSession.begin(valveMove,automaticClock:false))
+  var maximumValveOpening:Float=0,openingCaptured=false
+  for _ in 0..<1800 where valveSession.busy {
+   await valveSession.advanceConcurrent(deltaTime:1/60)
+   let openness=valveSession.renderer!.visibleValveLidOpenness(2)
+   maximumValveOpening=max(maximumValveOpening,openness)
+   if !openingCaptured,openness>0.72 {
+    try capture(valveSession,.fluid,"valve-keyed-fluid-open",1000,650)
+    openingCaptured=true
+   }
+  }
+  precondition(maximumValveOpening>0.9 && openingCaptured,"Visible 3D valve lid did not receive the concurrent opening animation")
+  print("PASS concurrent 3D valve lid: visible composite opened during its incoming pour");fflush(stdout)
   for mode in LabBoardPresentation.allCases {
    for puzzle in [LabBoardPuzzle.measuredBatch,.heavyLanding,.fiveStreams,.secondChance,.twinProducts] {
     let session=FluidBoardSession(defaults:nil,device:device,library:library,

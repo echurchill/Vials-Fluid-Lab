@@ -66,6 +66,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     private var groupTransfers:[LabMetalTransfer]=[]
     private(set) var groupResults:[LabLaneResult]=[]
     private(set) var groupOwnedParcels:Set<Int>=[]
+    private var compositeValveLidOpenings:[Int:Float]=[:]
     var groupMoves:[LabBoardMove] { groupTransfers.map { $0.item.move } }
     var groupFinalSettling:Bool { groupSettleStart != nil }
     var groupStreamActive:Bool { groupTransfers.contains {$0.departed>20 && $0.cutoff==nil} }
@@ -237,7 +238,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
     }
 
     private func clearMotion() {
-        compositeVessels=nil;groupTransfers=[];groupResults=[];groupOwnedParcels=[];densityJoined=[]
+        compositeVessels=nil;compositeValveLidOpenings=[:];groupTransfers=[];groupResults=[];groupOwnedParcels=[];densityJoined=[]
         transformation=nil;transformationFrom=[];transformationTargets=[]
         pourTime=nil;tilt=0;cutoffTime=nil;returnStart=nil;cleanupStart=nil
         settleFrom=nil;settleTargets=nil;groupSettleStart=nil
@@ -894,16 +895,15 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         }
         return result
     }
-    private func valveLidOpenness(_ index:Int)->Float {
+    func visibleValveLidOpenness(_ index:Int)->Float {
         func fraction(time:Float,cutoff:Float?)->Float {
             let opening=labSmooth((time-LabBoardTiming.lift*0.55)/0.28)
             guard let cutoff else {return opening}
             return opening*(1-labSmooth((time-cutoff)/LabBoardTiming.upright))
         }
         let grouped=groupTransfers.filter {$0.item.move.destination==index}.map {fraction(time:$0.time,cutoff:$0.cutoff)}.max() ?? 0
-        if grouped>0 {return grouped}
-        if game.pending?.destination==index {return fraction(time:pourTime ?? 0,cutoff:cutoffTime)}
-        return 0
+        let sequential=game.pending?.destination==index ? fraction(time:pourTime ?? 0,cutoff:cutoffTime):0
+        return max(compositeValveLidOpenings[index] ?? 0,grouped,sequential)
     }
     private func groupDensityBands()->[Int:SIMD2<Float>] {
         guard game.state.behavior.settlesByDensity,let receiver=groupMoves.first?.destination else {return [:]}
@@ -1092,11 +1092,11 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             p[i].visual.z=reveals[id].map {-100-labSmooth($0/0.5)} ?? 0
         }
     }
-    func displayComposite(game:LabBoardGame,samples:[LabParticle],vessels:[LabVesselUniform]) {
+    func displayComposite(game:LabBoardGame,samples:[LabParticle],vessels:[LabVesselUniform],valveLidOpenings:[Int:Float]=[:]) {
         lastCommand?.waitUntilCompleted()
         precondition(samples.count==particleCount)
         samples.withUnsafeBytes { bytes in particles.contents().copyMemory(from:bytes.baseAddress!,byteCount:bytes.count) }
-        self.game=game;compositeVessels=vessels;pausedSignature=nil
+        self.game=game;compositeVessels=vessels;compositeValveLidOpenings=valveLidOpenings;pausedSignature=nil
     }
 
     @discardableResult
@@ -1266,7 +1266,7 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 guard var color=capColor(i) else { continue }
                 var vessel=vessels[i]
                 if game.state.valvePigment(i) != nil {
-                    let open=valveLidOpenness(i),hinge=profiles[i].radii.last!+0.02,y=profiles[i].height+0.015
+                    let open=visibleValveLidOpenness(i),hinge=profiles[i].radii.last!+0.02,y=profiles[i].height+0.015
                     let local=labTranslation(SIMD3(hinge,y,0))*labRotation(-open*1.42)*labTranslation(SIMD3(-hinge,-y,0))
                     vessel.world=vessel.world*local
                     vessel.inverseWorld=vessel.world.inverse

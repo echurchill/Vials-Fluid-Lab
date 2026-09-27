@@ -1336,7 +1336,11 @@ extension FluidBoardSession {
             if state.knownParcels != nil {
                 for i in compositeSamples.indices {compositeSamples[i].velocity.w=Float(state.visualDye(Int(compositeSamples[i].visual.y)))}
             }
-            renderer.displayComposite(game:game,samples:compositeSamples,vessels:vessels)
+            let valveLidOpenings=metalGroups.reduce(into:[Int:Float]()) { result,entry in
+                let openness=entry.value.visibleValveLidOpenness(entry.key)
+                if openness>0 {result[entry.key]=openness}
+            }
+            renderer.displayComposite(game:game,samples:compositeSamples,vessels:vessels,valveLidOpenings:valveLidOpenings)
             renderer.showConcurrentReveals(concurrentReveals)
             if !busy { settledParticles=compositeSamples }
             performance.recordFluidBreakdown(surfaceMS:surfaceGPU,laneMS:max(0,aggregate.gpuMilliseconds-surfaceGPU))

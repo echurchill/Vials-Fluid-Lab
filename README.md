@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Visible 3D valve-lid motion](Reports/Prototype58/README.md) carries each concurrent receiver's lid-opening fraction into the displayed composite renderer, so keyed lids now hinge out of the incoming stream in 3D just as they do in Classic and 2D Fluid.
+
 [Compact iPhone board controls](Reports/Prototype57/README.md) replace the compressed iPad navigation with a current-mode menu, compact presentation and pace menus, and icon-only footer actions that keep full tap targets. Standard and Accessibility Extra Large simulator inspections stay within the phone's safe width; iPad and Mac retain their expanded controls.
 
 [Board completion celebrations](Reports/Prototype56/README.md) remove the broad Classic floor ellipse while retaining contact shadows, then add presentation-specific, nonblocking completion effects for Classic, 2D Fluid and 3D Fluid. Milestones receive a richer burst, Reduce Motion gets a restrained treatment, and optional sound/haptics share the payoff.
