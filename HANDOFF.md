@@ -6,6 +6,10 @@
 - The saved Codex project is named **Vials**, but it points to this separate **Vials Fluid Lab** repository. Do not confuse it with the Original Vials checkout.
 - Branch `codex/fluid-lab`, physical-iPad signing and installation have all been validated on this Mac. Inspect the current log and working tree rather than relying on historical paths or checkpoint claims later in this chronological archive.
 
+## September 27: iPhone simulator Metal compatibility
+
+The iOS 27 iPhone 17 Pro Max simulator stopped before its first rendered frame on Metal's `Dispatch Threads with Non-Uniform Threadgroup Size is not supported on this device` assertion. Its simulated GPU does not support the partial threadgroups accepted by current physical Apple GPUs. Both 3D renderers now dispatch rounded whole 1D and 2D threadgroups; every affected shader already bounds-checks its grid position, so device output and workloads are otherwise unchanged. The current build launches and visibly renders 3D Fluid on that exact simulator with its saved data intact. Simulator, macOS and signed iOS Debug builds, the static vessel presentation suite and all 18 concurrency cases pass. See `Reports/Prototype59/README.md`.
+
 ## September 27: visible 3D valve-lid motion
 
 Concurrent 3D receiver simulations now pass their current valve-lid opening fraction into the visible full-board composite renderer. Previously the hidden receiver renderer opened its keyed lid while the displayed copy stayed shut; Classic and 2D were unaffected. A new unsolved matching-color fixture requires the visible lid to open beyond 90 percent and captures it hinged clear of the mouth. The macOS Debug build, static three-mode keyed-lid checks, existing Course 45 3D pour regressions and all 18 cross-lab/presentation concurrency cases pass. A signed physical-iPad Debug build also passed and was installed with existing app data preserved; iPadOS declined only the automated launch after the device relocked. See `Reports/Prototype58/README.md`.

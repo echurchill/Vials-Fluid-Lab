@@ -300,8 +300,8 @@ final class LabRenderer: NSObject, MTKViewDelegate {
         for (index,buffer) in buffers { encoder.setBuffer(buffer,offset:0,index:index) }
         if var u = uniforms { encoder.setBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:1) }
         if let vessels { vessels.withUnsafeBytes { encoder.setBytes($0.baseAddress!,length:$0.count,index:2) } }
-        encoder.dispatchThreads(MTLSize(width:count,height:1,depth:1),
-            threadsPerThreadgroup:MTLSize(width:min(128,pipeline.maxTotalThreadsPerThreadgroup),height:1,depth:1))
+        let threads=MTLSize(width:min(128,pipeline.maxTotalThreadsPerThreadgroup),height:1,depth:1)
+        encoder.dispatchThreadgroups(MTLSize(width:(count+threads.width-1)/threads.width,height:1,depth:1),threadsPerThreadgroup:threads)
         encoder.endEncoding()
     }
 
@@ -389,7 +389,8 @@ final class LabRenderer: NSObject, MTKViewDelegate {
                 e.setTexture(input,index:0); e.setTexture(output,index:1)
                 var direction=direction
                 e.setBytes(&direction,length:MemoryLayout<SIMD2<UInt32>>.stride,index:0)
-                e.dispatchThreads(MTLSize(width:target.width,height:target.height,depth:1),threadsPerThreadgroup:MTLSize(width:16,height:16,depth:1))
+                let threads=MTLSize(width:16,height:16,depth:1)
+                e.dispatchThreadgroups(MTLSize(width:(target.width+15)/16,height:(target.height+15)/16,depth:1),threadsPerThreadgroup:threads)
                 e.endEncoding()
             }
         }

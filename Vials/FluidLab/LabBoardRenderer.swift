@@ -650,7 +650,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         e.setBuffer(vessels,offset:0,index:2)
         e.setBuffer(profilesBuffer,offset:0,index:3)
         e.setBuffer(bands,offset:0,index:4)
-        e.dispatchThreads(MTLSize(width:particleCount,height:1,depth:1),threadsPerThreadgroup:MTLSize(width:128,height:1,depth:1))
+        let threads=MTLSize(width:128,height:1,depth:1)
+        e.dispatchThreadgroups(MTLSize(width:(particleCount+threads.width-1)/threads.width,height:1,depth:1),threadsPerThreadgroup:threads)
         e.endEncoding()
     }
     private func texture(_ format: MTLPixelFormat, width: Int, height: Int, usage: MTLTextureUsage, samples: Int = 1) -> MTLTexture {
@@ -692,8 +693,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         for (index,buffer) in buffers { encoder.setBuffer(buffer,offset:0,index:index) }
         if var u = uniforms { encoder.setBytes(&u,length:MemoryLayout<LabUniforms>.stride,index:1) }
         if let vessels { encoder.setBuffer(vessels,offset:0,index:2) }
-        encoder.dispatchThreads(MTLSize(width:count,height:1,depth:1),
-            threadsPerThreadgroup:MTLSize(width:min(128,pipeline.maxTotalThreadsPerThreadgroup),height:1,depth:1))
+        let threads=MTLSize(width:min(128,pipeline.maxTotalThreadsPerThreadgroup),height:1,depth:1)
+        encoder.dispatchThreadgroups(MTLSize(width:(count+threads.width-1)/threads.width,height:1,depth:1),threadsPerThreadgroup:threads)
         encoder.endEncoding()
     }
 
@@ -1156,7 +1157,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
                 e.setTexture(input,index:0); e.setTexture(output,index:1)
                 var direction=direction
                 e.setBytes(&direction,length:MemoryLayout<SIMD2<UInt32>>.stride,index:0)
-                e.dispatchThreads(MTLSize(width:target.width,height:target.height,depth:1),threadsPerThreadgroup:MTLSize(width:16,height:16,depth:1))
+                let threads=MTLSize(width:16,height:16,depth:1)
+                e.dispatchThreadgroups(MTLSize(width:(target.width+15)/16,height:(target.height+15)/16,depth:1),threadsPerThreadgroup:threads)
                 e.endEncoding()
             }
         }
@@ -1165,7 +1167,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
             e.setComputePipelineState(kernels["labSmoothDye"]!)
             e.setTexture(input,index:0);e.setTexture(output,index:1);e.setTexture(depth,index:2)
             var direction=direction;e.setBytes(&direction,length:MemoryLayout<SIMD2<UInt32>>.stride,index:0)
-            e.dispatchThreads(MTLSize(width:target.width,height:target.height,depth:1),threadsPerThreadgroup:MTLSize(width:16,height:16,depth:1))
+            let threads=MTLSize(width:16,height:16,depth:1)
+            e.dispatchThreadgroups(MTLSize(width:(target.width+15)/16,height:(target.height+15)/16,depth:1),threadsPerThreadgroup:threads)
             e.endEncoding()
         }
         let compose=command.makeRenderCommandEncoder(descriptor:pass(color:scene))!

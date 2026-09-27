@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+[Simulator-compatible Metal dispatch](Reports/Prototype59/README.md) replaces partial compute threadgroups with rounded whole groups whose shaders already reject out-of-bounds threads. The iPhone 17 Pro Max simulator now renders 3D Fluid instead of stopping on a Metal validation assertion; physical-device behavior is unchanged.
+
 [Visible 3D valve-lid motion](Reports/Prototype58/README.md) carries each concurrent receiver's lid-opening fraction into the displayed composite renderer, so keyed lids now hinge out of the incoming stream in 3D just as they do in Classic and 2D Fluid.
 
 [Compact iPhone board controls](Reports/Prototype57/README.md) replace the compressed iPad navigation with a current-mode menu, compact presentation and pace menus, and icon-only footer actions that keep full tap targets. Standard and Accessibility Extra Large simulator inspections stay within the phone's safe width; iPad and Mac retain their expanded controls.
