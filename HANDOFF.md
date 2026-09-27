@@ -6,6 +6,10 @@
 - The saved Codex project is named **Vials**, but it points to this separate **Vials Fluid Lab** repository. Do not confuse it with the Original Vials checkout.
 - Branch `codex/fluid-lab`, physical-iPad signing and installation have all been validated on this Mac. Inspect the current log and working tree rather than relying on historical paths or checkpoint claims later in this chronological archive.
 
+## September 27: compact iPhone board controls
+
+Widths below 500 points now use a dedicated phone control hierarchy: a single current-mode menu replaces the Journey/Endless/Lab button row, presentation and pace become compact menus, and footer actions use icons while retaining full tap targets and accessibility labels. Dense control symbols have bounded sizes so Accessibility Extra Large cannot widen the entire board. Mac and iPad retain their expanded controls. macOS and iPhone Simulator Debug builds, the complete 100-level Sorting Course, vessel presentation suite and all 18 cross-lab/presentation concurrency cases pass; portrait inspection passes at both standard and Accessibility Extra Large text sizes on an iPhone 17e. See `Reports/Prototype57/README.md`.
+
 ## September 25: board completion celebrations
 
 The broad row-sized floor ellipse is removed from Classic; each vial keeps its softer contact shadow. A read-only completion overlay now gives Classic crisp outline sweeps and sparks, 2D Fluid meniscus ripples and bubbles, and 3D Fluid glass shimmer, expanding rings and droplets. Every-fifth Sorting/Endless levels and course/lab endings get a slightly richer burst. The effect lasts about 1.5 seconds, never mutates the solved board, never blocks Next/Undo/Play Again, and substitutes a restrained static glow under Reduce Motion. Existing optional haptics now pair with a short procedural success chime when sound is enabled.

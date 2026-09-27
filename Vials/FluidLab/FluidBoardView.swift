@@ -119,6 +119,13 @@ struct FluidBoardView:View {
     private let ink=Color(red:0.80,green:0.88,blue:0.90)
     private let accent=Color(red:0.28,green:0.85,blue:0.79)
     private let machineAccent=Color(red:0.78,green:0.62,blue:1)
+    private var destinationTitle:String {
+        if session.journeyMode {return "Journey"}
+        if session.isEndlessSorting {return "Endless"}
+        if session.isSortingCourse {return "Sorting Course"}
+        if session.isValveCourse {return "Valve Lab"}
+        return session.discipline.title+" Lab"
+    }
     private func openSortingCourse(level:Int?=nil) {
         let number=min(LabSortingCourseBoard.levelCount,max(1,level ?? session.sortingCourseBoard?.number ?? 1))
         if let board=LabSortingCourseBoard.level(number) {session.changeSortingCourseBoard(board)}
@@ -150,6 +157,35 @@ struct FluidBoardView:View {
         if tool.inputs.contains(index) {return tool.title+" input"}
         if tool.outputs.contains(index) {return tool.title+" output"}
         return ""
+    }
+    @ViewBuilder private var destinationChoices:some View {
+        Button("Journey",systemImage:"map") {sheet = .journey}
+            .accessibilityIdentifier("lab.journey")
+        Button("Sorting Course",systemImage:"list.number") {openSortingCourse()}
+            .accessibilityIdentifier("lab.sortingCourse")
+        Menu("Endless",systemImage:"infinity") {
+            ForEach(LabEndlessDifficulty.allCases) { difficulty in
+                Button(difficulty.title) {openEndless(difficulty)}
+            }
+        }
+        Divider()
+        ForEach(LabDiscipline.availableLabs,id:\.self) { discipline in
+            Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
+        }
+        Button("Valve Lab",systemImage:"arrow.down.circle") {openValves()}
+            .accessibilityIdentifier("lab.valveCourse")
+    }
+    @ViewBuilder private var boardPickerControl:some View {
+        if session.isSortingCourse {
+            Button {sheet = .course} label: {Image(systemName:"square.grid.2x2").frame(width:28,height:28)}
+                .buttonStyle(.plain).accessibilityLabel("Browse Sorting Course levels")
+                .accessibilityIdentifier("sortingCourse.browser")
+        } else {
+            Menu {
+                boardChoices
+            } label: { Image(systemName:"square.grid.2x2").frame(width:28,height:28) }
+                .accessibilityLabel("Choose puzzle")
+        }
     }
     private func openLearningGuide(firstUse:Bool) {
         guard !session.busy,sheet==nil,comparison==nil,!showResetProgress,!showLearningGuide else {return}
@@ -255,6 +291,7 @@ struct FluidBoardView:View {
     private var boardLayout:some View {
         GeometryReader { geometry in
             let compact=geometry.size.width<680
+            let phone=geometry.size.width<500
             let vialCount=session.state.stacks.count
             let showsAddHelperCard=session.supportsHelpers && session.state.canAddHelper
             let debugItemCount=vialCount+(showsAddHelperCard ? 1:0)
@@ -270,13 +307,13 @@ struct FluidBoardView:View {
                     }
                     Spacer()
                     if !session.learningTopics.isEmpty {
-                        Button {openLearningGuide(firstUse:false)} label: {Image(systemName:"questionmark.circle").frame(width:32,height:32)}
+                        Button {openLearningGuide(firstUse:false)} label: {Image(systemName:"questionmark.circle").font(.system(size:18)).frame(width:32,height:32)}
                             .buttonStyle(.plain).disabled(session.busy)
                             .accessibilityLabel("Learning guide").accessibilityHint("Replay explanations for this level’s tools and liquids.")
                             .accessibilityIdentifier("lab.learningGuide")
                             .popover(isPresented:$showLearningGuide) {learningGuide}
                     }
-                    Button { session.diagnostics.toggle() } label: { Image(systemName:"slider.horizontal.3").frame(width:34,height:34) }
+                    Button { session.diagnostics.toggle() } label: { Image(systemName:"slider.horizontal.3").font(.system(size:18)).frame(width:34,height:34) }
                         .buttonStyle(.plain).accessibilityLabel("Board diagnostics")
                     Menu {
                         Toggle("Pouring sound",isOn:$session.soundEnabled)
@@ -290,55 +327,86 @@ struct FluidBoardView:View {
                         Button("Original game (legacy)") { sheet = .classic }
                         Divider()
                         Button("Reset all progress…",role:.destructive) { showResetProgress=true }
-                    } label: { Image(systemName:"ellipsis.circle").frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Board options")
-                }.padding(.horizontal,compact ? 20:32).padding(.top,20).padding(.bottom,12)
-                HStack(spacing:12) {
-                    Button("Journey",systemImage:"map") {sheet = .journey}
-                        .buttonStyle(.borderedProminent).tint(session.journeyMode ? accent:Color.gray.opacity(0.35))
-                        .foregroundStyle(session.journeyMode ? Color.black:ink)
-                        .accessibilityIdentifier("lab.journey")
-                    Menu {
-                        ForEach(LabEndlessDifficulty.allCases) { difficulty in
-                            Button(difficulty.title) {openEndless(difficulty)}
-                        }
-                    } label: {Label("Endless",systemImage:"infinity")}
-                    .buttonStyle(.borderedProminent).tint(session.isEndlessSorting ? accent:Color.gray.opacity(0.35))
-                    .foregroundStyle(session.isEndlessSorting ? Color.black:ink)
-                    .accessibilityLabel("Endless Sorting")
-                    Menu(session.isValveCourse ? "Valve Lab":(session.isSortingCourse ? "Sorting Course":(session.journeyMode || session.isEndlessSorting ? "Explore labs":session.discipline.title+" Lab"))) {
-                        Button("Sorting Course",systemImage:"list.number") {openSortingCourse()}
-                            .accessibilityIdentifier("lab.sortingCourse")
-                        Divider()
-                        ForEach(LabDiscipline.availableLabs,id:\.self) { discipline in
-                            Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
-                        }
-                        Divider()
-                        Button("Valve Lab",systemImage:"arrow.down.circle") {openValves()}
-                            .accessibilityIdentifier("lab.valveCourse")
-                    }.buttonStyle(.borderedProminent)
-                        .tint(session.isValveCourse || session.isSortingCourse ? accent:Color.gray.opacity(0.35))
-                        .foregroundStyle(session.isValveCourse || session.isSortingCourse ? Color.black:ink)
-                        .accessibilityLabel("Choose laboratory")
-                    Spacer(minLength:0)
-                }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
-                HStack(spacing:12) {
-                    Picker("Presentation",selection:Binding(get:{session.presentation},set:session.changePresentation)) {
-                        ForEach(LabBoardPresentation.allCases,id:\.self) { Text($0.title).tag($0) }
-                    }.pickerStyle(.segmented).frame(maxWidth:330)
-                    Picker("Pace",selection:Binding(get:{session.pace},set:session.changePace)) {
-                        ForEach(LabBoardPace.allCases,id:\.self) { Text($0.title).tag($0) }
-                    }.pickerStyle(.segmented).frame(maxWidth:220)
-                    Spacer(minLength:0)
-                    if session.isSortingCourse {
-                        Button {sheet = .course} label: {Image(systemName:"square.grid.2x2").frame(width:28,height:28)}
-                            .buttonStyle(.plain).accessibilityLabel("Browse Sorting Course levels")
-                            .accessibilityIdentifier("sortingCourse.browser")
-                    } else {
+                    } label: { Image(systemName:"ellipsis.circle").font(.system(size:18)).frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Board options")
+                }.padding(.horizontal,phone ? 16:(compact ? 20:32)).padding(.top,phone ? 12:20).padding(.bottom,phone ? 8:12)
+                if phone {
+                    HStack(spacing:10) {
                         Menu {
-                            boardChoices
-                        } label: { Image(systemName:"square.grid.2x2").frame(width:28,height:28) }.accessibilityLabel("Choose puzzle")
+                            destinationChoices
+                        } label: {
+                            Label(destinationTitle,systemImage:"square.grid.2x2")
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                        .buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
+                        .accessibilityLabel("Choose game mode. Current mode: \(destinationTitle)")
+                        Spacer(minLength:0)
                     }
-                }.disabled(session.busy).padding(.horizontal,compact ? 20:32).padding(.bottom,8)
+                    .font(.system(size:16,weight:.semibold))
+                    .disabled(session.busy).padding(.horizontal,16).padding(.bottom,8)
+                    HStack(spacing:8) {
+                        Menu {
+                            Picker("Presentation",selection:Binding(get:{session.presentation},set:session.changePresentation)) {
+                                ForEach(LabBoardPresentation.allCases,id:\.self) { Text($0.title).tag($0) }
+                            }
+                        } label: {
+                            Label(session.presentation.title,systemImage:"cube.transparent")
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                        Menu {
+                            Picker("Pace",selection:Binding(get:{session.pace},set:session.changePace)) {
+                                ForEach(LabBoardPace.allCases,id:\.self) { Text($0.title).tag($0) }
+                            }
+                        } label: {
+                            Label(session.pace.title,systemImage:"gauge.with.dots.needle.33percent")
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                        Spacer(minLength:0)
+                        boardPickerControl
+                    }
+                    .font(.system(size:15,weight:.semibold))
+                    .buttonStyle(.bordered).controlSize(.regular)
+                    .disabled(session.busy).padding(.horizontal,16).padding(.bottom,8)
+                } else {
+                    HStack(spacing:12) {
+                        Button("Journey",systemImage:"map") {sheet = .journey}
+                            .buttonStyle(.borderedProminent).tint(session.journeyMode ? accent:Color.gray.opacity(0.35))
+                            .foregroundStyle(session.journeyMode ? Color.black:ink)
+                            .accessibilityIdentifier("lab.journey")
+                        Menu {
+                            ForEach(LabEndlessDifficulty.allCases) { difficulty in
+                                Button(difficulty.title) {openEndless(difficulty)}
+                            }
+                        } label: {Label("Endless",systemImage:"infinity")}
+                        .buttonStyle(.borderedProminent).tint(session.isEndlessSorting ? accent:Color.gray.opacity(0.35))
+                        .foregroundStyle(session.isEndlessSorting ? Color.black:ink)
+                        .accessibilityLabel("Endless Sorting")
+                        Menu(destinationTitle) {
+                            Button("Sorting Course",systemImage:"list.number") {openSortingCourse()}
+                                .accessibilityIdentifier("lab.sortingCourse")
+                            Divider()
+                            ForEach(LabDiscipline.availableLabs,id:\.self) { discipline in
+                                Button(discipline.title+" Lab") {session.changeDiscipline(discipline)}
+                            }
+                            Divider()
+                            Button("Valve Lab",systemImage:"arrow.down.circle") {openValves()}
+                                .accessibilityIdentifier("lab.valveCourse")
+                        }.buttonStyle(.borderedProminent)
+                            .tint(session.isValveCourse || session.isSortingCourse ? accent:Color.gray.opacity(0.35))
+                            .foregroundStyle(session.isValveCourse || session.isSortingCourse ? Color.black:ink)
+                            .accessibilityLabel("Choose laboratory")
+                        Spacer(minLength:0)
+                    }.disabled(session.busy).padding(.horizontal,32).padding(.bottom,8)
+                    HStack(spacing:12) {
+                        Picker("Presentation",selection:Binding(get:{session.presentation},set:session.changePresentation)) {
+                            ForEach(LabBoardPresentation.allCases,id:\.self) { Text($0.title).tag($0) }
+                        }.pickerStyle(.segmented).frame(maxWidth:330)
+                        Picker("Pace",selection:Binding(get:{session.pace},set:session.changePace)) {
+                            ForEach(LabBoardPace.allCases,id:\.self) { Text($0.title).tag($0) }
+                        }.pickerStyle(.segmented).frame(maxWidth:220)
+                        Spacer(minLength:0)
+                        boardPickerControl
+                    }.disabled(session.busy).padding(.horizontal,32).padding(.bottom,8)
+                }
                 HStack { Text(session.boardDetail);Spacer();Text(session.boardProgressSummary) }.font(.system(size:10,design:.monospaced)).foregroundStyle(ink.opacity(0.55)).padding(.horizontal,compact ? 20:32)
                 HStack {
                     Text(session.paused ? "Paused":session.phase).font(.system(size:compact ? 19:24,weight:.light,design:.serif))
@@ -495,13 +563,15 @@ struct FluidBoardView:View {
                             Button {session.addHelper()} label: {
                                 VStack(spacing:denseDebug ? 3:5) {
                                     HStack(spacing:denseDebug ? 2:5) {
-                                        Image(systemName:"cup.and.saucer.fill").foregroundStyle(Color.mint)
+                                        Image(systemName:"cup.and.saucer.fill")
+                                            .font(.system(size:denseDebug ? 14:17,weight:.semibold)).foregroundStyle(Color.mint)
                                         Text("HELPERS").font(.system(size:denseDebug ? 8:11,weight:.semibold,design:.monospaced))
                                         Text("\(session.state.helpers.count) / 2").font(.system(size:denseDebug ? 8:10,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
                                     }.lineLimit(1).minimumScaleFactor(0.65)
                                     HStack(spacing:denseDebug ? 3:6) {
                                         ForEach(0..<2,id:\.self) {slot in
                                             Image(systemName:slot<session.state.helpers.count ? "cup.and.saucer.fill":"plus.circle")
+                                                .font(.system(size:denseDebug ? 13:16,weight:.semibold))
                                                 .foregroundStyle(slot<session.state.helpers.count ? Color.mint:ink.opacity(0.38))
                                         }
                                         Text("ADD TEA CUP")
@@ -567,13 +637,14 @@ struct FluidBoardView:View {
                                     Button("Journey map",systemImage:"map") {sheet = .journey}
                                         .accessibilityIdentifier("journey.finish")
                                 } else {
-                                    Menu("Choose path") {
+                                    Menu {
                                         ForEach(session.journeyNext,id:\.self) { stop in
                                             Button(stop.discipline.title+": "+stop.title) {session.startJourney(at:stop)}
                                         }
                                         Divider()
                                         Button("View Journey map") {sheet = .journey}
-                                    }.menuStyle(.button).accessibilityIdentifier("journey.choosePath")
+                                    } label: {Label("Choose path",systemImage:"arrow.triangle.branch")}
+                                    .menuStyle(.button).accessibilityIdentifier("journey.choosePath")
                                 }
                             }.buttonStyle(.borderedProminent).tint(accent).foregroundStyle(.black)
                                 .lineLimit(1).minimumScaleFactor(0.75)
@@ -604,8 +675,10 @@ struct FluidBoardView:View {
                         Spacer(minLength:8)
                         Button { session.togglePause() } label: { Image(systemName:session.paused ? "play.fill":"pause.fill") }.accessibilityLabel(session.paused ? "Resume board":"Pause board")
                         Button(session.solved ? "Play again":"Reset",systemImage:"arrow.counterclockwise") { session.reset() }
-                    }.buttonStyle(.bordered).controlSize(.regular).frame(minHeight:44)
-                }.padding(.horizontal,compact ? 20:32).padding(.vertical,18).background(Color(red:0.065,green:0.060,blue:0.075))
+                    }
+                    .modifier(LabCompactActionLabels(compact:phone))
+                    .buttonStyle(.bordered).controlSize(.regular).frame(minHeight:44)
+                }.padding(.horizontal,phone ? 16:(compact ? 20:32)).padding(.vertical,phone ? 12:18).background(Color(red:0.065,green:0.060,blue:0.075))
             }.background(Color(red:0.026,green:0.043,blue:0.060)).foregroundStyle(ink)
                 .onAppear {session.updateAdaptiveLayout(portrait:geometry.size.height>geometry.size.width)}
                 .onChange(of:geometry.size) { _,size in session.updateAdaptiveLayout(portrait:size.height>size.width) }
@@ -860,5 +933,15 @@ private struct LabVialPressStyle:ButtonStyle {
             RoundedRectangle(cornerRadius:16).fill(.white.opacity(configuration.isPressed ? 0.09:0))
                 .overlay(RoundedRectangle(cornerRadius:16).stroke(.white.opacity(configuration.isPressed ? 0.4:0),lineWidth:1))
         }
+    }
+}
+
+/// Phone toolbars keep full-size hit targets while removing labels that can
+/// turn into tall, letter-by-letter pills under larger Dynamic Type settings.
+private struct LabCompactActionLabels:ViewModifier {
+    let compact:Bool
+    @ViewBuilder func body(content:Content)->some View {
+        if compact {content.labelStyle(.iconOnly).font(.system(size:20,weight:.semibold))}
+        else {content.labelStyle(.titleAndIcon)}
     }
 }
