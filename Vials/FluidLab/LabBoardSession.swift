@@ -1196,7 +1196,7 @@ import Combine
             case .mixer:return tool.outputs.contains(index) ? "Mixer output.":"Mixer input."
             case .separator:return tool.outputs.contains(index) ? "Separator output.":"Separator input."
             case .densityModifier:return tool.direction == .heavier ? "Make heavier chamber.":"Make lighter chamber."
-            case .pipette:return tool.outputs.contains(index) ? "Pipette output.":"Pipette input."
+            case .pipette:return tool.outputs.contains(index) ? "Pipette delivery destination.":"Pipette sample source."
             }
         }.joined(separator:" ")
         let rule=state.valvePigment(index).map {" Color-keyed valve; its \(Self.name($0)) lid accepts only \(Self.name($0)) liquid, and it cannot pour out."}

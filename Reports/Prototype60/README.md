@@ -9,7 +9,7 @@ Four authored levels establish the mechanic:
 3. **Uncover the sample** — expose a buried material before sampling it.
 4. **Measured reaction** — feed two measured units into the existing mixer.
 
-The instrument uses the previously reserved pear-flask silhouette and `PIP IN` / `PIP OUT` role badges. Classic draws a one-unit transfer stream, while 2D and 3D move only the sampled parcel to its canonical destination. The transition has no mixer recoloring or agitation.
+The instrument uses the previously reserved pear-flask silhouette and vessel-facing `SAMPLE` / `DELIVER` role badges. Classic draws a one-unit transfer stream, while 2D and 3D move only the sampled parcel to its canonical destination. The transition has no mixer recoloring or agitation.
 
 Two small consolidation changes ship with the lab:
 

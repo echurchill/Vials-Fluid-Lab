@@ -845,7 +845,7 @@ struct FluidBoardView:View {
     private func apparatusPortLabel(_ apparatus:LabApparatus,index:Int)->String {
         if apparatus.kind == .separator {return apparatus.outputs.contains(index) ? "SEP OUT":"SEP IN"}
         if apparatus.kind == .mixer {return apparatus.output==index ? "MIX OUT":"MIX IN"}
-        if apparatus.kind == .pipette {return apparatus.output==index ? "PIP OUT":"PIP IN"}
+        if apparatus.kind == .pipette {return apparatus.output==index ? "DELIVER":"SAMPLE"}
         return apparatus.direction == .heavier ? "HEAVY":"LIGHT"
     }
     private func apparatusSymbol(_ apparatus:LabApparatus)->String {

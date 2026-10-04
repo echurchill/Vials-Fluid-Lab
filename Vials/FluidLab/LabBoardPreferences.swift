@@ -324,7 +324,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
         case .recovery:"Put exactly two units of one mixed color, at one density, in the separator input. Activate Separate to recover one unit of each ingredient. Both outputs need room."
         case .heavier:"Pour into the marked chamber, then activate Make heavier. Each activation changes light to medium or medium to heavy. Color and amount stay the same. Pour the result into its target or the next tool."
         case .lighter:"Pour into the marked chamber, then activate Make lighter. Each activation changes heavy to medium or medium to light. Color and amount stay the same. Pour the result into its target or the next tool."
-        case .pipette:"A pipette moves exactly one exposed unit from its marked input to its output. Use it when an ordinary grouped pour would transfer too much."
+        case .pipette:"A pipette moves exactly one exposed unit from its marked SAMPLE vial to its DELIVER vial. Use it when an ordinary grouped pour would transfer too much."
         }
     }
     var reminder:String {

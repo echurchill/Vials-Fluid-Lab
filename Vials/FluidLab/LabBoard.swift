@@ -445,10 +445,10 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
             return (true,"\(stacks[chamber].count) \(material(first)) → \(stacks[chamber].count) \(next.title.lowercased()) \(Self.pigmentName(colors[first])). Color and volume stay the same.")
         case .pipette:
             guard let input=tool.inputs.first,let output=tool.output else {return (false,"This pipette needs an input and an output.")}
-            guard let parcel=stacks[input].last else {return (false,"Put liquid in input \(vial(input)) first.")}
-            guard stacks[output].count<capacities[output] else {return (false,"Output \(vial(output)) is full. Make room for 1 unit.")}
+            guard let parcel=stacks[input].last else {return (false,"Put liquid in sample vial \(vial(input)) first.")}
+            guard stacks[output].count<capacities[output] else {return (false,"Delivery vial \(vial(output)) is full. Make room for 1 unit.")}
             guard stacks[output].last.map({sameMaterial($0,parcel)}) ?? true else {
-                return (false,"Output \(vial(output)) contains a different material. Empty it before measuring another unit.")
+                return (false,"Delivery vial \(vial(output)) contains a different material. Empty it before measuring another unit.")
             }
             return (true,"Measure 1 unit of \(material(parcel)) from \(vial(input)) into \(vial(output)).")
         }
