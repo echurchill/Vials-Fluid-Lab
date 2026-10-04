@@ -382,7 +382,7 @@ struct FluidBoardView:View {
                         .buttonStyle(.borderedProminent).tint(session.isEndlessSorting ? accent:Color.gray.opacity(0.35))
                         .foregroundStyle(session.isEndlessSorting ? Color.black:ink)
                         .accessibilityLabel("Endless Sorting")
-                        Menu(destinationTitle) {
+                        Menu("Labs") {
                             Button("Sorting Course",systemImage:"list.number") {openSortingCourse()}
                                 .accessibilityIdentifier("lab.sortingCourse")
                             Divider()
@@ -393,8 +393,8 @@ struct FluidBoardView:View {
                             Button("Valve Lab",systemImage:"arrow.down.circle") {openValves()}
                                 .accessibilityIdentifier("lab.valveCourse")
                         }.buttonStyle(.borderedProminent)
-                            .tint(session.isValveCourse || session.isSortingCourse ? accent:Color.gray.opacity(0.35))
-                            .foregroundStyle(session.isValveCourse || session.isSortingCourse ? Color.black:ink)
+                            .tint(!session.journeyMode && !session.isEndlessSorting ? accent:Color.gray.opacity(0.35))
+                            .foregroundStyle(!session.journeyMode && !session.isEndlessSorting ? Color.black:ink)
                             .accessibilityLabel("Choose laboratory")
                         Spacer(minLength:0)
                     }.disabled(session.busy).padding(.horizontal,32).padding(.bottom,8)
