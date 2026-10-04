@@ -6,6 +6,10 @@
 - The saved Codex project is named **Vials**, but it points to this separate **Vials Fluid Lab** repository. Do not confuse it with the Original Vials checkout.
 - Branch `codex/fluid-lab`, physical-iPad signing and installation have all been validated on this Mac. Inspect the current log and working tree rather than relying on historical paths or checkpoint claims later in this chronological archive.
 
+## October 4: first Instruments Lab slice
+
+The directly selectable Instruments Lab adds four levels around a pipette that transfers exactly one exposed unit through the shared model, hint, Undo, save, teaching and Classic/2D/3D presentation systems. It culminates in two pipettes feeding the existing mixer. The pear flask now identifies pipette ports; no Original controller, animation or concurrency code was adopted. The normal board menu no longer shows Original game, although `--show-legacy-original` retains a developer escape hatch. The compact iPhone helper card is shortened to icon/count/slots/ADD. See `Reports/Prototype60/README.md`.
+
 ## September 27: iPhone simulator Metal compatibility
 
 The iOS 27 iPhone 17 Pro Max simulator stopped before its first rendered frame on Metal's `Dispatch Threads with Non-Uniform Threadgroup Size is not supported on this device` assertion. Its simulated GPU does not support the partial threadgroups accepted by current physical Apple GPUs. Both 3D renderers now dispatch rounded whole 1D and 2D threadgroups; every affected shader already bounds-checks its grid position, so device output and workloads are otherwise unchanged. The current build launches and visibly renders 3D Fluid on that exact simulator with its saved data intact. Simulator, macOS and signed iOS Debug builds, the static vessel presentation suite and all 18 concurrency cases pass. See `Reports/Prototype59/README.md`.

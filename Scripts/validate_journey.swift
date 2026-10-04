@@ -8,7 +8,8 @@ import Metal
     static func main() throws {
         let stops=LabJourney.stops,ids=Set(stops.map(\.puzzle))
         check(ids.count==stops.count,"Duplicate Journey stop")
-        check(Set(stops.map {$0.puzzle.discipline})==Set(LabDiscipline.availableLabs),"Missing visible lab branch")
+        check(Set(stops.map {$0.puzzle.discipline})==Set(LabDiscipline.availableLabs.filter {$0 != .instruments}),"Journey branch set changed")
+        check(!ids.contains(.preciseDrop),"Experimental Instruments levels entered Journey before acceptance")
         check(!LabDiscipline.availableLabs.contains(.discovery),"Discovery is still a standalone lab")
         var visited:Set<LabBoardPuzzle>=[],active:Set<LabBoardPuzzle>=[]
         func walk(_ puzzle:LabBoardPuzzle) {

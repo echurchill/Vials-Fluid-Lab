@@ -808,7 +808,7 @@ import Combine
             transformation=transition;selected=nil;hintTarget=nil;hintApparatusID=nil
             if presentation == .fluid { renderer?.beginTransformation(transition) }
             if presentation == .fluid2D { fluid2D.beginTransformation(transition);planarDisplay.publish(fluid2D) }
-            notice=transition.isSeparating ? "The mixture separates into two ingredients; total volume stays the same.":transition.isDensityChange ? (tool.direction == .heavier ? "The liquid becomes heavier; its volume stays the same.":"The liquid becomes lighter; its volume stays the same."):"The two inputs blend into one new color.";refresh()
+            notice=transition.isSeparating ? "The mixture separates into two ingredients; total volume stays the same.":transition.isPipetting ? "The pipette transfers exactly one unit; color, density, and volume are preserved.":transition.isDensityChange ? (tool.direction == .heavier ? "The liquid becomes heavier; its volume stays the same.":"The liquid becomes lighter; its volume stays the same."):"The two inputs blend into one new color.";refresh()
             if automaticClock {startTransformationClock()}
             return
         }
@@ -1196,6 +1196,7 @@ import Combine
             case .mixer:return tool.outputs.contains(index) ? "Mixer output.":"Mixer input."
             case .separator:return tool.outputs.contains(index) ? "Separator output.":"Separator input."
             case .densityModifier:return tool.direction == .heavier ? "Make heavier chamber.":"Make lighter chamber."
+            case .pipette:return tool.outputs.contains(index) ? "Pipette output.":"Pipette input."
             }
         }.joined(separator:" ")
         let rule=state.valvePigment(index).map {" Color-keyed valve; its \(Self.name($0)) lid accepts only \(Self.name($0)) liquid, and it cannot pour out."}

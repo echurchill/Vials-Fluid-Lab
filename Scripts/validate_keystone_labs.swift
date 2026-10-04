@@ -62,6 +62,18 @@ import Foundation
         if unevenSeparator.canActivate(.init(apparatusID:0)) {failures.append("separator accepted mixed densities")}
         let shortSeparator=LabBoardState(layers:[[6],[],[]],capacities:[2,1,1],behavior:.mixing,apparatus:[.separator(input:0,outputs:[1,2])])
         if shortSeparator.canActivate(.init(apparatusID:0)) {failures.append("separator created fractional units")}
+        let pipette=LabBoardState(layers:[[8,0],[]],capacities:[2,2],rules:[.normal,.sourceOnly],behavior:.mixing,
+            apparatus:[.pipette(input:0,output:1)])
+        let pipetted=pipette.applying(.activate(.init(apparatusID:0)))
+        if pipetted?.stacks.map({stack in stack.map {pipetted!.colors[$0]}}) != [[8],[0]] || pipetted?.colors != pipette.colors || pipetted?.densities != pipette.densities {
+            failures.append("pipette did not preserve and move exactly the exposed unit")
+        }
+        let mismatchedPipette=LabBoardState(layers:[[0],[8]],capacities:[1,2],rules:[.normal,.sourceOnly],behavior:.mixing,
+            apparatus:[.pipette(input:0,output:1)])
+        if mismatchedPipette.canActivate(.init(apparatusID:0)) {failures.append("pipette accepted a mismatched output material")}
+        let emptyPipette=LabBoardState(layers:[[],[]],capacities:[1,1],rules:[.normal,.sourceOnly],behavior:.mixing,
+            apparatus:[.pipette(input:0,output:1)])
+        if emptyPipette.canActivate(.init(apparatusID:0)) {failures.append("pipette activated with an empty input")}
         for puzzle in LabDiscipline.discovery.levels {
             var visiblePlay=puzzle.initial
             for _ in 0..<24 where visiblePlay.hasUnknown {
@@ -111,6 +123,7 @@ import Foundation
                 }
             }
         }
+        for failure in failures {emit("FAIL: "+failure)}
         precondition(failures.isEmpty,failures.joined(separator:"\n"))
         emit("Keystone model validation passed for \(LabBoardPuzzle.allCases.count) levels.")
     }

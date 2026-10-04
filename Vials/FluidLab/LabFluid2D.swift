@@ -334,10 +334,10 @@ nonisolated struct LabFluid2D:Sendable {
         for i in particles.indices where parcels.contains(particles[i].parcel) {
             let from=transformationFrom[i],target=transformationTargets[i]
             let phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
-            let destination=(transition.isSeparating || transition.isRevealing) ? target.owner:output
+            let destination=transition.usesDirectTargets ? target.owner:output
             let destinationHome=home(destination)
-            let sample=transition.position(from:SIMD3(from.position.x,from.position.y,0),to:SIMD3(target.position.x,target.position.y,0),origin:transition.isSeparating ? SIMD3(destinationHome.x,destinationHome.y,0):origin,profile:transition.isSeparating ? profiles[destination].source:profile,phase:phase)
-            if transition.isSeparating {particles[i]=target}
+            let sample=transition.position(from:SIMD3(from.position.x,from.position.y,0),to:SIMD3(target.position.x,target.position.y,0),origin:transition.usesDirectTargets ? SIMD3(destinationHome.x,destinationHome.y,0):origin,profile:transition.usesDirectTargets ? profiles[destination].source:profile,phase:phase)
+            if transition.isSeparating || transition.isPipetting {particles[i]=target}
             particles[i].position=SIMD2(sample.point.x,sample.point.y)
             particles[i].owner=sample.arrived ? destination:(sample.started ? -1:from.owner)
             particles[i].inBulk=sample.arrived || !sample.started

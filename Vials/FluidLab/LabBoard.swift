@@ -61,7 +61,7 @@ nonisolated enum LabModifierDirection:String,Sendable,Codable {
 }
 
 nonisolated enum LabApparatusKind:String,Sendable,Codable {
-    case mixer,densityModifier,separator
+    case mixer,densityModifier,separator,pipette
 }
 
 nonisolated struct LabApparatus:Sendable,Equatable,Codable,Identifiable {
@@ -83,11 +83,16 @@ nonisolated struct LabApparatus:Sendable,Equatable,Codable,Identifiable {
     static func modifier(id:Int=0,chamber:Int,direction:LabModifierDirection)->Self {
         Self(id:id,kind:.densityModifier,inputs:[chamber],output:nil,direction:direction)
     }
+    static func pipette(id:Int=0,input:Int,output:Int)->Self {
+        precondition(input != output)
+        return Self(id:id,kind:.pipette,inputs:[input],output:output,direction:nil)
+    }
     var title:String {
         switch kind {
         case .mixer:return "Mix"
         case .separator:return "Separate"
         case .densityModifier:return direction == .heavier ? "Make heavier":"Make lighter"
+        case .pipette:return "Measure 1 unit"
         }
     }
 }
@@ -438,6 +443,14 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
             guard heavier ? densities[first] != .heavy:densities[first] != .light else {return (false,"This liquid is already as \(heavier ? "heavy":"light") as it can be.")}
             let next:LabDensity=heavier ? (densities[first] == .light ? .medium:.heavy):(densities[first] == .heavy ? .medium:.light)
             return (true,"\(stacks[chamber].count) \(material(first)) → \(stacks[chamber].count) \(next.title.lowercased()) \(Self.pigmentName(colors[first])). Color and volume stay the same.")
+        case .pipette:
+            guard let input=tool.inputs.first,let output=tool.output else {return (false,"This pipette needs an input and an output.")}
+            guard let parcel=stacks[input].last else {return (false,"Put liquid in input \(vial(input)) first.")}
+            guard stacks[output].count<capacities[output] else {return (false,"Output \(vial(output)) is full. Make room for 1 unit.")}
+            guard stacks[output].last.map({sameMaterial($0,parcel)}) ?? true else {
+                return (false,"Output \(vial(output)) contains a different material. Empty it before measuring another unit.")
+            }
+            return (true,"Measure 1 unit of \(material(parcel)) from \(vial(input)) into \(vial(output)).")
         }
     }
     static func pigmentName(_ id:Int)->String {
@@ -458,6 +471,8 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
             guard let chamber=tool.inputs.first,let first=stacks[chamber].first,!stacks[chamber].isEmpty,
                   stacks[chamber].allSatisfy({sameMaterial($0,first)}),let direction=tool.direction else {return false}
             return direction == .heavier ? densities[first] != .heavy:densities[first] != .light
+        case .pipette:
+            return apparatusGuidance(tool).ready
         }
     }
     func applying(_ activation:LabApparatusActivation)->LabBoardState? {
@@ -485,6 +500,10 @@ nonisolated struct LabBoardState: Sendable, Equatable, Codable {
                 }
             }
             if next.behavior.settlesByDensity {next.settle(chamber)}
+        case .pipette:
+            let input=tool.inputs[0],output=tool.output!,parcel=next.stacks[input].removeLast()
+            next.stacks[output].append(parcel)
+            if next.behavior.settlesByDensity {next.settle(output)}
         }
         return next
     }

@@ -360,8 +360,8 @@ final class LabBoardRenderer: NSObject, MTKViewDelegate {
         let owner=transition.output,origin=homes[owner],profile=profiles[owner],parcels=transition.parcels
         for i in transformationFrom.indices where parcels.contains(Int(transformationFrom[i].visual.y)) {
             let from=transformationFrom[i],target=transformationTargets[i],phase=Float(i%Self.particlesPerUnit)/Float(Self.particlesPerUnit)
-            let destination=(transition.isSeparating || transition.isRevealing) ? Int(target.position.w):owner
-            let sample=transition.position(from:from.position.xyz,to:target.position.xyz,origin:transition.isSeparating ? homes[destination]:origin,profile:transition.isSeparating ? profiles[destination]:profile,phase:phase)
+            let destination=transition.usesDirectTargets ? Int(target.position.w):owner
+            let sample=transition.position(from:from.position.xyz,to:target.position.xyz,origin:transition.usesDirectTargets ? homes[destination]:origin,profile:transition.usesDirectTargets ? profiles[destination]:profile,phase:phase)
             p[i]=target;p[i].position=SIMD4(sample.point,sample.arrived ? Float(destination):(sample.started ? -1:from.position.w));p[i].predicted=p[i].position
             p[i].visual.z = -from.velocity.w-1
         }

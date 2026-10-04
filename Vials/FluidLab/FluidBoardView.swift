@@ -244,7 +244,7 @@ struct FluidBoardView:View {
             ForEach(session.state.apparatus) { apparatus in
                 let guide=session.state.apparatusGuidance(apparatus)
                 HStack(spacing:2) {
-                    Button(apparatus.title+(session.state.apparatus.filter {$0.kind==apparatus.kind}.count>1 ? " "+FluidBoardSession.letter(apparatus.inputs[0]):""),systemImage:apparatus.kind == .separator ? "arrow.triangle.branch":(apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down")) {
+                    Button(apparatus.title+(session.state.apparatus.filter {$0.kind==apparatus.kind}.count>1 ? " "+FluidBoardSession.letter(apparatus.inputs[0]):""),systemImage:apparatusSymbol(apparatus)) {
                         if guide.ready {session.activateApparatus(apparatus.id)}
                         else {inspectedApparatus=apparatus}
                     }
@@ -324,7 +324,9 @@ struct FluidBoardView:View {
                         Divider()
                         Button(session.lastPour == nil ? "Compare a pour":"Compare last pour") { comparison=session.comparisonExample }.disabled(!session.canComparePour)
                         Button("Pour study") { sheet = .study }
-                        Button("Original game (legacy)") { sheet = .classic }
+                        if ProcessInfo.processInfo.arguments.contains("--show-legacy-original") {
+                            Button("Original game (legacy)") { sheet = .classic }
+                        }
                         Divider()
                         Button("Reset all progress…",role:.destructive) { showResetProgress=true }
                     } label: { Image(systemName:"ellipsis.circle").font(.system(size:18)).frame(width:32,height:32) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Board options")
@@ -447,7 +449,7 @@ struct FluidBoardView:View {
                                             // roles upward so neither is hidden and the vial stays put.
                                             VStack(spacing:3) {
                                                 ForEach(tools) { apparatus in
-                                                    Label(apparatusPortLabel(apparatus,index:index)+(focusedApparatus?.id==apparatus.id ? " "+FluidBoardSession.letter(index):""),systemImage:apparatus.kind == .separator ? "arrow.triangle.branch":(apparatus.kind == .mixer ? "arrow.triangle.2.circlepath":"arrow.up.arrow.down"))
+                                                    Label(apparatusPortLabel(apparatus,index:index)+(focusedApparatus?.id==apparatus.id ? " "+FluidBoardSession.letter(index):""),systemImage:apparatusSymbol(apparatus))
                                                         .font(.system(size:8,weight:.bold,design:.monospaced))
                                                         .fixedSize(horizontal:true,vertical:false)
                                                         .padding(.horizontal,5).padding(.vertical,3)
@@ -565,7 +567,7 @@ struct FluidBoardView:View {
                                     HStack(spacing:denseDebug ? 2:5) {
                                         Image(systemName:"cup.and.saucer.fill")
                                             .font(.system(size:denseDebug ? 14:17,weight:.semibold)).foregroundStyle(Color.mint)
-                                        Text("HELPERS").font(.system(size:denseDebug ? 8:11,weight:.semibold,design:.monospaced))
+                                        if !phone {Text("HELPERS").font(.system(size:denseDebug ? 8:11,weight:.semibold,design:.monospaced))}
                                         Text("\(session.state.helpers.count) / 2").font(.system(size:denseDebug ? 8:10,design:.monospaced)).foregroundStyle(ink.opacity(0.7))
                                     }.lineLimit(1).minimumScaleFactor(0.65)
                                     HStack(spacing:denseDebug ? 3:6) {
@@ -574,7 +576,7 @@ struct FluidBoardView:View {
                                                 .font(.system(size:denseDebug ? 13:16,weight:.semibold))
                                                 .foregroundStyle(slot<session.state.helpers.count ? Color.mint:ink.opacity(0.38))
                                         }
-                                        Text("ADD TEA CUP")
+                                        Text(phone ? "ADD":"ADD TEA CUP")
                                             .font(.system(size:denseDebug ? 7:9,weight:.bold,design:.monospaced)).foregroundStyle(ink.opacity(0.65))
                                     }.frame(height:14)
                                 }.frame(maxWidth:.infinity).padding(.vertical,denseDebug ? 8:12).padding(.horizontal,denseDebug ? 3:9)
@@ -843,7 +845,16 @@ struct FluidBoardView:View {
     private func apparatusPortLabel(_ apparatus:LabApparatus,index:Int)->String {
         if apparatus.kind == .separator {return apparatus.outputs.contains(index) ? "SEP OUT":"SEP IN"}
         if apparatus.kind == .mixer {return apparatus.output==index ? "MIX OUT":"MIX IN"}
+        if apparatus.kind == .pipette {return apparatus.output==index ? "PIP OUT":"PIP IN"}
         return apparatus.direction == .heavier ? "HEAVY":"LIGHT"
+    }
+    private func apparatusSymbol(_ apparatus:LabApparatus)->String {
+        switch apparatus.kind {
+        case .mixer:return "arrow.triangle.2.circlepath"
+        case .separator:return "arrow.triangle.branch"
+        case .densityModifier:return "arrow.up.arrow.down"
+        case .pipette:return "eyedropper"
+        }
     }
     private var diagnostics:some View {
         VStack(alignment:.leading,spacing:7) {

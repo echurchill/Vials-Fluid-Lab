@@ -8,7 +8,7 @@ import Metal
     static func main() async {
         let defaults=UserDefaults(suiteName:"dev.vials.keystone-validation")!
         defaults.removePersistentDomain(forName:"dev.vials.keystone-validation")
-        for discipline in [LabDiscipline.density,.mixing,.recovery,.crossover] {
+        for discipline in [LabDiscipline.density,.mixing,.recovery,.crossover,.instruments] {
             for puzzle in discipline.levels {
                 let save=LabComparisonSave(presentation:.classic,pace:.quick,puzzle:puzzle,games:[:])
                 // Match the live board configuration, including concurrent ordinary pours.
@@ -81,6 +81,16 @@ import Metal
             require(!movingPlanar.busy && movingPlanar.game.state.stacks[destination].count==1,
                 "\(puzzle.rawValue): 2D dose did not reach its chamber")
         }
+        for mode in [LabBoardPresentation.classic,.fluid2D] {
+            let pipetteSession=FluidBoardSession(defaults:nil,device:nil,
+                restoredSave:LabComparisonSave(presentation:mode,pace:.quick,puzzle:.preciseDrop))
+            pipetteSession.activateApparatus(0,animated:true,automaticClock:false)
+            require(pipetteSession.transformation?.isPipetting == true && pipetteSession.transformation?.parcels.count == 1,
+                "\(mode): pipette animation did not isolate one exposed parcel")
+            for _ in 0..<120 where pipetteSession.busy {pipetteSession.advanceTransformation(deltaTime:0.05)}
+            require(!pipetteSession.busy && pipetteSession.solved,"\(mode): animated pipette transfer did not finish")
+            pipetteSession.undo();require(pipetteSession.state==LabBoardPuzzle.preciseDrop.initial,"\(mode): pipette animation broke Undo")
+        }
 
         let switcher=FluidBoardSession(defaults:defaults,device:nil,
             restoredSave:LabComparisonSave(presentation:.classic,puzzle:.firstSort),allowsConcurrentPours:true)
@@ -88,8 +98,12 @@ import Metal
         switcher.changeDiscipline(.density);require(switcher.puzzle == .heavyLanding,"Density did not open at its first level")
         switcher.changePuzzle(.threeDeep);switcher.changeDiscipline(.mixing);require(switcher.puzzle == .warmBlend,"Mixing did not open at its first level")
         switcher.changeDiscipline(.density);require(switcher.puzzle == .threeDeep,"Density did not remember its last level")
+        switcher.changeDiscipline(.instruments);require(switcher.puzzle == .preciseDrop,"Instruments did not open at its first level")
+        switcher.changePuzzle(.measuredReaction);switcher.changeDiscipline(.density);switcher.changeDiscipline(.instruments)
+        require(switcher.puzzle == .measuredReaction,"Instruments did not remember its last level")
         let data=try! switcher.checkpointData(),decoded=try! JSONDecoder().decode(LabComparisonSave.self,from:data)
         require(decoded.lastPuzzles[LabDiscipline.density.rawValue]==LabBoardPuzzle.threeDeep.rawValue,"Save omitted last Density level")
+        require(decoded.lastPuzzles[LabDiscipline.instruments.rawValue]==LabBoardPuzzle.measuredReaction.rawValue,"Save omitted last Instruments level")
         let oldJSON=Data(#"{"presentation":"classic","pace":"quick","puzzle":"againstThePour","games":{}}"#.utf8)
         require((try! JSONDecoder().decode(LabComparisonSave.self,from:oldJSON)).densitySetupVersion==0,"Old save did not request Density migration")
         let oldInverted=LabBoardState(layers:[[0,4,8],[2,6,1],[],[],[]],capacities:[3,3,3,3,3],
@@ -102,6 +116,6 @@ import Metal
         let migrationData=try! migrated.checkpointData(),migration=try! JSONDecoder().decode(LabComparisonSave.self,from:migrationData)
         require(migration.densitySetupVersion==1,"Density setup migration was not stamped")
         require(migration.games[LabBoardPuzzle.warmBlend.rawValue]?.state==LabBoardPuzzle.warmBlend.initial,"Density migration removed Mixing progress")
-        print("Keystone session validation passed for \([LabDiscipline.density,.mixing,.recovery,.crossover].flatMap(\.levels).count) experimental levels and four-lab persistence.")
+        print("Keystone session validation passed for \([LabDiscipline.density,.mixing,.recovery,.crossover,.instruments].flatMap(\.levels).count) experimental levels and five-lab persistence.")
     }
 }

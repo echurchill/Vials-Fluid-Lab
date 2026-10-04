@@ -15,6 +15,8 @@ import AppKit
   precondition(LabBoardLayout.shapes(for:LabBoardPuzzle.firstSort.initial).allSatisfy {$0 == .testTube})
   precondition(LabBoardLayout.shapes(for:LabBoardPuzzle.secondChance.initial)==[.bulbFlask,.bulbFlask,.testTube,.bulbFlask,.testTube])
   precondition(LabBoardLayout.shapes(for:LabBoardPuzzle.twinProducts.initial)==[.testTube,.testTube,.testTube,.bulbFlask,.bulbFlask,.bulbFlask,.taperedFlask,.taperedFlask,.testTube,.testTube])
+  precondition(LabBoardLayout.shapes(for:LabBoardPuzzle.preciseDrop.initial)==[.pearFlask,.testTube])
+  precondition(LabBoardLayout.shapes(for:LabBoardPuzzle.measuredReaction.initial)==[.pearFlask,.pearFlask,.pearFlask,.pearFlask,.testTube])
   let shared=LabBoardState(layers:[[0],[],[]],capacities:[2,2,2],behavior:.crossover,
       targets:[.init(vial:2,layers:[.init(0)])],apparatus:[.mixer(inputs:[0,1],output:2),.modifier(id:1,chamber:0,direction:.heavier),.modifier(id:2,chamber:2,direction:.lighter)])
   precondition(LabBoardLayout.shapes(for:shared)==[.taperedFlask,.bulbFlask,.testTube],"Role precedence changed")
@@ -50,7 +52,7 @@ import AppKit
   }
   for puzzle in LabBoardPuzzle.allCases {
    let initial=puzzle.initial,shapes=LabBoardLayout.shapes(for:initial),expected=LabBoardLayout.profiles(state:initial)
-   precondition(!shapes.contains(.pearFlask),"Pear must remain reserved")
+   precondition(puzzle.discipline == .instruments || !shapes.contains(.pearFlask),"Pear silhouette leaked outside Instruments")
    reusable.reset(state:initial)
    let planar=LabFluid2D(game:LabBoardGame(state:initial))
    for i in expected.indices {
@@ -69,7 +71,7 @@ import AppKit
    let expected=LabBoardLayout.profiles(state:state)
    precondition(reusable.profiles.map(\.radii)==expected.map(\.radii),"Stale same-capacity role meshes")
   }
-  print("PASS role mapping: 39 boards, shared-role precedence, fixed shapes through routes, seven silhouettes across capacities 1–8, renderer parity and same-capacity cache changes");fflush(stdout)
+  print("PASS role mapping: \(LabBoardPuzzle.allCases.count) boards, shared-role precedence, fixed shapes through routes, seven silhouettes across capacities 1–8, renderer parity and same-capacity cache changes");fflush(stdout)
   let crossRowState=LabBoardState(layers:[[],[1,2],[2,3],[3,4],[4,5],[5,0],[0,1],[]],capacities:Array(repeating:2,count:8))
   let crossRowProfiles=LabBoardLayout.profiles(state:crossRowState)
   let crossRowHomes=LabBoardLayout.homes(count:8,twoRows:true)
@@ -129,7 +131,7 @@ import AppKit
     texture.getBytes(bitmap.bitmapData!,bytesPerRow:width*4,from:MTLRegionMake2D(0,0,width,height),mipmapLevel:0)
     for i in stride(from:0,to:width*height*4,by:4) {let b=bitmap.bitmapData![i];bitmap.bitmapData![i]=bitmap.bitmapData![i+2];bitmap.bitmapData![i+2]=b};cg=bitmap.cgImage!
    } else {
-    let content:AnyView=mode == .classic ? AnyView(LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,twoRows:session.twoRowLayout)):AnyView(LabPlanarSurface(display:session.planarDisplay,twoRows:session.twoRowLayout))
+    let content:AnyView=mode == .classic ? AnyView(LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,transformation:session.transformation,twoRows:session.twoRowLayout)):AnyView(LabPlanarSurface(display:session.planarDisplay,twoRows:session.twoRowLayout))
     cg=ImageRenderer(content:content.frame(width:CGFloat(width),height:CGFloat(height)).background(Color(red:0.026,green:0.043,blue:0.06))).cgImage!
    }
    try NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(name+".png"))
@@ -159,6 +161,19 @@ import AppKit
     precondition(maximum>expected*0.80,"Collapsed 3D fill in vial \(owner) after \(label): \(maximum) vs \(expected)")
    }
   }
+  for mode in LabBoardPresentation.allCases {
+   let session=FluidBoardSession(defaults:nil,device:device,library:library,
+     restoredSave:LabComparisonSave(presentation:mode,pace:.quick,puzzle:.preciseDrop))
+   session.activateApparatus(0,animated:true,automaticClock:false)
+   precondition(session.transformation?.isPipetting == true && session.transformation?.parcels.count == 1)
+   for _ in 0..<10 {session.advanceTransformation(deltaTime:0.05)}
+   try capture(session,mode,"pipette-\(mode.rawValue)-transfer",1000,650)
+   for _ in 0..<120 where session.busy {session.advanceTransformation(deltaTime:0.05)}
+   precondition(!session.busy && session.solved,"Pipette did not finish in \(mode)")
+   if mode == .fluid {requireVisible3DLiquid(session,"finishing the pipette transfer")}
+   try capture(session,mode,"pipette-\(mode.rawValue)-solved",1000,650)
+  }
+  print("PASS pipette animation: exactly one exposed parcel transferred and settled in all three presentations");fflush(stdout)
   let course45Session=FluidBoardSession(defaults:nil,device:device,library:library,
     restoredSave:LabComparisonSave(presentation:.fluid,pace:.quick,puzzle:.firstSort,sortingCourseBoard:course45,
       games:[course45.saveKey:LabBoardGame(state:course45.initial)]),allowsConcurrentPours:true)

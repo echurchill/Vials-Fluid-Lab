@@ -22,12 +22,12 @@ enum LabRenderQuality:String,CaseIterable,Codable {
 }
 
 nonisolated enum LabDiscipline:String,CaseIterable,Codable {
-    case sorting,discovery,density,mixing,recovery,crossover
+    case sorting,discovery,density,mixing,recovery,crossover,instruments
     /// Discovery is now a recurring Sorting condition rather than a standalone lab.
     /// Keep its authored boards available as reference fixtures and engine coverage.
-    static let availableLabs:[Self]=[.sorting,.density,.mixing,.recovery,.crossover]
+    static let availableLabs:[Self]=[.sorting,.density,.mixing,.recovery,.crossover,.instruments]
     var title:String {
-        switch self {case .sorting:"Sorting";case .discovery:"Discovery";case .density:"Density";case .mixing:"Mixing";case .recovery:"Recovery";case .crossover:"Crossover"}
+        switch self {case .sorting:"Sorting";case .discovery:"Discovery";case .density:"Density";case .mixing:"Mixing";case .recovery:"Recovery";case .crossover:"Crossover";case .instruments:"Instruments"}
     }
     var header:String { title.uppercased()+" LAB" }
     var levels:[LabBoardPuzzle] { LabBoardPuzzle.allCases.filter {$0.discipline==self} }
@@ -44,6 +44,7 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
     case firstReveal,peekAhead,buriedClue,thirdColor,hiddenGarden
     case splitPurple,roomForBoth,secondChance,keepEveryDrop
     case readyToBlend,oneStepHeavier,floatAgain,equalPartners,weightedOrange,layerCake,twinProducts,fullSpectrum
+    case preciseDrop,repeatMeasure,uncoverSample,measuredReaction
     var discipline:LabDiscipline {
         switch self {
         case .firstReveal,.peekAhead,.buriedClue,.thirdColor,.hiddenGarden:.discovery
@@ -51,6 +52,7 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
         case .heavyLanding,.threeDeep,.shadesOfBlue,.twinColumns,.againstThePour:.density
         case .warmBlend,.coolBlend,.violetReaction,.colorWheel,.measuredBatch:.mixing
         case .readyToBlend,.oneStepHeavier,.floatAgain,.equalPartners,.weightedOrange,.layerCake,.twinProducts,.fullSpectrum:.crossover
+        case .preciseDrop,.repeatMeasure,.uncoverSample,.measuredReaction:.instruments
         default:.sorting
         }
     }
@@ -62,6 +64,7 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
         case .heavyLanding:"Heavy landing";case .threeDeep:"Three deep";case .shadesOfBlue:"Shades of blue";case .twinColumns:"Twin columns";case .againstThePour:"Against the pour"
         case .warmBlend:"Warm blend";case .coolBlend:"Cool blend";case .violetReaction:"Violet reaction";case .colorWheel:"Color wheel";case .measuredBatch:"Measured batch"
         case .readyToBlend:"Ready to blend";case .oneStepHeavier:"One step heavier";case .floatAgain:"Float again";case .equalPartners:"Equal partners";case .weightedOrange:"Weighted orange";case .layerCake:"Layer cake";case .twinProducts:"Twin products";case .fullSpectrum:"Full spectrum"
+        case .preciseDrop:"Precise drop";case .repeatMeasure:"Repeat measure";case .uncoverSample:"Uncover the sample";case .measuredReaction:"Measured reaction"
         }
     }
     var instruction:String {discipline == .discovery ? "Pour known colors to reveal what is below. Discoveries stay known.":(discipline == .sorting ? "Tap a filled vial, then a matching color or an empty vial.":"Match the outlined target vials.")}
@@ -184,6 +187,20 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
             rules:[.normal,.normal,.normal,.normal,.normal,.normal,.sourceOnly,.normal,.normal,.normal],densityLayers:[[.medium],[.medium,.medium],[.medium],[.light],[],[],[],[],[],[]],behavior:.crossover,
             targets:[LabVialTarget(vial:8,layers:[.init(1,.heavy),.init(1,.heavy),.init(0,.light)]),LabVialTarget(vial:9,layers:[.init(2,.medium),.init(2,.medium)])],
             apparatus:[.mixer(id:0,inputs:[4,5],output:6),.modifier(id:1,chamber:7,direction:.heavier)])
+        case .preciseDrop:
+            LabBoardState(layers:[[0,0,0],[]],capacities:[3,2],rules:[.normal,.sourceOnly],behavior:.mixing,
+                targets:[.init(vial:1,layers:[.init(0)])],apparatus:[.pipette(input:0,output:1)])
+        case .repeatMeasure:
+            LabBoardState(layers:[[4,4,4],[]],capacities:[3,3],rules:[.normal,.sourceOnly],behavior:.mixing,
+                targets:[.init(vial:1,layers:[.init(4),.init(4)])],apparatus:[.pipette(input:0,output:1)])
+        case .uncoverSample:
+            LabBoardState(layers:[[8,4],[],[]],capacities:[2,1,1],rules:[.normal,.sourceOnly,.normal],behavior:.mixing,
+                targets:[.init(vial:1,layers:[.init(8)])],apparatus:[.pipette(input:0,output:1)])
+        case .measuredReaction:
+            LabBoardState(layers:[[8,8],[4,4],[],[],[]],capacities:[2,2,1,1,2],
+                rules:[.normal,.normal,.sourceOnly,.sourceOnly,.sourceOnly],behavior:.mixing,
+                targets:[.init(vial:4,layers:[.init(1),.init(1)])],
+                apparatus:[.pipette(id:0,input:0,output:2),.pipette(id:1,input:1,output:3),.mixer(id:2,inputs:[2,3],output:4)])
         }
     }
     private static func mixingLevel(first:Int,second:Int,product:Int)->LabBoardState {
@@ -224,6 +241,10 @@ nonisolated enum LabBoardPuzzle:String,CaseIterable,Codable {
         case .fullSpectrum:
             return [.pour(2,4),.pour(1,5),.activate(0),.pour(6,9),
                     .pour(0,4),.pour(1,5),.activate(0),.pour(6,7),.activate(1),.pour(7,8),.pour(3,8)]
+        case .preciseDrop:return [.activate(0)]
+        case .repeatMeasure:return [.activate(0),.activate(0)]
+        case .uncoverSample:return [.pour(0,2),.activate(0)]
+        case .measuredReaction:return [.activate(0),.activate(1),.activate(2)]
         default:return nil
         }
     }
@@ -280,7 +301,7 @@ nonisolated enum LabJourney {
 /// Stable identifiers keep first-use teaching shared between Journey and direct labs.
 /// The saved set uses strings so a future/unknown topic never invalidates a save.
 nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
-    case discovery,valves,density,mixing,recovery,heavier,lighter
+    case discovery,valves,density,mixing,recovery,heavier,lighter,pipette
     var id:String {rawValue}
     var title:String {
         switch self {
@@ -291,6 +312,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
         case .recovery:"Recover the ingredients"
         case .heavier:"Make liquid heavier"
         case .lighter:"Make liquid lighter"
+        case .pipette:"Measure one unit"
         }
     }
     var explanation:String {
@@ -302,6 +324,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
         case .recovery:"Put exactly two units of one mixed color, at one density, in the separator input. Activate Separate to recover one unit of each ingredient. Both outputs need room."
         case .heavier:"Pour into the marked chamber, then activate Make heavier. Each activation changes light to medium or medium to heavy. Color and amount stay the same. Pour the result into its target or the next tool."
         case .lighter:"Pour into the marked chamber, then activate Make lighter. Each activation changes heavy to medium or medium to light. Color and amount stay the same. Pour the result into its target or the next tool."
+        case .pipette:"A pipette moves exactly one exposed unit from its marked input to its output. Use it when an ordinary grouped pour would transfer too much."
         }
     }
     var reminder:String {
@@ -312,6 +335,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
         case .mixing:"Red + yellow = orange; yellow + blue = green; blue + red = purple."
         case .recovery:"Orange separates into red and yellow; green into yellow and blue; purple into blue and red. No liquid is lost."
         case .heavier,.lighter:"Use the machine’s information button to highlight its chamber and check whether it is ready."
+        case .pipette:"The pipette always samples the top unit. Prepare its input first when the material you need is buried."
         }
     }
     static func topic(for tool:LabApparatus)->Self {
@@ -319,6 +343,7 @@ nonisolated enum LabLearningTopic:String,CaseIterable,Identifiable {
         case .mixer:.mixing
         case .separator:.recovery
         case .densityModifier:tool.direction == .heavier ? .heavier:.lighter
+        case .pipette:.pipette
         }
     }
     static func topics(for puzzle:LabBoardPuzzle)->[Self] {

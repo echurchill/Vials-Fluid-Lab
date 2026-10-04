@@ -83,6 +83,7 @@ struct LabBoardLayout {
             if state.target(index) != nil {return .testTube}
             let tools=state.apparatus.filter {$0.inputs.contains(index) || $0.outputs.contains(index)}
             if tools.contains(where:{$0.kind == .densityModifier}) {return .taperedFlask}
+            if tools.contains(where:{$0.kind == .pipette}) {return .pearFlask}
             if tools.contains(where:{$0.kind == .mixer || $0.kind == .separator}) {return .bulbFlask}
             return .testTube
         }
@@ -210,13 +211,19 @@ nonisolated struct LabApparatusTransition:Sendable {
     var revealedParcels:Set<Int>=[]
     var isRevealing:Bool {!revealedParcels.isEmpty}
     var isSeparating:Bool {apparatus.kind == .separator}
+    var isPipetting:Bool {apparatus.kind == .pipette}
     var isDensityChange:Bool { apparatus.kind == .densityModifier }
-    var duration:Float { isRevealing ? 0.5:(isDensityChange ? 2.2:2.8) }
+    var usesDirectTargets:Bool {isSeparating || isPipetting || isRevealing}
+    var duration:Float { isRevealing ? 0.5:(isPipetting ? 1.8:(isDensityChange ? 2.2:2.8)) }
     var output:Int { apparatus.output ?? apparatus.inputs[0] }
-    var parcels:Set<Int> { isRevealing ? revealedParcels:Set(apparatus.inputs.flatMap {before.stacks[$0]}) }
+    var parcels:Set<Int> {
+        if isRevealing {return revealedParcels}
+        if isPipetting,let input=apparatus.inputs.first,let parcel=before.stacks[input].last {return [parcel]}
+        return Set(apparatus.inputs.flatMap {before.stacks[$0]})
+    }
     var vessels:Set<Int> { Set(apparatus.inputs+apparatus.outputs) }
-    var gathered:Float { labSmooth(time/(isSeparating ? 2.2:1.15)) }
-    var blend:Float { isRevealing ? labSmooth(time/0.5):isDensityChange ? labSmooth((time-0.15)/1.6):labSmooth((time-0.85)/1.65) }
+    var gathered:Float { labSmooth(time/(isSeparating ? 2.2:(isPipetting ? 1.45:1.15))) }
+    var blend:Float { isPipetting ? 0:(isRevealing ? labSmooth(time/0.5):isDensityChange ? labSmooth((time-0.15)/1.6):labSmooth((time-0.85)/1.65)) }
     /// World-Y offsets for light/heavy motifs. Incoming symbols start behind
     /// their final position and drift in the direction they point as they fade
     /// in; outgoing symbols continue that way while fading out.
@@ -228,20 +235,21 @@ nonisolated struct LabApparatusTransition:Sendable {
         return SIMD2(light,heavy)
     }
     var agitation:Float {
-        guard !reduceMotion,!isRevealing else {return 0}
+        guard !reduceMotion,!isRevealing,!isPipetting else {return 0}
         return isDensityChange ? labSmooth(time/0.35)*(1-labSmooth((time-1.25)/0.95)):labSmooth(time/0.7)*(1-labSmooth((time-1.8)/1.0))
     }
     var status:String {
         if isRevealing {return "Discovering a color"}
         if isSeparating {return "Separating ingredients"}
+        if isPipetting {return gathered<0.62 ? "Measuring one unit":"Delivering one unit"}
         if !isDensityChange {return time<1.15 ? "Feeding the mixer":"Blending colors"}
         return time<1.6 ? (apparatus.direction == .heavier ? "Making liquid heavier":"Making liquid lighter"):"Settling the liquid"
     }
     var finished:Bool { time>=duration }
     func position(from:SIMD3<Float>,to:SIMD3<Float>,origin:SIMD3<Float>,profile:LabVesselProfile,phase:Float)->(point:SIMD3<Float>,arrived:Bool,started:Bool) {
         if isRevealing {return (from,true,true)}
-        if isSeparating {
-            let f=labSmooth((time-phase*0.4)/1.8)
+        if isSeparating || isPipetting {
+            let f=labSmooth((time-phase*(isPipetting ? 0.25:0.4))/(isPipetting ? 1.35:1.8))
             let clearance=max(from.y,profile.height)+0.55
             let a=SIMD3(from.x,clearance,from.z),b=SIMD3(origin.x,clearance,origin.z)
             let point=pow(1-f,3)*from+3*pow(1-f,2)*f*a+3*(1-f)*f*f*b+f*f*f*to
