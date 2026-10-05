@@ -3,34 +3,64 @@ import AVFoundation
 import UIKit
 #endif
 
+/// AVAudioSession and AVAudioPlayer can synchronously wait while starting or
+/// reconfiguring audio. Keep every player operation on one serial queue so
+/// feedback never stalls the UI and the pour/start/stop order stays stable.
+private final class LabBoardAudio: @unchecked Sendable {
+    private let queue=DispatchQueue(label:"com.vials.fluidlab.feedback.audio",qos:.userInitiated)
+    private var player:AVAudioPlayer?
+    private var successPlayer:AVAudioPlayer?
+    private var configured=false
+    func setPouring(_ value:Bool) {
+        queue.async { [self] in
+            if value {
+                if player == nil {
+                    #if os(iOS)
+                    if !configured {
+                        try? AVAudioSession.sharedInstance().setCategory(.ambient,options:[.mixWithOthers])
+                        configured=true
+                    }
+                    #endif
+                    player=try? AVAudioPlayer(data:LabBoardFeedback.waterSound())
+                    player?.numberOfLoops = -1;player?.volume=0.16
+                }
+                player?.play()
+            } else {player?.pause()}
+        }
+    }
+    func stop() {
+        queue.async { [self] in player?.stop() }
+    }
+    func stopAll() {
+        queue.async { [self] in player?.stop();successPlayer?.stop() }
+    }
+    func playSuccess() {
+        queue.async { [self] in
+            successPlayer=try? AVAudioPlayer(data:LabBoardFeedback.successSound())
+            successPlayer?.volume=0.24
+            successPlayer?.play()
+        }
+    }
+}
+
 /// Optional local feedback; a quiet procedural water loop follows the visible stream.
 @MainActor final class LabBoardFeedback {
     var soundEnabled=false {
         didSet {
-            if !soundEnabled { player?.stop() }
-            else if pouring { pouring=false;setPouring(true) }
+            if !soundEnabled {audio.stopAll()}
+            else if pouring {audio.setPouring(true)}
         }
     }
     var hapticsEnabled=false
-    private var player:AVAudioPlayer?
-    private var successPlayer:AVAudioPlayer?
+    private let audio=LabBoardAudio()
     private var pouring=false
     func setPouring(_ value:Bool) {
         guard value != pouring else { return }
         pouring=value
         guard soundEnabled else { return }
-        if value {
-            if player == nil {
-                #if os(iOS)
-                try? AVAudioSession.sharedInstance().setCategory(.ambient,options:[.mixWithOthers])
-                #endif
-                player=try? AVAudioPlayer(data:Self.waterSound())
-                player?.numberOfLoops = -1;player?.volume=0.16
-            }
-            player?.play()
-        } else { player?.pause() }
+        audio.setPouring(value)
     }
-    func stop() { pouring=false;player?.stop() }
+    func stop() {pouring=false;audio.stop()}
     func selection() {
         #if os(iOS)
         if hapticsEnabled { UISelectionFeedbackGenerator().selectionChanged() }
@@ -39,9 +69,7 @@ import UIKit
     func completed(solved:Bool) {
         stop()
         if solved && soundEnabled {
-            successPlayer=try? AVAudioPlayer(data:Self.successSound())
-            successPlayer?.volume=0.24
-            successPlayer?.play()
+            audio.playSuccess()
         }
         #if os(iOS)
         if hapticsEnabled {
@@ -50,7 +78,7 @@ import UIKit
         }
         #endif
     }
-    static func waterSound() -> Data {
+    nonisolated static func waterSound() -> Data {
         let rate=22050,count=rate*2
         var samples=Data(),seed:UInt32=1937,filtered=0.0
         for i in 0..<count {
@@ -71,7 +99,7 @@ import UIKit
         u32(UInt32(rate));u32(UInt32(rate*2));u16(2);u16(16);ascii("data");u32(UInt32(samples.count));data.append(samples)
         return data
     }
-    static func successSound() -> Data {
+    nonisolated static func successSound() -> Data {
         let rate=22050,count=Int(Double(rate)*0.62)
         var samples=Data()
         for i in 0..<count {
