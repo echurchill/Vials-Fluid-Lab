@@ -239,27 +239,42 @@ struct FluidBoardView:View {
         if session.journeyMode {return session.journeyNext.isEmpty}
         return session.puzzle.next == nil
     }
-    private var apparatusControls:some View {
-        HStack(spacing:10) {
+    private func apparatusControlTitle(_ apparatus:LabApparatus,compact:Bool)->String {
+        guard compact else {
+            return apparatus.title+(session.state.apparatus.filter {$0.kind==apparatus.kind}.count>1 ? " "+FluidBoardSession.letter(apparatus.inputs[0]):"")
+        }
+        let inputs=apparatus.inputs.map(FluidBoardSession.letter).joined(separator:"+")
+        let outputs=apparatus.outputs.map(FluidBoardSession.letter).joined(separator:"+")
+        switch apparatus.kind {
+        case .pipette:return inputs+"→"+outputs
+        case .mixer:return "Mix "+inputs+"→"+outputs
+        case .separator:return "Split "+inputs+"→"+outputs
+        case .densityModifier:return (apparatus.direction == .heavier ? "Heavy ":"Light ")+inputs
+        }
+    }
+    private func apparatusControls(compact:Bool=false)->some View {
+        HStack(spacing:compact ? 5:10) {
             ForEach(session.state.apparatus) { apparatus in
                 let guide=session.state.apparatusGuidance(apparatus)
-                HStack(spacing:2) {
-                    Button(apparatus.title+(session.state.apparatus.filter {$0.kind==apparatus.kind}.count>1 ? " "+FluidBoardSession.letter(apparatus.inputs[0]):""),systemImage:apparatusSymbol(apparatus)) {
+                HStack(spacing:compact ? 0:2) {
+                    Button(apparatusControlTitle(apparatus,compact:compact),systemImage:apparatusSymbol(apparatus)) {
                         if guide.ready {session.activateApparatus(apparatus.id)}
                         else {inspectedApparatus=apparatus}
                     }
+                    .lineLimit(1).minimumScaleFactor(0.75)
                     .disabled(session.busy)
                     .tint(session.hintApparatusID==apparatus.id ? .orange:(focusedApparatus?.id==apparatus.id ? machineAccent:(guide.ready ? .purple:.gray)))
-                    .help(guide.message).accessibilityHint(guide.message)
+                    .help(guide.message).accessibilityLabel(apparatus.title+", "+machineRoute(apparatus)).accessibilityHint(guide.message)
                     Button {inspectedApparatus=apparatus} label: {Image(systemName:"info.circle")}
-                        .buttonStyle(.plain).frame(width:26,height:28).disabled(session.busy)
+                        .buttonStyle(.plain).frame(width:compact ? 22:26,height:28).disabled(session.busy)
                         .accessibilityLabel(apparatus.title+" recipe and requirements")
                         .accessibilityHint("Highlights "+machineRoute(apparatus))
                 }.popover(isPresented:Binding(get:{inspectedApparatus?.id==apparatus.id},set:{if !$0 {inspectedApparatus=nil}})) {
                     machineGuide(apparatus)
                 }
             }
-        }.buttonStyle(.borderedProminent).controlSize(.small)
+        }.font(compact ? .system(size:13,weight:.semibold):nil)
+            .buttonStyle(.borderedProminent).controlSize(.small)
     }
 
     private func machineGuide(_ tool:LabApparatus)->some View {
@@ -592,11 +607,11 @@ struct FluidBoardView:View {
                         ViewThatFits(in:.horizontal) {
                             HStack(spacing:16) {
                                 if session.state.behavior.settlesByDensity {LabDensityLegend().fixedSize()}
-                                if !session.state.apparatus.isEmpty {apparatusControls.fixedSize()}
+                                if !session.state.apparatus.isEmpty {apparatusControls(compact:phone).fixedSize()}
                             }
                             VStack(spacing:8) {
                                 if session.state.behavior.settlesByDensity {LabDensityLegend()}
-                                if !session.state.apparatus.isEmpty {apparatusControls}
+                                if !session.state.apparatus.isEmpty {apparatusControls(compact:phone)}
                             }
                         }
                     }
