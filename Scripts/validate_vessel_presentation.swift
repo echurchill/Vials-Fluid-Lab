@@ -35,6 +35,18 @@ import AppKit
   precondition(abs(ordinaryHit.midX-classicLayout.base(0).x)<0.001,"Ordinary Classic highlight shifted off center")
   precondition(helperHit.minX==ordinaryHit.minX && helperHit.maxX>ordinaryHit.maxX,"Helper Classic hit area missed its handle")
   precondition(valveHit.minY<ordinaryHit.minY && valveHit.maxY==ordinaryHit.maxY,"Valve highlight missed its physical lid")
+  let phoneSize=CGSize(width:282,height:291),valve2=LabValveBoard.generated(number:2)!.initial
+  let valve2Profiles=LabBoardLayout.profiles(state:valve2)
+  for index in valve2.stacks.indices {
+   let projected=LabBoardLayout.projectedGeometry(size:phoneSize,azimuth:0.12,profiles:valve2Profiles,index:index,
+     includesValveLid:valve2.valvePigment(index) != nil)
+   precondition(projected.bounds.insetBy(dx:-0.01,dy:-0.01).contains(projected.base),"3D celebration bounds missed vial \(index) base")
+   precondition(projected.bounds.insetBy(dx:-0.01,dy:-0.01).contains(projected.top),"3D celebration bounds missed vial \(index) top")
+  }
+  let projectedEdge=LabBoardLayout.projectedGeometry(size:phoneSize,azimuth:0.12,profiles:valve2Profiles,index:0)
+  let flatEdge=LabClassicLayout(size:phoneSize,vesselCount:valve2.stacks.count).base(0)
+  precondition(abs(projectedEdge.base.x-flatEdge.x)>1,"Phone 3D projection unexpectedly collapsed to Classic celebration coordinates")
+  print("PASS phone 3D completion geometry: Valve Basics 2 overlay follows projected vessel bounds");fflush(stdout)
   precondition(!LabBoardLayout.usesTwoRows(portrait:true,count:7) && LabBoardLayout.usesTwoRows(portrait:true,count:8))
   precondition(!LabBoardLayout.usesTwoRows(portrait:false,count:12))
   let portraitLayout=LabClassicLayout(size:CGSize(width:650,height:1000),vesselCount:12,twoRows:true)
@@ -157,6 +169,23 @@ import AppKit
    }
    try NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(name+".png"))
   }
+  let valve2Route=valve2.solution(limit:800_000)!,solvedValve2=valve2Route.reduce(valve2) {$0.applying($1)!}
+  precondition(solvedValve2.solved,"Valve Basics 2 visual fixture did not solve")
+  let valve2Board=LabValveBoard(number:2,initial:valve2)
+  let valve2Save=LabComparisonSave(presentation:.fluid,pace:.quick,puzzle:.valveCircuit,valveBoard:valve2Board,
+    games:[valve2Board.saveKey:LabBoardGame(state:solvedValve2)])
+  let valve2Session=FluidBoardSession(defaults:nil,device:device,library:library,restoredSave:valve2Save)
+  let celebrationWidth=564,celebrationHeight=582,baseName="valve-2-phone-solved-base"
+  try capture(valve2Session,.fluid,baseName,celebrationWidth,celebrationHeight)
+  let baseImage=NSImage(contentsOf:output.appendingPathComponent(baseName+".png"))!
+  let celebration=ZStack {
+   Image(nsImage:baseImage).resizable().frame(width:CGFloat(celebrationWidth),height:CGFloat(celebrationHeight))
+   LabCompletionCelebrationView(state:solvedValve2,presentation:.fluid,orbit:valve2Session.orbit,fixedProgress:0.40)
+  }.frame(width:CGFloat(celebrationWidth),height:CGFloat(celebrationHeight))
+  let celebrationImage=ImageRenderer(content:celebration).cgImage!
+  try NSBitmapImageRep(cgImage:celebrationImage).representation(using:.png,properties:[:])!
+    .write(to:output.appendingPathComponent("valve-2-phone-celebration.png"))
+  print("PASS phone 3D completion capture: Valve Basics 2 celebration rendered over its projected vials");fflush(stdout)
   func requireVisible3DLiquid(_ session:FluidBoardSession,_ label:String) {
    guard let renderer=session.renderer else {preconditionFailure("Missing 3D renderer for \(label)")}
    let samples=renderer.particleSamples(),vessels=renderer.currentVessels,profiles=renderer.profiles

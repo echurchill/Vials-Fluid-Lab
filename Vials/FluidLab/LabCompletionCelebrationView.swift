@@ -7,15 +7,17 @@ struct LabCompletionCelebrationView:View {
     let state:LabBoardState
     let presentation:LabBoardPresentation
     var twoRows=false
+    var orbit:Double=0.12
     var milestone=false
+    var fixedProgress:Double?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var start=Date()
     private let duration=1.55
 
     var body:some View {
-        TimelineView(.animation(minimumInterval:1.0/30,paused:reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval:1.0/30,paused:reduceMotion || fixedProgress != nil)) { timeline in
             let elapsed=reduceMotion ? 0.62:timeline.date.timeIntervalSince(start)
-            let progress=min(1,max(0,elapsed/duration))
+            let progress=fixedProgress ?? min(1,max(0,elapsed/duration))
             Canvas { context,size in
                 draw(context:&context,size:size,progress:progress)
             }
@@ -38,11 +40,15 @@ struct LabCompletionCelebrationView:View {
             let local=min(1,max(0,(progress*duration-delay)/0.58))
             guard local>0 else {continue}
             let pulse=sin(local*Double.pi)
-            let profile=profiles[index],base=layout.base(index),scale=layout.scale
+            let profile=profiles[index],scale=layout.scale
+            let projected=presentation == .fluid ? LabBoardLayout.projectedGeometry(size:size,azimuth:Float(orbit),profiles:profiles,
+                index:index,twoRows:twoRows,includesValveLid:state.valvePigment(index) != nil):nil
+            let base=projected?.base ?? layout.base(index)
             let height=CGFloat(profile.height)*scale
-            let radius=CGFloat(profile.radii.max() ?? 0.6)*scale
+            let radius=projected.map {$0.bounds.width/2} ?? CGFloat(profile.radii.max() ?? 0.6)*scale
             let color=celebrationColor(index)
-            let body=CGRect(x:base.x-radius-5,y:base.y-height-5,width:radius*2+10,height:height+10)
+            let body=projected.map {$0.bounds.insetBy(dx:-5,dy:-5)} ??
+                CGRect(x:base.x-radius-5,y:base.y-height-5,width:radius*2+10,height:height+10)
             let outline=Path(roundedRect:body,cornerRadius:max(8,radius*0.42))
             glow.stroke(outline,with:.color(color.opacity(0.12+0.52*pulse)),lineWidth:1.2+2.2*pulse)
             switch presentation {

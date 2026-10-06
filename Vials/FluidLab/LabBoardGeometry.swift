@@ -1,7 +1,14 @@
 import Foundation
+import CoreGraphics
 import simd
 
 struct LabBoardBand { var range: SIMD4<Float> } // bounds, enabled, coordinate space (1 = vial-local Y)
+
+nonisolated struct LabProjectedVesselGeometry {
+    let base:CGPoint
+    let top:CGPoint
+    let bounds:CGRect
+}
 
 /// Motion timing is independent of the fixed 120 Hz fluid solver.
 enum LabBoardTiming {
@@ -173,7 +180,7 @@ struct LabBoardLayout {
                 shape:SIMD4(p.depthScale,mark(5),mark(6),Float(capacity)))
         }
     }
-    static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4,twoRows:Bool=false) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
+    nonisolated static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4,twoRows:Bool=false) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
         // Fixed framing includes outward edge pours in either depth lane.
         // Resting and active boards share a camera, avoiding a zoom at pickup.
         // Match the normalized scale used by Classic and 2D. Their layout is
@@ -197,6 +204,30 @@ struct LabBoardLayout {
         let near:Float=0.1,far:Float=50
         let p=simd_float4x4(SIMD4(verticalScale/aspect,0,0,0),SIMD4(0,verticalScale,0,0),SIMD4(0,-verticalShift,far/(near-far),-1),SIMD4(0,0,near*far/(near-far),0))
         return (p*view,view,eye)
+    }
+    /// Screen-space resting geometry shared by 3D hit targets and decorative
+    /// overlays. Keeping the projection here prevents effects from drifting
+    /// back to the flat Classic layout when the camera, orbit, or rows change.
+    nonisolated static func projectedGeometry(size:CGSize,azimuth:Float,profiles:[LabVesselProfile],index:Int,
+        twoRows:Bool=false,includesHandle:Bool=false,includesValveLid:Bool=false) -> LabProjectedVesselGeometry {
+        let matrix=camera(aspect:Float(size.width/max(size.height,1)),azimuth:azimuth,
+            vesselCount:profiles.count,twoRows:twoRows).0
+        let home=homes(count:profiles.count,twoRows:twoRows)[index]
+        let profile=profiles[index]
+        let lidRadius=(profile.radii.last ?? 0.6)+0.07
+        let radius=max((profile.radii.max() ?? 0.6)+0.05,includesValveLid ? lidRadius:0)+(includesHandle ? 0.42:0)
+        let height=profile.height+(includesValveLid ? 0.20:0)
+        func project(_ world:SIMD3<Float>)->CGPoint {
+            let p=matrix*SIMD4(world,1)
+            return CGPoint(x:CGFloat(p.x/p.w+1)*size.width/2,y:CGFloat(1-p.y/p.w)*size.height/2)
+        }
+        var points:[CGPoint]=[]
+        for x in [-radius,radius] { for z in [-radius,radius] { for y:Float in [0,height] {
+            points.append(project(home+SIMD3(x,y,z)))
+        }}}
+        let xs=points.map(\.x),ys=points.map(\.y)
+        return LabProjectedVesselGeometry(base:project(home),top:project(home+SIMD3(0,height,0)),
+            bounds:CGRect(x:xs.min()!,y:ys.min()!,width:xs.max()!-xs.min()!,height:ys.max()!-ys.min()!))
     }
 }
 

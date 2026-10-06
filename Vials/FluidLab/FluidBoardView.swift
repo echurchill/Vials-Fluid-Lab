@@ -438,7 +438,8 @@ struct FluidBoardView:View {
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer,capExclusions:capExclusions).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
                         if celebrationVisible {
-                            LabCompletionCelebrationView(state:session.state,presentation:session.presentation,twoRows:session.twoRowLayout,milestone:milestoneCompletion)
+                            LabCompletionCelebrationView(state:session.state,presentation:session.presentation,twoRows:session.twoRowLayout,
+                                orbit:session.orbit,milestone:milestoneCompletion)
                                 .id(celebrationSequence)
                                 .transition(.opacity)
                         }
@@ -912,18 +913,10 @@ struct FluidBoardView:View {
                 .hitRect(index,profile:profiles[index],includesHandle:session.state.isHelper(index),
                          includesValveLid:session.state.valvePigment(index) != nil)
         }
-        let matrix=LabBoardLayout.camera(aspect:Float(size.width/max(size.height,1)),azimuth:Float(session.orbit),vesselCount:session.state.stacks.count,twoRows:session.twoRowLayout).0
-        let home=LabBoardLayout.homes(count:session.state.stacks.count,twoRows:session.twoRowLayout)[index]
         let hasValveLid=session.state.valvePigment(index) != nil
-        let lidRadius=(profiles[index].radii.last ?? 0.6)+0.07
-        let r=max((profiles[index].radii.max() ?? 0.6)+0.05,hasValveLid ? lidRadius:0)+(session.state.isHelper(index) ? 0.42:0)
-        let height=profiles[index].height+(hasValveLid ? 0.20:0)
-        var xs:[CGFloat]=[],ys:[CGFloat]=[]
-        for x in [-r,r] { for z in [-r,r] { for y:Float in [0,height] {
-            let p=matrix*SIMD4(home+SIMD3(x,y,z),1)
-            xs.append(CGFloat(p.x/p.w+1)*size.width/2);ys.append(CGFloat(1-p.y/p.w)*size.height/2)
-        }}}
-        return CGRect(x:xs.min()!-6,y:ys.min()!-6,width:xs.max()!-xs.min()!+12,height:ys.max()!-ys.min()!+12)
+        return LabBoardLayout.projectedGeometry(size:size,azimuth:Float(session.orbit),profiles:profiles,index:index,
+            twoRows:session.twoRowLayout,includesHandle:session.state.isHelper(index),includesValveLid:hasValveLid)
+            .bounds.insetBy(dx:-6,dy:-6)
     }
 }
 
