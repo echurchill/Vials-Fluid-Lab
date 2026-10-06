@@ -1297,7 +1297,11 @@ extension FluidBoardSession {
                 engine.installSimulation(game:game,samples:compositeSamples,vessels:item.vessels)
                 metalGroups[item.move.destination]=engine
             }
-            var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,capacities:game.state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil)
+            // Composite glass must use the same adaptive topology as its
+            // particle samples and simulation lanes. Falling back to the
+            // single-row default detached resting glass from its liquid after
+            // the first concurrent-capable pour on portrait boards.
+            var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,capacities:game.state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil,twoRows:renderer.twoRowLayout)
             var aggregate=LabBoardMetrics()
             let surfaceGPU=renderer.lastGPUWorkMilliseconds
             aggregate.gpuMilliseconds=surfaceGPU

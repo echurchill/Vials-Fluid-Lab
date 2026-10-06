@@ -1,5 +1,7 @@
 # Vials Fluid Lab
 
+Portrait apparatus boards intentionally use a two-tier chemistry-bench layout at eight or more vessels. The 3D concurrent compositor now keeps resting glass, liquid, active vessels and hit targets on that same adaptive topology after every pour; Layer cake and Twin products have dedicated first-move regressions.
+
 [Instruments Lab](Reports/Prototype60/README.md) adds a one-unit pipette with four authored levels, shared Classic/2D/3D animation, teaching, hints, Undo and persistence. The normal board menu now retires the Original game entry, and the compact iPhone helper card has shorter labels that fit without truncation.
 
 [Simulator-compatible Metal dispatch](Reports/Prototype59/README.md) replaces partial compute threadgroups with rounded whole groups whose shaders already reject out-of-bounds threads. The iPhone 17 Pro Max simulator now renders 3D Fluid instead of stopping on a Metal validation assertion; physical-device behavior is unchanged.

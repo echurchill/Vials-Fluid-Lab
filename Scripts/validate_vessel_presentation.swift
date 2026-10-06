@@ -88,6 +88,27 @@ import AppKit
   for _ in 0..<1800 where planarCrossRow.busy {planarCrossRow.advance(deltaTime:1/60,speed:1)}
   precondition(!planarCrossRow.busy && planarCrossRow.game.moveCount==1 && planarCrossRow.game.state.stacks[0].count==1,"Cross-row 2D pour did not commit")
   print("PASS adaptive portrait layout: balanced rows and bidirectional safe travel; 2D cross-row pour committed");fflush(stdout)
+  // The live concurrent 3D compositor must retain the portrait topology for
+  // every resting vessel, not only the source and receiver owned by a lane.
+  // Otherwise glass falls back to one row while its particles remain above it.
+  for puzzle in [LabBoardPuzzle.layerCake,.twinProducts] {
+   let session=FluidBoardSession(defaults:nil,device:device,library:library,
+     restoredSave:LabComparisonSave(presentation:.fluid,pace:.quick,puzzle:puzzle),allowsConcurrentPours:true)
+   session.updateAdaptiveLayout(portrait:true)
+   precondition(session.twoRowLayout,"\(puzzle.title) did not enter the portrait bench layout")
+   let move=session.state.move(from:0,to:3)!,expected=session.state.applying(move)!
+   precondition(session.begin(move,automaticClock:false),"\(puzzle.title) could not begin its first move")
+   for _ in 0..<1800 where session.busy {await session.advanceConcurrent(deltaTime:1/60)}
+   precondition(!session.busy && session.state==expected,"\(puzzle.title) first move did not commit")
+   let homes=LabBoardLayout.homes(count:session.state.stacks.count,twoRows:true)
+   for index in homes.indices {
+    let world=session.renderer!.currentVessels[index].world.columns.3.xyz
+    precondition(simd_distance(world,homes[index])<0.001,"\(puzzle.title) vessel \(index) fell out of the portrait row topology")
+   }
+   requireVisible3DLiquid(session,"\(puzzle.title) portrait first move")
+   try capture(session,.fluid,"\(puzzle.rawValue)-portrait-first-move",650,1000)
+  }
+  print("PASS portrait 3D bench: Layer cake and Twin products keep glass, liquid, and hit topology aligned after a pour");fflush(stdout)
   // A tall receiver can be logically full while its last physical settle leaves
   // a visible notch under the completion cap. Exercise the live concurrent 2D
   // path and require the newly sealed seven-unit vial to use its canonical fill.

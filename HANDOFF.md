@@ -6,6 +6,10 @@
 - The saved Codex project is named **Vials**, but it points to this separate **Vials Fluid Lab** repository. Do not confuse it with the Original Vials checkout.
 - Branch `codex/fluid-lab`, physical-iPad signing and installation have all been validated on this Mac. Inspect the current log and working tree rather than relying on historical paths or checkpoint claims later in this chronological archive.
 
+## October 6: portrait 3D chemistry-bench alignment
+
+The balanced two-row portrait layout remains intentional for boards with eight or more vessels; it is especially effective for apparatus-heavy labs. A concurrent 3D composite path had rebuilt resting glass with the single-row default while liquid, active vessels and hit targets stayed in two rows, visually detaching some liquid and leaving misplaced unusable glass after a pour. Composite glass now uses the renderer's active adaptive topology. New Layer cake and Twin products regressions complete their first pours in portrait, verify every vessel home against the two-row layout, check particle containment/ownership and save native 3D captures. The complete vessel-presentation suite plus clean macOS and iOS Simulator builds pass.
+
 ## October 4: first Instruments Lab slice
 
 The directly selectable Instruments Lab adds four levels around a pipette that transfers exactly one exposed unit through the shared model, hint, Undo, save, teaching and Classic/2D/3D presentation systems. It culminates in two pipettes feeding the existing mixer. The pear flask now identifies pipette ports; no Original controller, animation or concurrency code was adopted. The normal board menu no longer shows Original game, although `--show-legacy-original` retains a developer escape hatch. The compact iPhone helper card is shortened to icon/count/slots/ADD. See `Reports/Prototype60/README.md`.
