@@ -331,7 +331,7 @@ struct FluidBoardView:View {
                     Button { session.diagnostics.toggle() } label: { Image(systemName:"slider.horizontal.3").font(.system(size:18)).frame(width:34,height:34) }
                         .buttonStyle(.plain).accessibilityLabel("Board diagnostics")
                     Menu {
-                        Toggle("Pouring sound",isOn:$session.soundEnabled)
+                        Toggle("Liquid sounds",isOn:$session.soundEnabled)
                         #if os(iOS)
                         Toggle("Haptics",isOn:$session.hapticsEnabled)
                         #endif

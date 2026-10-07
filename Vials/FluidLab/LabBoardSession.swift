@@ -815,6 +815,7 @@ import Combine
         if animated {
             let transition=LabApparatusTransition(before:state,after:after,apparatus:tool,reduceMotion:reduceTransformationMotion)
             transformation=transition;selected=nil;hintTarget=nil;hintApparatusID=nil
+            if transition.isPipetting {feedback.pipette()}
             if presentation == .fluid { renderer?.beginTransformation(transition) }
             if presentation == .fluid2D { fluid2D.beginTransformation(transition);planarDisplay.publish(fluid2D) }
             notice=transition.isSeparating ? "The mixture separates into two ingredients; total volume stays the same.":transition.isPipetting ? "The pipette transfers exactly one unit; color, density, and volume are preserved.":transition.isDensityChange ? (tool.direction == .heavier ? "The liquid becomes heavier; its volume stays the same.":"The liquid becomes lighter; its volume stays the same."):"The two inputs blend into one new color.";refresh()
@@ -882,17 +883,28 @@ import Combine
     func togglePause() { paused.toggle();updatePause() }
     private func updatePause() { clockRevision+=1;renderer?.paused=paused || suspended || presentation != .fluid;updateFeedback() }
     private func updateFeedback() {
-        let visibleStream:Bool
+        let activeStreams:Int
         if concurrentPoursEnabled {
             switch presentation {
-            case .classic: visibleStream=concurrentClassicPours.contains { $0.progress>0 && $0.progress<1 }
-            case .fluid2D: visibleStream=fluid2D.streamActive
-            case .fluid: visibleStream=metalGroups.values.contains { $0.groupStreamActive }
+            case .classic: activeStreams=concurrentClassicPours.filter { $0.progress>0 && $0.progress<1 }.count
+            case .fluid2D: activeStreams=fluid2D.streamActive ? max(1,fluid2D.groupMoves.count):0
+            case .fluid: activeStreams=metalGroups.values.filter { $0.groupStreamActive }.count
             }
-        } else if let pour=classicPour { visibleStream=pour.progress>0 && pour.progress<1 }
-        else if presentation == .fluid2D { visibleStream=busy && fluid2D.departed>0 && fluid2D.cutoff==nil }
-        else { visibleStream=busy && (renderer?.lastMetrics.departed ?? 0)>20 && renderer?.cutoffTime == nil }
-        feedback.setPouring(visibleStream && !paused && !suspended)
+        } else if let pour=classicPour { activeStreams=pour.progress>0 && pour.progress<1 ? 1:0 }
+        else if presentation == .fluid2D { activeStreams=busy && fluid2D.departed>0 && fluid2D.cutoff==nil ? 1:0 }
+        else { activeStreams=busy && (renderer?.lastMetrics.departed ?? 0)>20 && renderer?.cutoffTime == nil ? 1:0 }
+        let move=game.pending ?? concurrentClassicPours.first(where:{$0.progress>0 && $0.progress<1})?.move
+        let amount=Float(move?.amount ?? 1),sourceCapacity=Float(move.map {state.capacity($0.source)} ?? 4)
+        let intensity=min(1.45,0.76+0.13*sqrt(amount)+0.11*Float(max(0,activeStreams-1)))
+        let pan:Float=move.map {$0.destination==$0.source ? 0:($0.destination>$0.source ? 0.14:-0.14)} ?? 0
+        let body=min(1,max(0,(sourceCapacity-1)/7))
+        feedback.setPouring(
+            activeStreams>0 && !paused && !suspended,
+            intensity:intensity,
+            pan:pan,
+            body:body,
+            playTail:!paused && !suspended
+        )
     }
     private func beginMeasurement() {
         performance.context=["puzzle":boardID,"vialCount":state.stacks.count,"colorCount":Set(state.colors).count,"quality":quality.rawValue,"maximumRenderDimension":quality.maximumDimension,"particleCount":presentation == .fluid ? (renderer?.particleCount ?? 0):(presentation == .fluid2D ? fluid2D.particles.count:0)]
