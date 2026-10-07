@@ -7,6 +7,7 @@ struct LabCompletionCelebrationView:View {
     let state:LabBoardState
     let presentation:LabBoardPresentation
     var twoRows=false
+    var layoutRows:[[Int]]?
     var orbit:Double=0.12
     var milestone=false
     var fixedProgress:Double?
@@ -30,7 +31,7 @@ struct LabCompletionCelebrationView:View {
 
     private func draw(context:inout GraphicsContext,size:CGSize,progress:Double) {
         let profiles=LabBoardLayout.profiles(state:state)
-        let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count,twoRows:twoRows)
+        let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count,twoRows:twoRows,layoutRows:layoutRows)
         let completed=state.stacks.indices.filter {state.isComplete($0) && !state.isHelper($0)}
         guard !completed.isEmpty else {return}
         var glow=context
@@ -42,7 +43,7 @@ struct LabCompletionCelebrationView:View {
             let pulse=sin(local*Double.pi)
             let profile=profiles[index],scale=layout.scale
             let projected=presentation == .fluid ? LabBoardLayout.projectedGeometry(size:size,azimuth:Float(orbit),profiles:profiles,
-                index:index,twoRows:twoRows,includesValveLid:state.valvePigment(index) != nil):nil
+                index:index,twoRows:twoRows,layoutRows:layoutRows,includesValveLid:state.valvePigment(index) != nil):nil
             let base=projected?.base ?? layout.base(index)
             let height=CGFloat(profile.height)*scale
             let radius=projected.map {$0.bounds.width/2} ?? CGFloat(profile.radii.max() ?? 0.6)*scale

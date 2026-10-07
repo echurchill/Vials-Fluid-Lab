@@ -65,17 +65,49 @@ struct LabBoardLayout {
         let first=(count+1)/2
         return [0..<first,first..<count]
     }
-    nonisolated static func homes(count:Int,twoRows:Bool=false) -> [SIMD3<Float>] {
-        let ranges=rowRanges(count:count,twoRows:twoRows)
-        return ranges.enumerated().flatMap { row,range in
-            range.enumerated().map { column,_ in
-                let x=(Float(column)-Float(range.count-1)/2)*2.2
+    nonisolated static func rows(count:Int,twoRows:Bool=false,layoutRows:[[Int]]?=nil)->[[Int]] {
+        guard twoRows,count>1 else {return [Array(0..<count)]}
+        if let layoutRows,
+           layoutRows.count==2,
+           layoutRows.flatMap({$0}).sorted()==Array(0..<count),
+           layoutRows.allSatisfy({!$0.isEmpty}) {return layoutRows}
+        return rowRanges(count:count,twoRows:true).map(Array.init)
+    }
+    /// A portrait apparatus board reads like a small chemistry bench: stable
+    /// sources and requested products sit on the upper shelf while initially
+    /// empty machine chambers sit together below. The role state is the board's
+    /// immutable starting fixture, so pouring never makes a vial change rows.
+    nonisolated static func adaptiveRows(portrait:Bool,state:LabBoardState,roleState:LabBoardState?=nil)->[[Int]]? {
+        guard portrait,state.stacks.count>1 else {return nil}
+        let roles=roleState ?? state
+        if !roles.apparatus.isEmpty {
+            let machine=Set(roles.apparatus.flatMap {$0.inputs+$0.outputs})
+            let targets=Set(roles.targets.map(\.vial))
+            var upper:[Int]=[],lower:[Int]=[]
+            for index in state.stacks.indices {
+                let isAddedWorkspace=index>=roles.stacks.count
+                let startsFilled = !isAddedWorkspace && !roles.stacks[index].isEmpty
+                if isAddedWorkspace || startsFilled || targets.contains(index) || !machine.contains(index) {upper.append(index)}
+                else {lower.append(index)}
+            }
+            if !upper.isEmpty,!lower.isEmpty {return [upper,lower]}
+        }
+        guard usesTwoRows(portrait:portrait,count:state.stacks.count) else {return nil}
+        return rowRanges(count:state.stacks.count,twoRows:true).map(Array.init)
+    }
+    nonisolated static func homes(count:Int,twoRows:Bool=false,layoutRows:[[Int]]?=nil) -> [SIMD3<Float>] {
+        let groups=rows(count:count,twoRows:twoRows,layoutRows:layoutRows)
+        var result=[SIMD3<Float>](repeating:.zero,count:count)
+        for (row,indices) in groups.enumerated() {
+            for (column,index) in indices.enumerated() {
+                let x=(Float(column)-Float(indices.count-1)/2)*2.2
                 // A slight depth stagger keeps the 3D tiers legible while Y
                 // supplies the actual portrait row separation used by every mode.
                 let upper=twoRows && row==0
-                return SIMD3(x,0.18+(upper ? rowSeparation:0),upper ? 0.16:-0.10)
+                result[index]=SIMD3(x,0.18+(upper ? rowSeparation:0),upper ? 0.16:-0.10)
             }
         }
+        return result
     }
     nonisolated static func profiles(count:Int = 4) -> [LabVesselProfile] {
         profiles(capacities:Array(repeating:4,count:count))
@@ -114,8 +146,8 @@ struct LabBoardLayout {
                 radialScale:sqrt(reference/raw.usableVolume*volumeScale))
         }
     }
-    static func vessels(profiles:[LabVesselProfile],capacities:[Int]?=nil,move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?,approach:Float=0,depthSide:Float=0,twoRows:Bool=false) -> [LabVesselUniform] {
-        let homes=homes(count:profiles.count,twoRows:twoRows)
+    static func vessels(profiles:[LabVesselProfile],capacities:[Int]?=nil,move:LabBoardMove?,time:Float,tilt:Float,cutoffTilt:Float?,cutoffElapsed:Float,returnElapsed:Float?,approach:Float=0,depthSide:Float=0,twoRows:Bool=false,layoutRows:[[Int]]?=nil) -> [LabVesselUniform] {
+        let homes=homes(count:profiles.count,twoRows:twoRows,layoutRows:layoutRows)
         var positions=homes,rotations=[simd_float4x4](repeating:matrix_identity_float4x4,count:profiles.count)
         if let move {
             let home=homes[move.source], receiver=homes[move.destination]
@@ -180,7 +212,7 @@ struct LabBoardLayout {
                 shape:SIMD4(p.depthScale,mark(5),mark(6),Float(capacity)))
         }
     }
-    nonisolated static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4,twoRows:Bool=false) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
+    nonisolated static func camera(aspect:Float,azimuth:Float,vesselCount:Int = 4,twoRows:Bool=false,layoutRows:[[Int]]?=nil) -> (simd_float4x4,simd_float4x4,SIMD3<Float>) {
         // Fixed framing includes outward edge pours in either depth lane.
         // Resting and active boards share a camera, avoiding a zoom at pickup.
         // Match the normalized scale used by Classic and 2D. Their layout is
@@ -189,7 +221,7 @@ struct LabBoardLayout {
         // 3D vials look conspicuously smaller. A modest perspective margin
         // accounts for depth and avoids framing resting glass at the edge.
         let verticalScale:Float=1/tan(aspect<1.4 ? 0.235*1.4/max(aspect,0.55):0.235)
-        let columns=twoRows ? (vesselCount+1)/2:vesselCount
+        let columns=twoRows ? (rows(count:vesselCount,twoRows:true,layoutRows:layoutRows).map(\.count).max() ?? vesselCount):vesselCount
         let planarScale=min(aspect/(Float(columns)*2.2+4.4),1/(twoRows ? 10.2:6.4))
         let distance=verticalScale/max(0.001,2*planarScale)*1.07
         let target=SIMD3<Float>(0,3.1,0)
@@ -209,10 +241,10 @@ struct LabBoardLayout {
     /// overlays. Keeping the projection here prevents effects from drifting
     /// back to the flat Classic layout when the camera, orbit, or rows change.
     nonisolated static func projectedGeometry(size:CGSize,azimuth:Float,profiles:[LabVesselProfile],index:Int,
-        twoRows:Bool=false,includesHandle:Bool=false,includesValveLid:Bool=false) -> LabProjectedVesselGeometry {
+        twoRows:Bool=false,layoutRows:[[Int]]?=nil,includesHandle:Bool=false,includesValveLid:Bool=false) -> LabProjectedVesselGeometry {
         let matrix=camera(aspect:Float(size.width/max(size.height,1)),azimuth:azimuth,
-            vesselCount:profiles.count,twoRows:twoRows).0
-        let home=homes(count:profiles.count,twoRows:twoRows)[index]
+            vesselCount:profiles.count,twoRows:twoRows,layoutRows:layoutRows).0
+        let home=homes(count:profiles.count,twoRows:twoRows,layoutRows:layoutRows)[index]
         let profile=profiles[index]
         let lidRadius=(profile.radii.last ?? 0.6)+0.07
         let radius=max((profile.radii.max() ?? 0.6)+0.05,includesValveLid ? lidRadius:0)+(includesHandle ? 0.42:0)
@@ -245,7 +277,7 @@ nonisolated struct LabApparatusTransition:Sendable {
     var isPipetting:Bool {apparatus.kind == .pipette}
     var isDensityChange:Bool { apparatus.kind == .densityModifier }
     var usesDirectTargets:Bool {isSeparating || isPipetting || isRevealing}
-    var duration:Float { isRevealing ? 0.5:(isPipetting ? 1.8:(isDensityChange ? 2.2:2.8)) }
+    var duration:Float { isRevealing ? 0.5:(isPipetting ? 1.72:(isDensityChange ? 2.2:2.8)) }
     var output:Int { apparatus.output ?? apparatus.inputs[0] }
     var parcels:Set<Int> {
         if isRevealing {return revealedParcels}
@@ -253,7 +285,8 @@ nonisolated struct LabApparatusTransition:Sendable {
         return Set(apparatus.inputs.flatMap {before.stacks[$0]})
     }
     var vessels:Set<Int> { Set(apparatus.inputs+apparatus.outputs) }
-    var gathered:Float { labSmooth(time/(isSeparating ? 2.2:(isPipetting ? 1.45:1.15))) }
+    var pipetteProgress:Float {labSmooth((time-0.10)/1.38)}
+    var gathered:Float { isPipetting ? pipetteProgress:labSmooth(time/(isSeparating ? 2.2:1.15)) }
     var blend:Float { isPipetting ? 0:(isRevealing ? labSmooth(time/0.5):isDensityChange ? labSmooth((time-0.15)/1.6):labSmooth((time-0.85)/1.65)) }
     /// World-Y offsets for light/heavy motifs. Incoming symbols start behind
     /// their final position and drift in the direction they point as they fade
@@ -272,7 +305,11 @@ nonisolated struct LabApparatusTransition:Sendable {
     var status:String {
         if isRevealing {return "Discovering a color"}
         if isSeparating {return "Separating ingredients"}
-        if isPipetting {return gathered<0.62 ? "Measuring one unit":"Delivering one unit"}
+        if isPipetting {
+            if time<0.42 {return "Drawing one measured unit"}
+            if time<1.48 {return "Delivering one measured unit"}
+            return "Settling the measured unit"
+        }
         if !isDensityChange {return time<1.15 ? "Feeding the mixer":"Blending colors"}
         return time<1.6 ? (apparatus.direction == .heavier ? "Making liquid heavier":"Making liquid lighter"):"Settling the liquid"
     }
@@ -280,8 +317,8 @@ nonisolated struct LabApparatusTransition:Sendable {
     func position(from:SIMD3<Float>,to:SIMD3<Float>,origin:SIMD3<Float>,profile:LabVesselProfile,phase:Float)->(point:SIMD3<Float>,arrived:Bool,started:Bool) {
         if isRevealing {return (from,true,true)}
         if isSeparating || isPipetting {
-            let f=labSmooth((time-phase*(isPipetting ? 0.25:0.4))/(isPipetting ? 1.35:1.8))
-            let clearance=max(from.y,profile.height)+0.55
+            let f=isPipetting ? labSmooth((time-0.10-phase*0.16)/1.38):labSmooth((time-phase*0.4)/1.8)
+            let clearance=max(from.y,profile.height)+(isPipetting ? 0.72:0.55)
             let a=SIMD3(from.x,clearance,from.z),b=SIMD3(origin.x,clearance,origin.z)
             let point=pow(1-f,3)*from+3*pow(1-f,2)*f*a+3*(1-f)*f*f*b+f*f*f*to
             return (point,f>=1,f>0)

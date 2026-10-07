@@ -155,10 +155,11 @@ nonisolated struct LabFluid2D:Sendable {
     }
     init(game:LabBoardGame=LabBoardGame()) { install(game) }
     var twoRowLayout=false
-    mutating func setTwoRowLayout(_ enabled:Bool) {
-        guard twoRowLayout != enabled else {return}
+    var layoutRows:[[Int]]?
+    mutating func setTwoRowLayout(_ enabled:Bool,layoutRows newRows:[[Int]]?=nil) {
+        guard twoRowLayout != enabled || layoutRows != newRows else {return}
         let oldHomes=profiles.indices.map(home)
-        twoRowLayout=enabled
+        twoRowLayout=enabled;layoutRows=enabled ? newRows:nil
         guard !busy,!particles.isEmpty,oldHomes.count==profiles.count else {particles=[];install(game);return}
         let newHomes=profiles.indices.map(home)
         for i in particles.indices where particles[i].owner>=0 && particles[i].owner<oldHomes.count {
@@ -168,7 +169,7 @@ nonisolated struct LabFluid2D:Sendable {
         surfaces=Array(repeating:Lab2DSurfaceState(),count:profiles.count);splashes=[]
     }
     func home(_ i:Int)->SIMD2<Float> {
-        let point=LabBoardLayout.homes(count:profiles.count,twoRows:twoRowLayout)[i]
+        let point=LabBoardLayout.homes(count:profiles.count,twoRows:twoRowLayout,layoutRows:layoutRows)[i]
         return SIMD2(point.x,point.y-0.18)
     }
     func pose(_ i:Int)->Lab2DPose {
@@ -323,8 +324,12 @@ nonisolated struct LabFluid2D:Sendable {
             }
             transformation=transition;return
         }
-        let final=LabFluid2D(game:LabBoardGame(state:transition.after))
-        transformationTargets=final.particles
+        var final=LabFluid2D(game:LabBoardGame(state:transition.after))
+        final.setTwoRowLayout(twoRowLayout,layoutRows:layoutRows)
+        // Measured transfers finish with an orderly, immediately readable
+        // one-unit fill. Reusing the relaxed solver seed here can preserve a
+        // few isolated source particles after the pipette removes its unit.
+        transformationTargets=transition.isPipetting ? final.canonicalSeed(for:transition.after):final.particles
         // Both arrays are stably sorted by parcel; material identities survive transformation.
         transformation=transition
     }
@@ -346,7 +351,18 @@ nonisolated struct LabFluid2D:Sendable {
     }
     mutating func finishTransformation(_ game:LabBoardGame) {
         let parcels=transformation?.parcels ?? []
-        for i in particles.indices where parcels.contains(particles[i].parcel) {particles[i]=transformationTargets[i]}
+        // A pipette removes one parcel from the middle/top of its source, so
+        // leaving the untouched particles at their pre-transfer heights makes
+        // the remaining liquid look perforated for a frame (or indefinitely
+        // while idle). The transition target is already a deterministic packed
+        // representation of the complete post-transfer state; adopt it as a
+        // whole for measured transfers. Other apparatus keep their unaffected
+        // particles in place and replace only the transformed parcels.
+        if transformation?.isPipetting == true {
+            particles=transformationTargets
+        } else {
+            for i in particles.indices where parcels.contains(particles[i].parcel) {particles[i]=transformationTargets[i]}
+        }
         self.game=game;transformation=nil;transformationFrom=[];transformationTargets=[]
     }
     /// Reuse the settled particles without reseeding or relaxing at touch-down.

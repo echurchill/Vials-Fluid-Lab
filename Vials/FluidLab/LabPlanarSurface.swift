@@ -15,7 +15,7 @@ struct LabPlanarSurface:View {
         ZStack {
             LabFluid2DView(engine:display.snapshot,points:points,frame:display.frame,selected:selected,destinations:destinations,rejected:rejected,capExclusions:capExclusions,twoRows:twoRows)
             if !points {
-                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,occluding:display.snapshot,excluded:Set((display.snapshot.displayMoves+[display.snapshot.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] }).union(display.snapshot.transformation?.vessels ?? []),twoRows:twoRows)
+                LabIdleFluidDetail(state:display.snapshot.game.state,profiles:display.snapshot.profiles,enabled:animateIdle,occluding:display.snapshot,excluded:Set((display.snapshot.displayMoves+[display.snapshot.game.pending].compactMap { $0 }).flatMap { [$0.source,$0.destination] }).union(display.snapshot.transformation?.vessels ?? []),twoRows:twoRows,layoutRows:display.snapshot.layoutRows)
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
         }
@@ -39,6 +39,7 @@ private struct LabIdleFluidDetail:View {
     let occluding:LabFluid2D
     let excluded:Set<Int>
     var twoRows=false
+    var layoutRows:[[Int]]?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var economical=ProcessInfo.processInfo.isLowPowerModeEnabled || ProcessInfo.processInfo.thermalState != .nominal
     @State private var clock=LabAnimationClock()
@@ -48,7 +49,7 @@ private struct LabIdleFluidDetail:View {
             // Capture a new phase in the Canvas value on every timeline tick.
             let t=Float(clock.elapsed(at:ProcessInfo.processInfo.systemUptime).truncatingRemainder(dividingBy:120))*Float.pi/60
             Canvas { context,size in
-                let layout=LabClassicLayout(size:size,vesselCount:profiles.count,twoRows:twoRows),scale=layout.scale
+                let layout=LabClassicLayout(size:size,vesselCount:profiles.count,twoRows:twoRows,layoutRows:layoutRows),scale=layout.scale
                 var visible=context
                 for source in Set((occluding.displayMoves+[occluding.game.pending].compactMap {$0}).map(\.source)) {
                     let pose=occluding.pose(source),profile=profiles[source]

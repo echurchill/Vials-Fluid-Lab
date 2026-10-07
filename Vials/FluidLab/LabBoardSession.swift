@@ -22,7 +22,10 @@ import Combine
     @Published private(set) var valveBoard:LabValveBoard?
     @Published private(set) var journeyMode:Bool
     @Published private(set) var twoRowLayout=false
+    @Published private(set) var layoutRows:[[Int]]?
     private var requestedTwoRowLayout=false
+    private var requestedLayoutRows:[[Int]]?
+    var layoutIndices:[Int] {(layoutRows ?? [Array(state.stacks.indices)]).flatMap {$0}}
     var isSortingCourse:Bool {sortingCourseBoard != nil}
     var isEndlessSorting:Bool {endlessBoard != nil}
     var isValveCourse:Bool {valveBoard != nil}
@@ -276,19 +279,20 @@ import Combine
     }
     deinit { classicTask?.cancel();rejectionTask?.cancel() }
     func updateAdaptiveLayout(portrait:Bool) {
-        requestedTwoRowLayout=LabBoardLayout.usesTwoRows(portrait:portrait,count:state.stacks.count)
+        requestedLayoutRows=LabBoardLayout.adaptiveRows(portrait:portrait,state:state,roleState:initialState)
+        requestedTwoRowLayout=requestedLayoutRows != nil
         applyRequestedLayoutIfPossible()
     }
     private func applyRequestedLayoutIfPossible() {
-        guard !busy,requestedTwoRowLayout != twoRowLayout else {return}
-        let metalSamples=renderer?.reflowedParticleSamples(for:game.state,twoRows:requestedTwoRowLayout)
-        twoRowLayout=requestedTwoRowLayout
-        fluid2D.setTwoRowLayout(twoRowLayout)
+        guard !busy,requestedTwoRowLayout != twoRowLayout || requestedLayoutRows != layoutRows else {return}
+        let metalSamples=renderer?.reflowedParticleSamples(for:game.state,twoRows:requestedTwoRowLayout,layoutRows:requestedLayoutRows)
+        twoRowLayout=requestedTwoRowLayout;layoutRows=requestedTwoRowLayout ? requestedLayoutRows:nil
+        fluid2D.setTwoRowLayout(twoRowLayout,layoutRows:layoutRows)
         if presentation == .fluid2D {
             fluid2D.quickMotion=pace == .quick;fluid2D.install(game);planarDisplay.publish(fluid2D)
         }
-        renderer?.twoRowLayout=twoRowLayout
-        for engine in metalPool {engine.twoRowLayout=twoRowLayout}
+        renderer?.twoRowLayout=twoRowLayout;renderer?.layoutRows=layoutRows
+        for engine in metalPool {engine.twoRowLayout=twoRowLayout;engine.layoutRows=layoutRows}
         if renderer != nil {settledParticles=metalSamples}
         if presentation == .fluid,let renderer {
             renderer.install(game:game,samples:metalSamples);compositeSamples=renderer.particleSamples()
@@ -308,7 +312,7 @@ import Combine
                 engine.onUpdate={ [weak self] _,_,_ in self?.fluidUpdate() }
                 renderer=engine
             }
-            renderer?.twoRowLayout=twoRowLayout
+            renderer?.twoRowLayout=twoRowLayout;renderer?.layoutRows=layoutRows
             renderer?.install(game:game,samples:settledParticles)
             if concurrentPoursEnabled,let renderer {
                 compositeSamples=renderer.particleSamples()
@@ -794,7 +798,12 @@ import Combine
             notice="Try \(Self.letter(move.source)) → \(Self.letter(move.destination)) · \(move.amount) \(Self.name(move.color)) \(move.amount == 1 ? "unit":"units")"
         case .activate(let activation):
             selected=nil;hintTarget=nil;hintApparatusID=activation.apparatusID
-            notice="Activate \(state.apparatus.first(where:{$0.id==activation.apparatusID})?.title ?? "the apparatus")."
+            if let tool=state.apparatus.first(where:{$0.id==activation.apparatusID}),tool.kind == .pipette,
+               let input=tool.inputs.first,let output=tool.output {
+                notice="Use pipette \(Self.letter(input)) → \(Self.letter(output)) to measure exactly 1 unit."
+            } else {
+                notice="Activate \(state.apparatus.first(where:{$0.id==activation.apparatusID})?.title ?? "the apparatus")."
+            }
         }
     }
     func activateApparatus(_ id:Int,animated:Bool=true,automaticClock:Bool=true) {
@@ -842,6 +851,7 @@ import Combine
         } else {refresh()}
     }
     private func finishActivation(_ activation:LabApparatusActivation) {
+        let activated=state.apparatus.first {$0.id==activation.apparatusID}
         guard game.activate(activation) else {return}
         if hintPlan.first == .activate(activation) {hintPlan.removeFirst()}
         let wasTransforming=transformation != nil
@@ -855,7 +865,10 @@ import Combine
             if wasTransforming {fluid2D.finishTransformation(game)} else {fluid2D.install(game)}
             planarDisplay.publish(fluid2D)
         }
-        notice="Transformation complete.";feedback.completed(solved:state.solved);checkpoint();refresh()
+        if let activated,activated.kind == .pipette,let input=activated.inputs.first,let output=activated.output {
+            notice="Measured 1 unit · \(Self.letter(input)) → \(Self.letter(output))."
+        } else {notice="Transformation complete."}
+        feedback.completed(solved:state.solved);checkpoint();refresh()
     }
     // A dismissed preview must release its clock even when it closes mid-pour.
     func discardPreview() {
@@ -1301,7 +1314,7 @@ extension FluidBoardSession {
             // particle samples and simulation lanes. Falling back to the
             // single-row default detached resting glass from its liquid after
             // the first concurrent-capable pour on portrait boards.
-            var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,capacities:game.state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil,twoRows:renderer.twoRowLayout)
+            var vessels=LabBoardLayout.vessels(profiles:renderer.profiles,capacities:game.state.capacities,move:nil,time:0,tilt:0,cutoffTilt:nil,cutoffElapsed:0,returnElapsed:nil,twoRows:renderer.twoRowLayout,layoutRows:renderer.layoutRows)
             var aggregate=LabBoardMetrics()
             let surfaceGPU=renderer.lastGPUWorkMilliseconds
             aggregate.gpuMilliseconds=surfaceGPU

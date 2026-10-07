@@ -5,16 +5,17 @@ struct LabClassicLayout {
     let size:CGSize
     var vesselCount:Int = 4
     var twoRows=false
+    var layoutRows:[[Int]]?
     // Reserve fixed side room for an outward shared pour. The board never
     // changes scale when a source lifts or returns.
-    var columnCount:Int {twoRows ? (vesselCount+1)/2:vesselCount}
+    var rows:[[Int]] {LabBoardLayout.rows(count:vesselCount,twoRows:twoRows,layoutRows:layoutRows)}
+    var columnCount:Int {rows.map(\.count).max() ?? vesselCount}
     var scale:CGFloat { min(size.width/(CGFloat(columnCount)*2.2+4.4),size.height/(twoRows ? 10.2:6.4)) }
     func base(_ index:Int) -> CGPoint {
-        let home=LabBoardLayout.homes(count:vesselCount,twoRows:twoRows)[index]
+        let home=LabBoardLayout.homes(count:vesselCount,twoRows:twoRows,layoutRows:layoutRows)[index]
         let baseline=size.height*(twoRows ? 0.88:0.82)
         return CGPoint(x:size.width/2+CGFloat(home.x)*scale,y:baseline-CGFloat(home.y-0.18)*scale)
     }
-    var rows:[Range<Int>] {LabBoardLayout.rowRanges(count:vesselCount,twoRows:twoRows)}
     func hitRect(_ index:Int,profile:LabVesselProfile,includesHandle:Bool=false,includesValveLid:Bool=false) -> CGRect {
         let point=base(index)
         let bodyRadius=CGFloat(profile.radii.max() ?? 0.6)
@@ -36,11 +37,12 @@ struct LabClassicBoardView:View {
     var transformation:LabApparatusTransition?
     var reveals:[Int:Float]=[:]
     var twoRows=false
+    var layoutRows:[[Int]]?
     private var pours:[LabClassicPour] { [pour].compactMap { $0 }+additionalPours }
     private var profiles:[LabVesselProfile] { LabBoardLayout.profiles(state:state) }
     var body:some View {
         Canvas { context,size in
-            let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count,twoRows:twoRows),scale=layout.scale
+            let layout=LabClassicLayout(size:size,vesselCount:state.stacks.count,twoRows:twoRows,layoutRows:layoutRows),scale=layout.scale
             for index in state.stacks.indices {
                 let home=layout.base(index)
                 let base=pours.first(where:{$0.move.source==index}).map {pose($0,layout:layout).base} ?? home

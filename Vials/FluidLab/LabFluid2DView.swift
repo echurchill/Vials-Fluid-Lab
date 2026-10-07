@@ -19,7 +19,7 @@ struct LabFluid2DView:View {
     private func scene(size:CGSize)->AnyView {
         let moves=engine.displayMoves+[engine.game.pending].compactMap {$0}
         let moving=Array(Set(moves.map(\.source))).sorted()
-        let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count,twoRows:twoRows),scale=Float(layout.scale)
+        let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count,twoRows:twoRows,layoutRows:engine.layoutRows),scale=Float(layout.scale)
         var result=AnyView(layer(Set(engine.profiles.indices).subtracting(moving),floor:true))
         for source in moving {
             let rear=result,pose=engine.pose(source),profile=engine.profiles[source]
@@ -51,7 +51,7 @@ private struct LabFluid2DLayer:View {
     var opaqueGlass=false
     var body:some View {
         Canvas(rendersAsynchronously:false) { context,size in
-            let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count,twoRows:twoRows)
+            let layout=LabClassicLayout(size:size,vesselCount:engine.profiles.count,twoRows:twoRows,layoutRows:engine.layoutRows)
             let scale=layout.scale,origin=CGPoint(x:size.width/2,y:size.height*(twoRows ? 0.88:0.82))
             func screen(_ p:SIMD2<Float>)->CGPoint { CGPoint(x:origin.x+CGFloat(p.x)*scale,y:origin.y-CGFloat(p.y)*scale) }
             func cavity(_ index:Int)->Path {
@@ -75,9 +75,9 @@ private struct LabFluid2DLayer:View {
             }
             if drawFloor {
                 for row in layout.rows where !row.isEmpty {
-                    let left=layout.base(row.lowerBound).x-scale*1.25
-                    let right=layout.base(row.index(before:row.upperBound)).x+scale*1.25
-                    var baseline=Path();baseline.move(to:CGPoint(x:left,y:layout.base(row.lowerBound).y+7));baseline.addLine(to:CGPoint(x:right,y:layout.base(row.lowerBound).y+7))
+                    let left=layout.base(row.first!).x-scale*1.25
+                    let right=layout.base(row.last!).x+scale*1.25
+                    var baseline=Path();baseline.move(to:CGPoint(x:left,y:layout.base(row.first!).y+7));baseline.addLine(to:CGPoint(x:right,y:layout.base(row.first!).y+7))
                     context.stroke(baseline,with:.color(.white.opacity(0.08)),lineWidth:1)
                 }
                 for index in engine.profiles.indices {

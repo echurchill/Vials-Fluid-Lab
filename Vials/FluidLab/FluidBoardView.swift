@@ -433,12 +433,12 @@ struct FluidBoardView:View {
                 GeometryReader { board in
                     let capExclusions=Set([session.selected].compactMap { $0 }+session.activeMoves.flatMap { [$0.source,$0.destination] })
                     ZStack {
-                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions,transformation:session.transformation,reveals:session.concurrentReveals,twoRows:session.twoRowLayout) }
+                        if session.presentation == .classic { LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,capExclusions:capExclusions,transformation:session.transformation,reveals:session.concurrentReveals,twoRows:session.twoRowLayout,layoutRows:session.layoutRows) }
                         else if session.presentation == .fluid2D { LabPlanarSurface(display:session.planarDisplay,animateIdle:!session.paused && !session.busy && scenePhase == .active && sheet == nil && comparison == nil && !showResetProgress,points:session.points,selected:session.selected,destinations:session.validDestinations,rejected:session.rejectedVial,capExclusions:capExclusions,twoRows:session.twoRowLayout) }
                         else if let renderer=session.renderer { BoardMetalSurface(renderer:renderer,capExclusions:capExclusions).accessibilityHidden(true) }
                         else { ContentUnavailableView("Metal unavailable",systemImage:"cube.transparent",description:Text(session.error ?? "Unable to start the fluid renderer.")) }
                         if celebrationVisible {
-                            LabCompletionCelebrationView(state:session.state,presentation:session.presentation,twoRows:session.twoRowLayout,
+                            LabCompletionCelebrationView(state:session.state,presentation:session.presentation,twoRows:session.twoRowLayout,layoutRows:session.layoutRows,
                                 orbit:session.orbit,milestone:milestoneCompletion)
                                 .id(celebrationSequence)
                                 .transition(.opacity)
@@ -465,7 +465,7 @@ struct FluidBoardView:View {
                                             // roles upward so neither is hidden and the vial stays put.
                                             VStack(spacing:3) {
                                                 ForEach(tools) { apparatus in
-                                                    Label(apparatusPortLabel(apparatus,index:index)+(focusedApparatus?.id==apparatus.id ? " "+FluidBoardSession.letter(index):""),systemImage:apparatusSymbol(apparatus))
+                                                    Label(apparatusPortLabel(apparatus,index:index)+((apparatus.kind == .pipette || focusedApparatus?.id==apparatus.id) ? " "+FluidBoardSession.letter(index):""),systemImage:apparatusSymbol(apparatus))
                                                         .font(.system(size:8,weight:.bold,design:.monospaced))
                                                         .fixedSize(horizontal:true,vertical:false)
                                                         .padding(.horizontal,5).padding(.vertical,3)
@@ -507,7 +507,7 @@ struct FluidBoardView:View {
                 }.frame(minHeight:220)
                 VStack(spacing:14) {
                     LazyVGrid(columns:Array(repeating:GridItem(.flexible(minimum:0),spacing:debugGap),count:max(1,session.twoRowLayout ? (debugItemCount+1)/2:debugItemCount)),spacing:debugGap) {
-                        ForEach(session.state.stacks.indices,id:\.self) { index in
+                        ForEach(session.layoutIndices,id:\.self) { index in
                             ZStack(alignment:.topTrailing) {
                                 Button { session.select(index) } label: {
                                 VStack(spacing:denseDebug ? 3:5) {
@@ -701,6 +701,7 @@ struct FluidBoardView:View {
                 .onAppear {session.updateAdaptiveLayout(portrait:geometry.size.height>geometry.size.width)}
                 .onChange(of:geometry.size) { _,size in session.updateAdaptiveLayout(portrait:size.height>size.width) }
                 .onChange(of:vialCount) { _,_ in session.updateAdaptiveLayout(portrait:geometry.size.height>geometry.size.width) }
+                .onChange(of:session.boardID) { _,_ in session.updateAdaptiveLayout(portrait:geometry.size.height>geometry.size.width) }
         }
     }
 
@@ -897,7 +898,7 @@ struct FluidBoardView:View {
     private func hitRect(_ index:Int,size:CGSize) -> CGRect {
         let profiles=LabBoardLayout.profiles(state:session.state)
         if session.presentation == .fluid2D {
-            let layout=LabClassicLayout(size:size,vesselCount:profiles.count,twoRows:session.twoRowLayout),profile=session.fluid2D.profiles[index]
+            let layout=LabClassicLayout(size:size,vesselCount:profiles.count,twoRows:session.twoRowLayout,layoutRows:session.layoutRows),profile=session.fluid2D.profiles[index]
             let base=layout.base(index)
             let bodyRadius=CGFloat((profile.source.radii.max() ?? 0.6)*profile.scale)
             let lidRadius=CGFloat(profile.source.radii.last ?? 0.6)+0.07
@@ -909,13 +910,13 @@ struct FluidBoardView:View {
                           width:radius*2+16+handle,height:CGFloat(profile.height)*layout.scale+16+lidHeight)
         }
         if session.presentation == .classic {
-            return LabClassicLayout(size:size,vesselCount:session.state.stacks.count,twoRows:session.twoRowLayout)
+            return LabClassicLayout(size:size,vesselCount:session.state.stacks.count,twoRows:session.twoRowLayout,layoutRows:session.layoutRows)
                 .hitRect(index,profile:profiles[index],includesHandle:session.state.isHelper(index),
                          includesValveLid:session.state.valvePigment(index) != nil)
         }
         let hasValveLid=session.state.valvePigment(index) != nil
         return LabBoardLayout.projectedGeometry(size:size,azimuth:Float(session.orbit),profiles:profiles,index:index,
-            twoRows:session.twoRowLayout,includesHandle:session.state.isHelper(index),includesValveLid:hasValveLid)
+            twoRows:session.twoRowLayout,layoutRows:session.layoutRows,includesHandle:session.state.isHelper(index),includesValveLid:hasValveLid)
             .bounds.insetBy(dx:-6,dy:-6)
     }
 }

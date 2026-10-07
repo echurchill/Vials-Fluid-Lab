@@ -49,6 +49,17 @@ import AppKit
   print("PASS phone 3D completion geometry: Valve Basics 2 overlay follows projected vessel bounds");fflush(stdout)
   precondition(!LabBoardLayout.usesTwoRows(portrait:true,count:7) && LabBoardLayout.usesTwoRows(portrait:true,count:8))
   precondition(!LabBoardLayout.usesTwoRows(portrait:false,count:12))
+  let measuredBench=LabBoardLayout.adaptiveRows(portrait:true,state:LabBoardPuzzle.measuredReaction.initial)
+  let layerCakeBench=LabBoardLayout.adaptiveRows(portrait:true,state:LabBoardPuzzle.layerCake.initial)
+  let twinBench=LabBoardLayout.adaptiveRows(portrait:true,state:LabBoardPuzzle.twinProducts.initial)
+  precondition(measuredBench==[[0,1,4],[2,3]],"Measured reaction did not put sources and target above its delivery chambers")
+  precondition(layerCakeBench==[[0,1,2,7],[3,4,5,6]],"Layer cake chemistry bench roles changed")
+  precondition(twinBench==[[0,1,2,8,9],[3,4,5,6,7]],"Twin products chemistry bench roles changed")
+  precondition(LabBoardLayout.adaptiveRows(portrait:false,state:LabBoardPuzzle.measuredReaction.initial)==nil,"Landscape unexpectedly entered bench rows")
+  let measuredHomes=LabBoardLayout.homes(count:5,twoRows:true,layoutRows:measuredBench)
+  precondition(measuredHomes[0].y==measuredHomes[1].y && measuredHomes[1].y==measuredHomes[4].y && measuredHomes[0].y>measuredHomes[2].y,
+    "Measured reaction bench shelves are not physically separated")
+  print("PASS role-based chemistry benches: sources and targets above stable apparatus chambers");fflush(stdout)
   let portraitLayout=LabClassicLayout(size:CGSize(width:650,height:1000),vesselCount:12,twoRows:true)
   precondition(portraitLayout.rows.map(\.count)==[6,6])
   precondition(portraitLayout.base(0).y<portraitLayout.base(6).y,"Portrait A–F row must sit above G–L")
@@ -112,7 +123,7 @@ import AppKit
    precondition(session.begin(move,automaticClock:false),"\(puzzle.title) could not begin its first move")
    for _ in 0..<1800 where session.busy {await session.advanceConcurrent(deltaTime:1/60)}
    precondition(!session.busy && session.state==expected,"\(puzzle.title) first move did not commit")
-   let homes=LabBoardLayout.homes(count:session.state.stacks.count,twoRows:true)
+   let homes=LabBoardLayout.homes(count:session.state.stacks.count,twoRows:true,layoutRows:session.layoutRows)
    for index in homes.indices {
     let world=session.renderer!.currentVessels[index].world.columns.3.xyz
     precondition(simd_distance(world,homes[index])<0.001,"\(puzzle.title) vessel \(index) fell out of the portrait row topology")
@@ -164,7 +175,7 @@ import AppKit
     texture.getBytes(bitmap.bitmapData!,bytesPerRow:width*4,from:MTLRegionMake2D(0,0,width,height),mipmapLevel:0)
     for i in stride(from:0,to:width*height*4,by:4) {let b=bitmap.bitmapData![i];bitmap.bitmapData![i]=bitmap.bitmapData![i+2];bitmap.bitmapData![i+2]=b};cg=bitmap.cgImage!
    } else {
-    let content:AnyView=mode == .classic ? AnyView(LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,transformation:session.transformation,twoRows:session.twoRowLayout)):AnyView(LabPlanarSurface(display:session.planarDisplay,twoRows:session.twoRowLayout))
+   let content:AnyView=mode == .classic ? AnyView(LabClassicBoardView(state:session.state,pour:session.classicPour,additionalPours:session.concurrentClassicPours,transformation:session.transformation,twoRows:session.twoRowLayout,layoutRows:session.layoutRows)):AnyView(LabPlanarSurface(display:session.planarDisplay,twoRows:session.twoRowLayout))
     cg=ImageRenderer(content:content.frame(width:CGFloat(width),height:CGFloat(height)).background(Color(red:0.026,green:0.043,blue:0.06))).cgImage!
    }
    try NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])!.write(to:output.appendingPathComponent(name+".png"))
@@ -201,6 +212,15 @@ import AppKit
       "3D liquid remained outside its reflowed vessel after \(label)")
    }
   }
+  func requireResting2DLiquid(_ session:FluidBoardSession,_ label:String) {
+   let engine=session.fluid2D
+   for particle in engine.particles where particle.owner>=0 {
+    let owner=particle.owner,local=particle.position-engine.home(owner),profile=engine.profiles[owner]
+    let radius=profile.radius(min(profile.height,max(0,local.y)))+0.10
+    precondition(local.y >= -0.10 && local.y <= profile.height + 0.10 && abs(local.x) <= radius,
+      "2D liquid remained outside its bench vial after \(label)")
+   }
+  }
   func requireFilled3DEnvelopes(_ session:FluidBoardSession,_ label:String) {
    let renderer=session.renderer!,samples=renderer.particleSamples(),vessels=renderer.currentVessels
    for owner in session.state.stacks.indices where !session.state.stacks[owner].isEmpty {
@@ -224,6 +244,30 @@ import AppKit
    try capture(session,mode,"pipette-\(mode.rawValue)-solved",1000,650)
   }
   print("PASS pipette animation: exactly one exposed parcel transferred and settled in all three presentations");fflush(stdout)
+  for mode in LabBoardPresentation.allCases {
+   let session=FluidBoardSession(defaults:nil,device:device,library:library,
+     restoredSave:LabComparisonSave(presentation:mode,pace:.quick,puzzle:.measuredReaction))
+   session.updateAdaptiveLayout(portrait:true)
+   precondition(session.twoRowLayout && session.layoutRows==measuredBench,"Measured reaction lost its role-based phone bench in \(mode)")
+   try capture(session,mode,"pipette-bench-\(mode.rawValue)-ready",430,800)
+   session.activateApparatus(0,animated:true,automaticClock:false)
+   for _ in 0..<9 {session.advanceTransformation(deltaTime:0.05)}
+   try capture(session,mode,"pipette-bench-\(mode.rawValue)-transfer",430,800)
+   for _ in 0..<120 where session.busy {session.advanceTransformation(deltaTime:0.05)}
+   precondition(!session.busy && session.state.stacks[0].count==1 && session.state.stacks[2].count==1,
+     "Phone pipette did not transfer exactly one unit in \(mode)")
+   if mode == .fluid {requireVisible3DLiquid(session,"the phone pipette bench transfer")}
+   if mode == .fluid2D {
+    requireResting2DLiquid(session,"the phone pipette bench transfer")
+    let packed=session.fluid2D.canonicalSeed(for:session.state)
+    let canonical=zip(session.fluid2D.particles,packed).allSatisfy {
+      $0.owner==$1.owner && $0.parcel==$1.parcel && simd_distance($0.position,$1.position)<0.00001
+    }
+    precondition(canonical,"Phone pipette left a ragged 2D source surface")
+   }
+   try capture(session,mode,"pipette-bench-\(mode.rawValue)-delivered",430,800)
+  }
+  print("PASS phone pipette bench: role topology, transfer timing, and settled liquid align in all three presentations");fflush(stdout)
   let course45Session=FluidBoardSession(defaults:nil,device:device,library:library,
     restoredSave:LabComparisonSave(presentation:.fluid,pace:.quick,puzzle:.firstSort,sortingCourseBoard:course45,
       games:[course45.saveKey:LabBoardGame(state:course45.initial)]),allowsConcurrentPours:true)
