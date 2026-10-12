@@ -5,11 +5,16 @@ import Foundation
     @MainActor static func main() throws {
         let output=URL(fileURLWithPath:CommandLine.arguments.dropFirst().first ?? "build/audio-validation",isDirectory:true)
         try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
+        let assetDirectory=URL(fileURLWithPath:FileManager.default.currentDirectoryPath,isDirectory:true)
+            .appendingPathComponent("Vials/Audio",isDirectory:true)
+        func asset(_ name:String) throws -> Data {
+            try Data(contentsOf:assetDirectory.appendingPathComponent(name+".wav"),options:.mappedIfSafe)
+        }
         let sounds:[(String,Data,Double)]=[
-            ("pour-stream",LabBoardFeedback.waterSound(),2.00),
-            ("receiving-splash",LabBoardFeedback.receivingSplashSound(),2.00),
-            ("pour-start",LabBoardFeedback.pourStartSound(),0.30),
-            ("pour-tail",LabBoardFeedback.pourTailSound(),0.48),
+            ("pour-stream",try asset("pour-stream-cc0"),7.014),
+            ("receiving-splash",try asset("receiving-water-cc0"),3.541),
+            ("pour-start",try asset("pour-start-cc0"),0.360),
+            ("pour-tail",try asset("pour-tail-cc0"),0.718),
             ("pipette",LabBoardFeedback.pipetteSound(),1.72),
             ("success",LabBoardFeedback.successSound(),0.62)
         ]

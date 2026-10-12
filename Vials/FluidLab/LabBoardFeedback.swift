@@ -16,6 +16,15 @@ private final class LabBoardAudio: @unchecked Sendable {
     private var successPlayer:AVAudioPlayer?
     private var configured=false
     private var pourGeneration=0
+    private static func bundledSound(_ name:String)->Data? {
+        let bundle=Bundle.main
+        let url=bundle.url(forResource:name,withExtension:"wav",subdirectory:"Audio")
+            ?? bundle.url(forResource:name,withExtension:"wav")
+            ?? bundle.urls(forResourcesWithExtension:"wav",subdirectory:nil)?.first {
+                $0.deletingPathExtension().lastPathComponent == name
+            }
+        return url.flatMap {try? Data(contentsOf:$0,options:.mappedIfSafe)}
+    }
     private func configureIfNeeded() {
         #if os(iOS)
         if !configured {
@@ -29,10 +38,20 @@ private final class LabBoardAudio: @unchecked Sendable {
         player.numberOfLoops = -1;player.enableRate=true;_ = player.prepareToPlay();return player
     }
     private func preparePlayers() {
-        if streamPlayer == nil {streamPlayer=makeLoop(LabBoardFeedback.waterSound())}
-        if splashPlayer == nil {splashPlayer=makeLoop(LabBoardFeedback.receivingSplashSound())}
-        if startPlayer == nil {startPlayer=try? AVAudioPlayer(data:LabBoardFeedback.pourStartSound());_ = startPlayer?.prepareToPlay()}
-        if tailPlayer == nil {tailPlayer=try? AVAudioPlayer(data:LabBoardFeedback.pourTailSound());_ = tailPlayer?.prepareToPlay()}
+        if streamPlayer == nil {
+            streamPlayer=makeLoop(Self.bundledSound("pour-stream-cc0") ?? LabBoardFeedback.waterSound())
+        }
+        if splashPlayer == nil {
+            splashPlayer=makeLoop(Self.bundledSound("receiving-water-cc0") ?? LabBoardFeedback.receivingSplashSound())
+        }
+        if startPlayer == nil {
+            startPlayer=try? AVAudioPlayer(data:Self.bundledSound("pour-start-cc0") ?? LabBoardFeedback.pourStartSound())
+            _ = startPlayer?.prepareToPlay()
+        }
+        if tailPlayer == nil {
+            tailPlayer=try? AVAudioPlayer(data:Self.bundledSound("pour-tail-cc0") ?? LabBoardFeedback.pourTailSound())
+            _ = tailPlayer?.prepareToPlay()
+        }
         if pipettePlayer == nil {pipettePlayer=try? AVAudioPlayer(data:LabBoardFeedback.pipetteSound());_ = pipettePlayer?.prepareToPlay()}
     }
     func prepare() {queue.async { [self] in configureIfNeeded();preparePlayers() }}
@@ -46,14 +65,14 @@ private final class LabBoardAudio: @unchecked Sendable {
                 streamPlayer?.pan=min(0.22,max(-0.22,pan));streamPlayer?.rate=rate
                 splashPlayer?.pan=min(0.28,max(-0.28,pan));splashPlayer?.rate=rate
                 if startEvent {
-                    startPlayer?.pan=min(0.20,max(-0.20,pan));startPlayer?.volume=0.18*strength
+                    startPlayer?.pan=min(0.20,max(-0.20,pan));startPlayer?.volume=0.13*strength
                     startPlayer?.currentTime=0
                     startPlayer?.play()
                 }
                 if streamPlayer?.isPlaying != true {
                     streamPlayer?.currentTime=0;streamPlayer?.volume=0;streamPlayer?.play()
                 }
-                streamPlayer?.setVolume(0.27*strength,fadeDuration:startEvent ? 0.16:0.08)
+                streamPlayer?.setVolume(0.25*strength,fadeDuration:startEvent ? 0.16:0.08)
                 if startEvent {
                     splashPlayer?.setVolume(0,fadeDuration:0)
                     queue.asyncAfter(deadline:.now()+0.14) { [weak self] in
@@ -61,15 +80,15 @@ private final class LabBoardAudio: @unchecked Sendable {
                         if self.splashPlayer?.isPlaying != true {
                             self.splashPlayer?.currentTime=0;self.splashPlayer?.play()
                         }
-                        self.splashPlayer?.setVolume(0.13*strength,fadeDuration:0.22)
+                        self.splashPlayer?.setVolume(0.11*strength,fadeDuration:0.22)
                     }
                 } else if splashPlayer?.isPlaying == true {
-                    splashPlayer?.setVolume(0.13*strength,fadeDuration:0.08)
+                    splashPlayer?.setVolume(0.11*strength,fadeDuration:0.08)
                 }
             } else {
                 streamPlayer?.setVolume(0,fadeDuration:0.14);splashPlayer?.setVolume(0,fadeDuration:0.18)
                 if playTail {
-                    tailPlayer?.pan=min(0.20,max(-0.20,pan));tailPlayer?.volume=0.13;tailPlayer?.currentTime=0;tailPlayer?.play()
+                    tailPlayer?.pan=min(0.20,max(-0.20,pan));tailPlayer?.volume=0.09;tailPlayer?.currentTime=0;tailPlayer?.play()
                 }
                 queue.asyncAfter(deadline:.now()+0.20) { [weak self] in
                     guard let self,self.pourGeneration==generation else {return}
@@ -102,7 +121,8 @@ private final class LabBoardAudio: @unchecked Sendable {
     }
 }
 
-/// Optional local feedback; a quiet procedural water loop follows the visible stream.
+/// Optional local feedback; recorded CC0 water layers follow the visible stream,
+/// with procedural fallbacks so previews and development tools remain self-contained.
 @MainActor final class LabBoardFeedback {
     var soundEnabled=false {
         didSet {
