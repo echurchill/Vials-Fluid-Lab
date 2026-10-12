@@ -14,4 +14,4 @@ The four water recordings in this directory are derived from **40 CC0 water / sp
 | `pour-start-cc0.wav` | `splash_09.ogg` | Pour-start transient |
 | `pour-tail-cc0.wav` | `splash_02.ogg` | Pour-ending splash/tail |
 
-The recordings were decoded to mono 48 kHz PCM WAV, level-balanced for the in-game layered mixer, and given short boundary fades. Loop assets also received a short end bridge so they repeat without a click. No attribution is required by CC0; this manifest is retained for provenance.
+The recordings were decoded to mono 48 kHz PCM WAV, level-balanced for the in-game layered mixer, and given short boundary fades. Loop assets also received a short end bridge so they repeat without a click. To avoid an electronic hiss on small device speakers, the stream loop is gently low-pass filtered at 3.2 kHz and the quieter receiving-water loop at 1.8 kHz. No attribution is required by CC0; this manifest is retained for provenance.

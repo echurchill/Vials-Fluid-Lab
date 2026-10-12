@@ -80,10 +80,10 @@ private final class LabBoardAudio: @unchecked Sendable {
                         if self.splashPlayer?.isPlaying != true {
                             self.splashPlayer?.currentTime=0;self.splashPlayer?.play()
                         }
-                        self.splashPlayer?.setVolume(0.11*strength,fadeDuration:0.22)
+                        self.splashPlayer?.setVolume(0.055*strength,fadeDuration:0.22)
                     }
                 } else if splashPlayer?.isPlaying == true {
-                    splashPlayer?.setVolume(0.11*strength,fadeDuration:0.08)
+                    splashPlayer?.setVolume(0.055*strength,fadeDuration:0.08)
                 }
             } else {
                 streamPlayer?.setVolume(0,fadeDuration:0.14);splashPlayer?.setVolume(0,fadeDuration:0.18)
